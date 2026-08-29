@@ -77,13 +77,17 @@
   (h/with-repl
     (fn [repl _]
       (testing "eval error"
-        (let [events (h/execute repl "bad" "(no-such-fn 1)")]
-          (is (some? (h/one events "error")))
+        (let [events (h/execute repl "bad" "(no-such-fn 1)")
+              err (h/one events "error")]
+          (is (some? err))
+          (is (h/error-shape? err))
           (is (= 1 (h/done-count events)))
           (is (= "error" (get (h/one events "done") "status")))))
       (testing "reader error"
-        (let [events (h/execute repl "syn" "(+ 1")]
-          (is (some? (h/one events "error")))
+        (let [events (h/execute repl "syn" "(+ 1")
+              err (h/one events "error")]
+          (is (some? err))
+          (is (h/error-shape? err))
           (is (= 1 (h/done-count events)))
           (is (= "error" (get (h/one events "done") "status")))))
       (let [events (h/execute repl "ok" "(+ 40 2)")]
@@ -101,6 +105,40 @@
         (is (= 1 (h/done-count b)))
         (is (= "b" (get (h/one b "done") "id")))
         (is (nil? (some #(= "a" (get % "id")) (filter #(= "done" (get % "event")) b))))))))
+
+(deftest protocol-error-non-object-json
+  (h/with-repl
+    (fn [repl _]
+      (h/send-raw! repl "[1,2]")
+      (let [e (h/read-event repl)]
+        (is (= "error" (get e "event")))
+        (is (= "ProtocolError" (get e "ename")))
+        (is (nil? (get e "id")))
+        (is (h/error-shape? e)))
+      (let [events (h/execute repl "ok" "(+ 1 1)")]
+        (is (= "2" (get (h/one events "result") "text")))))))
+
+(deftest protocol-error-missing-execute-fields
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" "execute"})
+      (let [e (h/read-event repl)]
+        (is (= "ProtocolError" (get e "ename")))
+        (is (nil? (get e "id")))
+        (is (h/error-shape? e)))
+      (let [events (h/execute repl "ok" "(+ 2 2)")]
+        (is (= "4" (get (h/one events "result") "text")))))))
+
+(deftest protocol-error-unknown-type
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" "snapshot" "id" "s"})
+      (let [e (h/read-event repl)]
+        (is (= "ProtocolError" (get e "ename")))
+        (is (nil? (get e "id")))
+        (is (h/error-shape? e)))
+      (let [events (h/execute repl "ok" "(+ 3 3)")]
+        (is (= "6" (get (h/one events "result") "text")))))))
 
 (deftest duplicate-inflight-id-rejected
   (h/with-repl

@@ -95,3 +95,43 @@
       (is (zero? (.exitValue ^Process (:proc repl))))
       (finally
         (h/close! repl)))))
+
+(deftest rlm-rejects-non-string-prompt
+  (h/with-repl
+    (fn [repl _]
+      (let [events (h/execute repl "bad" "(rlm 42)")
+            err (h/one events "error")]
+        (is (h/error-shape? err))
+        (is (re-find #"prompt must be str" (str (get err "evalue"))))
+        (is (= "error" (get (h/one events "done") "status")))
+        (is (= 1 (h/done-count events))))
+      (let [events (h/execute repl "ok" "(+ 1 1)")]
+        (is (= "2" (get (h/one events "result") "text")))))))
+
+(deftest rlm-host-error-status
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" "execute" "id" "re" "code" "(rlm \"x\")"})
+      (let [req (h/wait-event repl "host_request")]
+        (h/send! repl {"type" "host_reply" "id" (get req "id")
+                       "data" {"status" "error" "error" "nope"}})
+        (let [events (h/until-done repl "re")
+              err (h/one events "error")]
+          (is (h/error-shape? err))
+          (is (re-find #"nope" (str (get err "evalue"))))
+          (is (= "error" (get (h/one events "done") "status")))
+          (is (= 1 (h/done-count events))))))))
+
+(deftest rlm-unexpected-status
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" "execute" "id" "rw" "code" "(rlm \"x\")"})
+      (let [req (h/wait-event repl "host_request")]
+        (h/send! repl {"type" "host_reply" "id" (get req "id")
+                       "data" {"status" "weird"}})
+        (let [events (h/until-done repl "rw")
+              err (h/one events "error")]
+          (is (h/error-shape? err))
+          (is (re-find #"unexpected status" (str (get err "evalue"))))
+          (is (= "error" (get (h/one events "done") "status")))
+          (is (= 1 (h/done-count events))))))))

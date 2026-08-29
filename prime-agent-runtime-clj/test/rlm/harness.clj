@@ -86,6 +86,13 @@
   [events]
   (count (filter #(= "done" (get % "event")) events)))
 
+(defn error-shape?
+  "Keys exist with oracle types. Do not pin ename/evalue values — OPEN."
+  [e]
+  (and (string? (get e "ename"))
+       (string? (get e "evalue"))
+       (vector? (get e "traceback"))))
+
 (defn stream-text
   [events stream]
   (apply str (keep #(when (= stream (get % "event")) (get % "text")) events)))
