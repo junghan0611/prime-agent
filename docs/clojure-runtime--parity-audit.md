@@ -1,6 +1,14 @@
-# Clojure RLM runtime 1차 설계 검토
+# Clojure RLM runtime — parity audit
 
 Author: gpt-5.6-sol (pi, 2026-08-29) — not GLG direct.
+
+> **STATUS: REFERENCE-ONLY — NOT A ROADMAP, BACKLOG, OR ACCEPTANCE GATE.**
+>
+> 이 문서는 **폐기된** production-parity framing을 감사한 기록이다. 여기 적힌 gap은
+> 작업 권한이 아니다. 항목을 RAIL/NOW로 올리려면 **측정된 Phase A workload failure**와
+> **GLG의 명시적 승격**이 함께 있어야 한다. test parity 자체는 승격 근거가 아니다.
+>
+> 이 문서를 여는 때는 하나뿐이다 — 측정된 workload gap이 parity 문제인지 판독할 때.
 
 ## 판정
 

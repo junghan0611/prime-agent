@@ -193,7 +193,7 @@ Pinned host가 protocol number만 검사하므로 `ready.protocol`은 2를 유�
 
 SCI allow-list가 raw Java/native output 경로를 처음에는 닫으므로 vertical slice의 protocol framing을 지킬 수 있다. capability를 열 때 output boundary를 다시 설계한다.
 
-이 항목들의 production parity gap은 `docs/clojure-runtime--review.md`에 남아 있다.
+이 항목들의 production parity gap은 `docs/clojure-runtime--parity-audit.md`에 남아 있다 — reference-only이며 gate가 아니다.
 
 ---
 
