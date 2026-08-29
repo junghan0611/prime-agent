@@ -43,3 +43,14 @@ collect.sh
 
 __pycache__/
 *.pyc
+
+# Nix / direnv dev env (flake.nix, .envrc)
+.direnv/
+result
+result-*
+
+# Clojure runtime (prime-agent-runtime-clj/, Phase A)
+.cpcache/
+.clj-kondo/.cache/
+.lsp/.cache/
+prime-agent-runtime-clj/target/
