@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Type Clojure forms. JSONL stays behind the driver. SUT is the native binary."""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+BIN = Path(os.environ.get("RLM_REPL_BIN") or (ROOT / "target" / "rlm-repl"))
+
+
+def die(msg: str, code: int = 2) -> None:
+    print(msg, file=sys.stderr)
+    raise SystemExit(code)
+
+
+def read_line(prompt: str) -> str:
+    """Prompt. When stdin is not a TTY, echo the typed line so session logs are readable."""
+    if sys.stdin.isatty():
+        return input(prompt).strip()
+    line = input().strip()
+    print(f"{prompt}{line}")
+    return line
+
+
+def send(proc: subprocess.Popen, obj: dict) -> None:
+    assert proc.stdin is not None
+    proc.stdin.write(json.dumps(obj) + "\n")
+    proc.stdin.flush()
+
+
+def read(proc: subprocess.Popen) -> dict:
+    assert proc.stdout is not None
+    line = proc.stdout.readline()
+    if not line:
+        die("runtime closed stdout")
+    return json.loads(line)
+
+
+def run_cell(proc: subprocess.Popen, rid: str, code: str) -> None:
+    send(proc, {"type": "execute", "id": rid, "code": code})
+    while True:
+        event = read(proc)
+        kind = event.get("event")
+        if kind in ("stdout", "stderr"):
+            text = event.get("text") or ""
+            stream = sys.stderr if kind == "stderr" else sys.stdout
+            stream.write(text)
+            stream.flush()
+        elif kind == "result":
+            print(event.get("text") or "")
+        elif kind == "error":
+            print(f"{event.get('ename')}: {event.get('evalue')}", file=sys.stderr)
+        elif kind == "host_request":
+            print(f"host_request id={event.get('id')} data={json.dumps(event.get('data'))}")
+            try:
+                reply = read_line("host_reply> ")
+            except EOFError:
+                die("host_request pending; no reply")
+            try:
+                data = json.loads(reply)
+            except json.JSONDecodeError as exc:
+                die(f"host_reply must be JSON object: {exc}")
+            if not isinstance(data, dict):
+                die("host_reply must be a JSON object")
+            send(proc, {"type": "host_reply", "id": event["id"], "data": data})
+        elif kind == "done" and event.get("id") == rid:
+            return
+
+
+def main() -> int:
+    if not BIN.is_file():
+        die(f"native SUT missing: {BIN}\nrun native-image/build.sh first")
+    proc = subprocess.Popen(
+        [str(BIN)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        ready = read(proc)
+        if ready.get("event") != "ready":
+            die(f"bad ready: {ready}")
+        print(f"rlm {BIN}  protocol {ready.get('protocol')}  (Ctrl-D / :quit to exit)")
+        n = 0
+        while True:
+            try:
+                line = read_line("> ")
+            except EOFError:
+                print()
+                break
+            if not line:
+                continue
+            if line in {":quit", ":exit"}:
+                break
+            n += 1
+            run_cell(proc, f"c{n}", line)
+        send(proc, {"type": "shutdown", "id": "s"})
+        while True:
+            event = read(proc)
+            if event.get("event") == "done" and event.get("id") == "s":
+                break
+        return proc.wait(timeout=10)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=10)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
