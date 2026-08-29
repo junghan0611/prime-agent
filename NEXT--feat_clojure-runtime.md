@@ -7,20 +7,26 @@
 - [x] **1. 연구 질문과 경계 복원** — Entwurf #88 원문, Prime Agent 실측, parity review를 대조했다.
 - [x] **2. Phase A 설계 다시 쓰기** — GraalVM native-image + SCI vertical slice로 `docs/clojure-runtime.md`를 재구성했다.
 - [x] **3. Lisp runtime vertical slice** — native process가 persistent form과 `(rlm ...)` host bridge를 관통한다. 16 tests / 76 assertions, JVM·native 양쪽 green.
-- [ ] **3b. 실행 경로 분리와 workspace 촉감** ← CURRENT: native를 기본 SUT로 승격하고, GLG가 form을 직접 칠 자리를 연다.
+- [x] **3b. 실행 경로 분리와 workspace 촉감** — native가 정본 SUT가 됐고 `bin/rlm`으로 form을 직접 친다. CI가 native gate를 잡는다.
+- [ ] **4. Prime Agent 실제 접속** ← CURRENT: TypeScript host가 native runtime을 띄우고 실제 RLM workload를 통과시킨다.
+- [ ] **5. 공존언어 probe와 갈림길** — Emmy/SICM 계보를 작은 adapter로 열고 계속 확장할 축을 GLG가 고른다.
 
-현재 좌표: 1–3 완료 → 3b 진행 → 4–5 대기
+현재 좌표: 1–3b 완료 → 4 진행 → 5 대기
 
-# NOW — 실행 경로 분리와 workspace 촉감
+# NOW — Prime Agent 실제 접속
 
-- Stem: native executable이 이미 관통했다. 이제 **JVM 경로와 native 경로가 섞이지 않게** 못을 박고, GLG가 실제 form을 쳐볼 자리를 연다.
-- Problem: `test/rlm/harness.clj:10-14` 가 `RLM_REPL_BIN` 없으면 `clojure -M -m rlm.repl` 로 떨어진다. 즉 맨손 `clojure -M:test` 의 green은 **JVM 위 런타임**을 검증한 것이고, native는 env를 붙였을 때만 검증된다. 이 애매함이 나중에 "green인데 native가 깨져 있다"를 만든다.
-- Next: SUT 경로를 이름으로 갈라 native를 정본으로 세우고, native binary에 직접 form을 치는 driver를 연다.
-- Include: `:test-native`/`:test-jvm` alias 분리, 러너가 어떤 SUT를 물었는지 출력, native binary 부재·stale 시 실패, `bin/rlm` 대화 driver.
-- Defer: TypeScript host, Python source, snapshot/restore, raw fd parity, interrupt 취소 보장, bash, MCP, Emmy.
-- Preserve: `docs/clojure-runtime--review.md` 는 production parity gap audit. Phase A 착수 gate로 쓰지 않는다.
-- Verify: `RLM_REPL_BIN` 없이 `:test-native` 를 치면 **실패**해야 한다(조용한 JVM fallback 금지). binary를 지우거나 소스보다 오래되면 실패해야 한다. `bin/rlm` 로 두 form을 쳐서 binding이 살아 있음을 눈으로 본다.
-- Blocker: 없음.
+- Stem: runtime이 native로 서고 CI가 그것을 지킨다. 이제 host가 이 프로세스를 실제로 띄워 모델이 그 안에서 form을 만들게 한다.
+- Next: TypeScript host에 runtime 선택면을 연다 — native executable spawn, runtime별 bootstrap/prompt, snapshot 비활성 구성, Python oracle과 번갈아 띄울 스위치.
+- Include: host diff 최소 범위, 실제 workload 4개, 실패의 3분류 기록.
+- Defer: snapshot/restore, raw fd parity, interrupt 취소 보장, Emmy, 92 tests, `ipython` 개명.
+- Verify: 모델이 Prime Agent 세션 안에서 persistent Clojure form으로 작업을 조직하고, 그 흔적이 남는다.
+- Blocker: 아래 `## 열기 전에 정할 것` 두 건. 파일 IO 없이는 workload 2번(문서를 값으로 붙잡기)이 성립하지 않는다.
+
+## 열기 전에 정할 것 — RAIL 4 안건
+
+1. **파일 IO를 어떻게 여는가.** 지금 SCI에 `slurp`/`spit`이 없어 acceptance 2번(문서를 값으로 붙잡아 필요한 부분만 계산)을 만족할 수단이 없다. 그런데 `docs/clojure-runtime.md`의 framing 보증이 "Java/native 출력 경로가 닫혀 있음"에 기대고 있다. 함수 추가가 아니라 **출력 경계 재설계**다. 표류로 열지 말고 결정으로 연다.
+2. **여는 방식은 install/retract 쌍으로.** 새 코드를 로딩하는 게 아니라 이미 컴파일된 Var를 SCI 네임스페이스에 열고 닫는 모양. native-image의 닫힌 세계 안에서 가능하고, 열린 능력을 되돌릴 수 있게 한다.
+3. **verifier 격리.** IO를 여는 순간 "workspace 코드가 자기 테스트를 고칠 수 있는가"가 살아있는 질문이 된다. 지금은 IO가 없어 공짜로 만족된다. 열 때 짝으로 정한다.
 
 ## 관통 완료 — 측정 (2026-08-29)
 
@@ -32,6 +38,23 @@
 - `nix develop .#node --command npm run check` → exit 0 (938 files, installer, browser-smoke).
 - `git status --porcelain` → `?? prime-agent-runtime-clj/` 한 줄. 공유파일·docs·Python oracle 무손상.
 - LOC: src 287 + test ~300 + native-image 124. 계약 경보기(구현 480–1,050) 안쪽.
+
+## 측정된 발견 — 두 rail의 capability 경계가 다르다
+
+같은 소스인데 SUT에 따라 Java interop 경계가 갈린다 (2026-08-29 실측, 두 rail에 같은 form을 보냄):
+
+| form | native | JVM |
+|---|---|---|
+| `(.toUpperCase "ab")` | error | **ok → "AB"** |
+| `(.length "abc")` | error | **ok → 3** |
+| `(.getBytes "a")` | error | **ok → byte[]** |
+| `(slurp "deps.edn")` | error | error |
+| `(System/getProperty …)` | error | error |
+| `(future 1)` | error | error |
+
+즉 `docs/clojure-runtime.md`의 "Java 경로가 닫혀 있다"는 **native delivery에서만 참이다.** 그리고 `native-image/`에 reflect-config가 없다 — 인스턴스 interop이 닫힌 것은 명시적 allow-list 결정이 아니라 **reflection metadata 부재의 결과**로 보인다(이 인과는 추정, 경계 차이 자체는 실측). 나중에 라이브러리 때문에 reflect-config를 추가하면 경계가 조용히 열린다.
+
+테스트는 native에서만 interop-closed를 고정하고 JVM의 열림을 성공으로 못 박지 않는다 — 나중에 닫아도 테스트가 막지 않게.
 
 ## 알려진 편차 — parity라고 부르지 않는다
 
@@ -81,3 +104,6 @@ Protocol reference: `prime-agent-runtime/src/rlm/repl.md`. Phase A가 가져갈 
 - [2026-08-29] 기존 GLG Clojure/GraalVM flake 계보를 따라 devShell 3개와 FHS native-image build surface를 세우고 `nix flake check`를 통과했다.
 - [2026-08-29] `prime-agent-runtime-clj/` vertical slice가 native executable로 관통했다. 실행 시 JVM 없음을 `ldd`와 process table로 확인했다.
 - [2026-08-29] 기본 테스트 경로가 조용히 JVM 런타임으로 떨어진다는 것을 발견했다. native를 정본 SUT로 승격하는 일이 3b가 됐다.
+- [2026-08-29] push + CI 첫 실행이 green. native job이 `ldd`로 libjvm 부재를 확인하고 native 바이너리로 wire suite를 돌린다.
+- [2026-08-29] 회귀를 16/76 → 32/158로 늘렸다. 셀을 가로지르는 fn·macro·atom·closure, capability 경계, 프레임 위조 방어, 유니코드 왕복, `rlm` 오류 3분기, protocol error 3종을 고정했다.
+- [2026-08-29] 두 rail의 Java interop 경계가 다르다는 것을 측정했다. framing 보증은 native delivery에서만 참이다.
