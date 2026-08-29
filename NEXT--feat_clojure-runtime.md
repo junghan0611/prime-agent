@@ -6,24 +6,38 @@
 
 - [x] **1. 연구 질문과 경계 복원** — Entwurf #88 원문, Prime Agent 실측, parity review를 대조했다.
 - [x] **2. Phase A 설계 다시 쓰기** — GraalVM native-image + SCI vertical slice로 `docs/clojure-runtime.md`를 재구성했다.
-- [ ] **3. Lisp runtime vertical slice** ← CURRENT: native process가 persistent form과 `(rlm ...)` host bridge를 관통하게 만든다.
-- [ ] **4. Prime Agent 실제 접속** — TypeScript host가 Lisp runtime을 띄우고 실제 RLM workload를 통과시킨다.
-- [ ] **5. 공존언어 probe와 갈림길** — Emmy/SICM 계보를 작은 adapter로 열고 계속 확장할 축을 GLG가 고른다.
+- [x] **3. Lisp runtime vertical slice** — native process가 persistent form과 `(rlm ...)` host bridge를 관통한다. 16 tests / 76 assertions, JVM·native 양쪽 green.
+- [ ] **3b. 실행 경로 분리와 workspace 촉감** ← CURRENT: native를 기본 SUT로 승격하고, GLG가 form을 직접 칠 자리를 연다.
 
-현재 좌표: 1–2 완료 → 3 진행 → 4–5 대기
+현재 좌표: 1–3 완료 → 3b 진행 → 4–5 대기
 
-# NOW — Lisp runtime vertical slice
+# NOW — 실행 경로 분리와 workspace 촉감
 
-- Stem: Lisp가 더 낫다고 선결하지 않고, 동작하는 Lisp workspace를 먼저 Prime Agent 안에 심어 실제 form과 실패를 관측한다.
-- Next: `prime-agent-runtime-clj/` scaffold를 만들고 `ready → execute → persistent result → host_request/reply → done → shutdown` 한 줄을 관통한다.
-- Include: Clojure source, SCI context, JSONL driver, native-image build surface, 해당 wire tests.
-- Defer: snapshot/restore, raw fd capture, pure-loop interrupt parity, bash, Emmy adapter, host prompt 개명.
-- Preserve: `docs/clojure-runtime--review.md`는 production parity gap audit로 남기되 Phase A 착수 gate로 사용하지 않는다.
-- Verify: native process에 두 cell을 보내 첫 binding이 둘째 cell에서 계산되고, mock host reply를 받은 `(rlm ...)`이 answer가 아닌 handle을 result로 돌려준다.
+- Stem: native executable이 이미 관통했다. 이제 **JVM 경로와 native 경로가 섞이지 않게** 못을 박고, GLG가 실제 form을 쳐볼 자리를 연다.
+- Problem: `test/rlm/harness.clj:10-14` 가 `RLM_REPL_BIN` 없으면 `clojure -M -m rlm.repl` 로 떨어진다. 즉 맨손 `clojure -M:test` 의 green은 **JVM 위 런타임**을 검증한 것이고, native는 env를 붙였을 때만 검증된다. 이 애매함이 나중에 "green인데 native가 깨져 있다"를 만든다.
+- Next: SUT 경로를 이름으로 갈라 native를 정본으로 세우고, native binary에 직접 form을 치는 driver를 연다.
+- Include: `:test-native`/`:test-jvm` alias 분리, 러너가 어떤 SUT를 물었는지 출력, native binary 부재·stale 시 실패, `bin/rlm` 대화 driver.
+- Defer: TypeScript host, Python source, snapshot/restore, raw fd parity, interrupt 취소 보장, bash, MCP, Emmy.
+- Preserve: `docs/clojure-runtime--review.md` 는 production parity gap audit. Phase A 착수 gate로 쓰지 않는다.
+- Verify: `RLM_REPL_BIN` 없이 `:test-native` 를 치면 **실패**해야 한다(조용한 JVM fallback 금지). binary를 지우거나 소스보다 오래되면 실패해야 한다. `bin/rlm` 로 두 form을 쳐서 binding이 살아 있음을 눈으로 본다.
 - Blocker: 없음.
-- Environment: `flake.nix` devShell과 FHS native-image build surface 검증 완료. `docs/clojure-runtime--devenv.md` 참조.
-- Read: 아래 `READ FIRST` 문서와 `docs/clojure-runtime.md`의 `첫 vertical slice`, `docs/clojure-runtime--devenv.md`.
-- Do not touch: Python oracle source, `~/repos/3rd/pi/prime-agent`, TypeScript host, main merge, commit/push, full 92-test parity.
+
+## 관통 완료 — 측정 (2026-08-29)
+
+- `ldd target/rlm-repl` → glibc 뿐. `libjvm.so` 없음. process table 단일 `rlm-repl`, java 없음.
+- `file target/rlm-repl` → ELF 64-bit LSB pie executable, x86-64, stripped, 34.2 MB.
+- native SUT: `RLM_REPL_BIN=$PWD/target/rlm-repl clojure -M:test` → 16 tests / 76 assertions, 0 failures.
+- 부정 대조: `RLM_REPL_BIN=/nonexistent` → 14 errors. 스위치가 실제로 SUT를 바꾼다.
+- JVM SUT: `clojure -M:test` → 같은 16/76 green.
+- `nix develop .#node --command npm run check` → exit 0 (938 files, installer, browser-smoke).
+- `git status --porcelain` → `?? prime-agent-runtime-clj/` 한 줄. 공유파일·docs·Python oracle 무손상.
+- LOC: src 287 + test ~300 + native-image 124. 계약 경보기(구현 480–1,050) 안쪽.
+
+## 알려진 편차 — parity라고 부르지 않는다
+
+- output이 cell 끝에 batch flush된다. oracle은 writing thread에서 동기적으로 흘린다 (`src/rlm/eval.clj:23`).
+- `error.ename` 이 SCI wrapper class이고 traceback에 runtime frame이 실린다 (`src/rlm/repl.clj:45`).
+- interrupt 는 파싱만 하고 취소를 보장하지 않는다.
 
 # SCALE — 날짜 대신 코드량과 개입 홉
 
@@ -65,3 +79,5 @@ Protocol reference: `prime-agent-runtime/src/rlm/repl.md`. Phase A가 가져갈 
 - [2026-08-29] 일정 표현을 날짜에서 코드량과 GLG 개입 홉으로 바꿨다.
 - [2026-08-29] `docs/clojure-runtime.md`를 production replacement 설계에서 Phase A 실험 명세로 전면 재작성했다.
 - [2026-08-29] 기존 GLG Clojure/GraalVM flake 계보를 따라 devShell 3개와 FHS native-image build surface를 세우고 `nix flake check`를 통과했다.
+- [2026-08-29] `prime-agent-runtime-clj/` vertical slice가 native executable로 관통했다. 실행 시 JVM 없음을 `ldd`와 process table로 확인했다.
+- [2026-08-29] 기본 테스트 경로가 조용히 JVM 런타임으로 떨어진다는 것을 발견했다. native를 정본 SUT로 승격하는 일이 3b가 됐다.
