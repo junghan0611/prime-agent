@@ -94,14 +94,13 @@
             '';
           };
 
-          # Clojure 만 — native-image 가 필요 없는 가벼운 개발/테스트 자리.
-          # graalvm 대신 jdk21_headless (빌드타임 JVM 만).
+          # Clojure 편집 셸. native-image 없음. runtime SUT 가 아니다 — 테스트는 default shell.
           jvm = pkgs.mkShell {
-            name = "prime-agent-clj-jvm";
+            name = "prime-agent-clj-edit";
             buildInputs = (with pkgs; [ clojure jdk21_headless babashka clj-kondo cljfmt ]) ++ commonTools;
             shellHook = ''
-              echo "prime-agent dev shell — Clojure only (JVM, native-image 없음)"
-              echo "  clj -M:test  /  clj -M:repl"
+              echo "prime-agent dev shell — Clojure edit (no native-image, not the runtime SUT)"
+              echo "  tests: nix develop , then ./native-image/build.sh && clojure -M:test"
             '';
           };
 

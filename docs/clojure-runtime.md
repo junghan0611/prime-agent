@@ -1,46 +1,43 @@
-# Prime Agent Lisp runtime — Phase A 설계
+# Prime Agent Lisp runtime — Phase A
 
-Author: gpt-5.6-sol (pi, 2026-08-29) — not GLG direct.
+Author: grok-4.6 (pi, 2026-08-30) — not GLG direct.
+Yesterday's three docs (sol design, opus devenv, sol parity-audit) collapsed here.
+Work coordinate is `NEXT--feat_clojure-runtime.md`. This file is the contract.
 
 Fork `junghan0611/prime-agent` · branch `feat/clojure-runtime`.
 
-이 문서는 production 교체 명세가 아니다. Prime Agent의 persistent programmable workspace를 Lisp으로 먼저 바꾸고, 실제 모델과 GLG가 그 안에서 만드는 form을 다음 설계의 입력으로 삼는 Phase A 실험 명세다.
+Production 교체 명세가 아니다. persistent programmable workspace를 Lisp으로 먼저 바꾸고, 모델과 GLG가 그 안에서 만드는 form을 다음 설계의 입력으로 삼는 실험이다.
 
 ---
 
-## Pin과 출처
+## Pin
 
 | 항목 | 값 |
 |---|---|
-| branch HEAD | `bc0fa7606` |
-| host protocol | JSONL protocol v2 |
-| Python oracle | `prime-agent-runtime/src/rlm/repl.py` |
-| protocol reference | `prime-agent-runtime/src/rlm/repl.md` |
-| 연구 원문 | Entwurf #88 임시 합본 |
-| branch boot sector | `NEXT--feat_clojure-runtime.md` |
+| fork pin | `bc0fa7606` — protocol v2 oracle. main의 v3 / `#1839` / `#1836` / `#1838`은 통합 전에 다시 고른다 |
+| host protocol | JSONL protocol v2 names. 완전 호환이라고 부르지 않는다 |
+| Python oracle | `prime-agent-runtime/src/rlm/repl.py` + `repl.md` |
+| delivery artifact | `prime-agent-runtime-clj/target/rlm-repl` |
+| how to build/run | `prime-agent-runtime-clj/README.md`. env는 `flake.nix` |
 
-연구 원문:
+Python runtime은 oracle로 남긴다. 삭제하지 않는다. 관측 카피 `~/repos/3rd/pi/prime-agent`는 작업면이 아니다.
 
-```text
-/home/junghan/sync/org/llmlog/
-20260827T222209--prime-agent-rlm을-lisp-emacs-공존언어로-옮기기-entwurf-88-원문과-선행조사-임시-합본__agent_emacs_entwurf_lisp_llmlog_metaprogramming_primeagent_repl_research.org
-```
+두 실행면을 섞지 않는다.
 
-`bc0fa7606`은 protocol v2의 작은 실험면으로만 쓴다. main의 protocol v3, `#1839` frame repair, `#1836` host-reply envelope, `#1838` bash sentinel은 production 통합 전에 다시 고른다. Phase A의 첫 vertical slice에 섞지 않는다.
-
-관측 카피 `~/repos/3rd/pi/prime-agent`는 건드리지 않는다. Python runtime은 oracle로 남긴다.
+| 면 | 무엇 |
+|---|---|
+| TypeScript host + CPython | 지금 손으로 쳐보는 기존 `prime` |
+| `bin/rlm` / `target/rlm-repl` | native + SCI. 호스트 없음. RAIL 4 전 |
 
 ---
 
-## Phase A가 묻는 것
+## 질문
 
-Prime Agent에서 Python은 단순 계산 tool이 아니다. persistent workspace 안에서 context를 값으로 붙잡고, 함수를 만들고, shell과 file을 조합하고, `rlm()`으로 citizen 내부 child를 여는 orchestration language다.
+Prime Agent에서 Python은 계산 tool이 아니다. workspace 안에서 context를 값으로 붙잡고, 함수를 만들고, `rlm()`으로 citizen 내부 child를 여는 orchestration language다.
 
-Phase A의 질문은 하나다.
+> 이 workspace를 Lisp으로 바꿨을 때 모델과 GLG가 어떤 form을 만들며, Python 번역을 넘어선 다음 길이 보이는가?
 
-> 이 workspace를 Lisp으로 실제 교체했을 때 모델과 GLG가 어떤 form을 만들며, Python 번역을 넘어선 공존언어의 다음 길이 보이는가?
-
-성능 우월성, 범용 agent language, Entwurf core 통합을 증명하지 않는다.
+성능, 범용 agent language, Entwurf core 통합을 증명하지 않는다.
 
 ```text
 Entwurf = citizen 사이 address / delivery / receipt
@@ -49,13 +46,11 @@ Lisp    = 그 workspace에서 살아 움직이는 form의 언어
 Emacs   = 이후 인간과 agent가 그 form을 함께 보는 작업면
 ```
 
-Phase A는 REPL 언어축만 먼저 연다. steering form과 Emacs 공존면을 미리 하나로 합치지 않는다.
+지금은 REPL 언어축만 연다. steering과 Emacs 공존면을 미리 합치지 않는다.
 
 ---
 
-## 결정 — Clojure source, GraalVM native runtime, SCI evaluator
-
-Runtime process는 JVM 위에서 돌리지 않는다.
+## 결정 — Clojure source, GraalVM native, SCI
 
 ```text
 Clojure source
@@ -64,333 +59,174 @@ Clojure source
       └─ SCI가 model-generated Clojure form을 평가
 ```
 
-- Runtime 자체는 Clojure로 작성하고 AOT/native-image로 묶는다.
-- 실행 시 JVM을 띄우지 않는다.
-- `clojure.core/eval`을 native-image의 열린 runtime evaluator로 쓰지 않는다.
-- model-generated form은 persistent SCI context에서 평가한다.
-- Babashka는 이 조합의 선행 구현이자 API/패키징 참고선이다.
+- 실행 시 JVM을 띄우지 않는다. JVM이 가운데 있으면 이 브랜치의 도구가 아니다.
+- `clojure.core/eval`을 native-image의 열린 evaluator로 쓰지 않는다.
+- Babashka는 선행 구현이자 API/패키징 참고선이다.
+- SCI subset이 최종 언어라는 결정은 아니다. 범위가 부족하면 `semantics-gap`으로 남기고 evaluator를 다시 고른다.
 
-SCI subset이 최종 언어라는 결정은 아니다. 실제 workload에서 범위가 부족하면 그 사실을 `semantics-gap`으로 남기고 evaluator 또는 Lisp 계열을 다시 고른다.
-
-### 왜 이 조합인가
-
-1. Clojure form과 immutable data가 같은 표현 세계에 있다.
-2. GraalVM native process는 GLG의 기존 운영 경험과 맞는다.
-3. SCI는 native-image 안에서 persistent dynamic evaluation을 제공한다.
-4. capability를 namespace/Var 노출면으로 제한할 수 있다.
-5. 이후 Emmy/SICMUtils 계보를 AOT 포함하고 선택한 Var를 SCI에 열 수 있다.
+테스트 SUT는 native만. `:test` / `:test-native`가 `target/rlm-repl`을 띄운다. 테스트 러너 프로세스의 Clojure CLI는 하니스이지 runtime이 아니다. 빌드타임 JDK(native-image·AOT·clj-kondo)도 마찬가지다.
 
 ---
 
-## 디렉터리
-
-Python oracle과 병렬로 둔다.
+## 있는 것
 
 ```text
 prime-agent-runtime-clj/
   deps.edn
-  src/rlm/repl.clj          ; JSONL reader, queue, event writer, lifecycle
-  src/rlm/eval.clj          ; persistent SCI context, result/error/output
-  src/rlm/core.clj          ; host-request, rlm callable, public bindings
-  src/rlm/process.clj       ; bash/process capability — 첫 slice 뒤
-  src/rlm/emmy.clj          ; Emmy adapter — Hop 3에서만
-  test/rlm/repl_test.clj
-  test/rlm/host_bridge_test.clj
-  native-image/             ; reflection/resource/build metadata
+  bin/rlm                     ; Hop 1 손잡이. JSONL을 가리고 form을 친다
+  native-image/build.sh
+  src/rlm/repl.clj            ; JSONL reader, queue, event writer, lifecycle
+  src/rlm/eval.clj            ; persistent SCI context
+  src/rlm/core.clj            ; host-request, rlm
+  test/rlm/*.clj
 ```
 
-한 폴더에 Python과 Clojure source를 섞지 않는다. Python 삭제는 Phase A 범위 밖이다.
+`process.clj` / `emmy.clj`는 없다. 첫 slice 뒤·Hop 3에서만 생긴다.
+한 폴더에 Python과 Clojure를 섞지 않는다.
 
 ---
 
-## 첫 vertical slice
+## Protocol slice — 구현된 것
 
-### 프로세스 구조
+첫 slice는 vocabulary를 host adapter로 재사용한다. protocol v2 완전 구현이 아니다.
 
-```text
-stdin reader
-  ├─ host_reply ─────────────→ pending host promise resolve
-  ├─ interrupt ──────────────→ active evaluation cancel request
-  └─ ordered requests ───────→ one-at-a-time request queue
-                                  │
-                                  ▼
-                           persistent SCI context
-                                  │
-                                  ▼
-protocol event writer ─────────→ stdout JSONL
-```
-
-첫 slice에서 protocol vocabulary를 host adapter로 재사용한다. protocol v2 완전 구현이라고 부르지 않는다.
-
-### 구현하는 request
-
-| request | Phase A 동작 |
+| request | 동작 |
 |---|---|
 | `execute` | persistent SCI context에서 forms를 순서대로 평가 |
 | `host_reply` | FIFO를 우회해 같은 id의 pending host request를 resolve |
-| `interrupt` | active evaluator에 cooperative cancellation 요청 |
+| `interrupt` | 파싱한다. 취소를 보장하지 않는다 |
 | `shutdown` | pending bridge를 실패시키고 process 종료 |
 
-`list_names`, `snapshot`, `restore`는 첫 slice 뒤에 판단한다. Host 실험 구성에서는 snapshot을 끈다.
+`list_names`, `snapshot`, `restore`는 없다. Host 실험에서는 snapshot을 끈다.
 
-### 구현하는 event
-
-| event | Phase A 동작 |
+| event | 동작 |
 |---|---|
-| `ready` | banner 없이 첫 JSONL frame |
-| `stdout` / `stderr` | SCI `*out*` / `*err*`로 잡힌 text와 cell id |
-| `result` | 마지막 form의 non-`nil` 값을 `pr-str`한 text |
+| `ready` | 첫 JSONL frame. `protocol` 2, `python` = `"clojure-native"` (v2 host gate placeholder), additive `runtime` field |
+| `stdout` / `stderr` | 셀 끝 batch flush. cell id attribution은 맞다. mid-cell streaming은 아니다 |
+| `result` | 마지막 form의 non-`nil` 값을 `pr-str` |
 | `host_request` | runtime-minted id + typed data |
-| `error` | class/name, message, 읽을 수 있는 stack data |
+| `error` | `ename`은 SCI wrapper class, traceback에 runtime frame이 실린다 (OPEN) |
 | `done` | id가 있는 request마다 정확히 하나 |
 
-Pinned host가 protocol number만 검사하므로 `ready.protocol`은 2를 유지한다. Python field는 host compatibility placeholder로 두고 Clojure/JVM metadata를 별도 additive field에 싣는다. 정확한 frame은 구현 직전 test fixture에서 고정한다.
+### evaluation
 
-### evaluation 규칙
-
-- 한 cell의 source에서 모든 form을 읽고 순서대로 평가한다.
-- namespace/context는 process lifetime 동안 유지한다.
-- 마지막 값이 `nil`이 아니면 `result`를 보낸다.
-- 마지막 값을 `_`에 바인딩한다.
+- 한 cell의 모든 form을 읽고 순서대로 평가한다.
+- context는 process lifetime 동안 유지한다.
+- 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
+- `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- runtime public binding은 `rlm`, `host-request`, process/file helper부터 최소로 연다.
-- Java interop와 임의 classpath loading은 첫 slice에서 열지 않는다.
+- public binding은 `rlm`, `host-request`만. Java interop·IO·classpath loading은 열지 않는다.
 
----
-
-## `(rlm ...)` — 먼저 단순하게
-
-첫 API는 동기 호출이다.
+### `(rlm ...)`
 
 ```clojure
 (rlm "child task")
 ```
 
-- 호출한 cell은 host reply가 올 때까지 기다린다.
-- stdin reader는 별도 rail에서 `host_reply`를 pending promise에 전달한다.
-- 반환값은 child의 최종 답이 아니라 admission/spawn handle이다.
-- 병렬성이 필요해질 때 model이 실제로 만드는 form을 보고 future/handle 표면을 고른다.
-
-처음부터 `@`, `deref`, macro, CompletableFuture 후보를 동시에 제공하지 않는다. Hop 2에서 실제 사용 흔적을 보고 하나를 고른다.
+동기 호출. 반환값은 child의 최종 답이 아니라 admission/spawn handle.
+`future` / `@` / `deref` 후보는 동시에 열지 않는다. Hop 2에서 실제 form을 보고 고른다. 지금 `(future 1)`은 닫혀 있다 — 보안 경계가 아니라 Hop 2 안건.
 
 ---
 
-## 출력과 interrupt — Phase A 경계
+## Capability 경계 — native delivery
 
-### 첫 slice에서 보장
+어제 같은 소스를 JVM SCI로 돌리면 인스턴스 interop이 열렸다 (`(.toUpperCase "ab")` → `"AB"`). 그 SUT는 지웠다. 두꺼워서다.
 
-- SCI를 통해 발생한 `*out*`/`*err*`는 JSONL event로 감싼다.
-- protocol writer는 한 frame을 lock된 한 쓰기로 보낸다.
-- malformed request는 protocol error를 내고 reader가 계속 산다.
-- cooperative blocking/evaluation은 interrupt 후 error + done으로 끝낸다.
+지금 고정하는 닫힘 (native `target/rlm-repl`):
 
-### 아직 보장하지 않음
+| form | native |
+|---|---|
+| `(.toUpperCase "ab")` / `(.length "abc")` | error |
+| `(slurp …)` / `(System/getProperty …)` / `(future 1)` | error |
 
-- native library, subprocess, raw fd 1/2의 완전 capture
-- raw output의 `done` 전 marker fence
-- pure infinite loop의 CPython/POSIX 수준 강제 interrupt
-- finishing `pr-str`와 output drain 사이의 모든 interrupt race
+`native-image/`에 reflect-config가 없다. 닫힘은 명시적 allow-list가 아니라 reflection metadata 부재로 보인다(인과는 추정, 닫힘 자체는 테스트가 고정). reflect-config를 넣으면 경계가 조용히 열린다.
 
-SCI allow-list가 raw Java/native output 경로를 처음에는 닫으므로 vertical slice의 protocol framing을 지킬 수 있다. capability를 열 때 output boundary를 다시 설계한다.
-
-이 항목들의 production parity gap은 `docs/clojure-runtime--parity-audit.md`에 남아 있다 — reference-only이며 gate가 아니다.
+Framing은 SCI allow-list가 raw Java/native output을 닫고 있어서 지킨다. capability를 열 때 output boundary를 다시 설계한다. 우연한 native closure를 보안 계약이라고 부르지 않는다.
 
 ---
 
-## Snapshot은 첫 질문이 아니다
+## 코드를 읽어야만 알던 것
 
-첫 slice는 snapshot 없이 process lifetime의 persistence만 본다.
-
-이후 data snapshot을 열 때 지킬 최소 의미:
-
-- binding별 serialize/skip 이유
-- per-variable cap과 aggregate cap 구분
-- explicit prune는 per-variable oversized 값에만 적용
-- payload/manifest staging과 commit
-- corrupt/missing payload의 명시적 결과
-
-함수·closure·live process의 복구는 미리 약속하지 않는다. Python dill parity와 다르다면 protocol-compatible이라고 부르지 않고 capability/profile 차이로 기록한다.
-
-Phase A의 질문은 먼저 이것이다.
-
-> 살아 있는 한 process 안에서 Lisp workspace가 agent의 orchestration을 바꾸는가?
+1. protocol writer에 `*out*`을 쓰면 안 된다. `-main`이 `*out*`/`*err*`를 stderr로 재바인딩한다. 디버그 `println` 하나가 프레임을 찢는다. **테스트가 없다.**
+2. 테스트 러너는 네임스페이스를 명시 require 한다. 파일만 추가하면 조용히 안 돈다.
+3. FHS 안에서 빌드해도 바이너리 interpreter는 nix store glibc다. ubuntu에서 빌드하면 `/lib64`. GitHub에서 이미지는 만들지 않는다.
+4. AOT는 `target/classes`로 간다. `.gitignore`가 `target/`만 덮기 때문이다.
+5. `deps.edn`의 `:test`는 **native**다. 바이너리가 없으면 실패하는 게 맞다.
+6. `build.sh`의 `--initialize-at-build-time`(인자 없음)을 패키지 목록으로 "고치면" SCI가 런타임에 `core__init`을 못 찾는다.
+7. `bin/rlm`은 Hop 1 손잡이다. TypeScript host가 아니고 제품 REPL도 아니다.
 
 ---
 
-## Emmy/SICM 공존언어 probe
+## Host 연결 — 아직 없음
 
-Emmy 전체를 SCI에 즉시 노출하지 않는다. Hop 3에서 작은 adapter namespace를 AOT 포함한다.
+Runtime은 독립 driver로 관통했다. TypeScript host에 붙이는 일은 RAIL 4다. 입구 결정은 NEXT에 있고, 승인 전에 host diff를 시작하지 않는다.
 
-후보 흐름:
-
-```clojure
-(def expr ...)
-(simplify expr)
-(evaluate expr environment)
-(->tex expr)
-```
-
-확인할 것은 library coverage가 아니다.
-
-```text
-자연어 탐색
-→ Clojure form
-→ symbolic expression
-→ numerical evaluation
-→ Emacs에서 읽고 고칠 표현
-```
-
-이 한 경로가 실제로 이어지는지 본다. SCI가 Emmy macro/protocol/type를 직접 다루기 어렵다면 runtime adapter가 Clojure/JVM-side AOT code를 호출하고 SCI에는 작은 함수 surface만 연다.
-
----
-
-## Host 연결
-
-Runtime core가 독립 driver에서 통과한 뒤 TypeScript host에 선택면을 연다.
-
-첫 host diff의 범위:
+붙는 날의 범위만 적어 둔다.
 
 1. native executable spawn
-2. runtime별 bootstrap code 선택
-3. runtime별 orchestration prompt 선택
-4. snapshot disabled configuration
-5. Python oracle와 Lisp runtime을 같은 workload에서 번갈아 띄울 선택면
+2. runtime별 bootstrap
+3. runtime별 orchestration prompt
+4. snapshot disabled
+5. Python oracle와 Lisp runtime을 같은 workload에서 고르는 선택면
 
-`ipython`이라는 기존 tool/display 이름을 Phase A에서 전부 개명하지 않는다. 모델이 Clojure를 쓰도록 만드는 prompt와 bootstrap만 먼저 바꾼다. 이름 정리는 실제 사용 뒤 한다.
-
----
-
-## Conformance와 실제 workload
-
-### 공통 wire tests
-
-최소 case:
-
-1. `ready`가 첫 frame
-2. expression result
-3. persistent binding
-4. `nil`은 result 없음
-5. stdout/stderr attribution
-6. reader/eval error 뒤 다음 execute
-7. malformed JSON 뒤 계속 serving
-8. host request/reply bypass
-9. `(rlm ...)`이 handle 반환
-10. shutdown/EOF
-
-Python source와 Clojure form을 같은 문자열 fixture로 만들지 않는다. 공통 case에 language-specific code와 공통 event assertion을 둔다.
-
-### Prime Agent 실제 workload
-
-Entwurf #88 합본의 사용자 실측을 Lisp으로 다시 친다.
-
-1. **Tool이 아니라 world인지** — public runtime bindings와 child registry를 Lisp 값으로 조사한다.
-2. **Prompt-as-variable** — 문서를 workspace 값으로 붙잡고 필요한 heading만 계산한다.
-3. **`rlm()`은 답이 아님** — child 둘을 열고 반환 handle을 그대로 관찰한다.
-4. **inside harness boundary** — 파일과 줄을 값에 바인딩하고 Entwurf/RLM 경계를 계산한다.
-
-실패는 셋 중 하나로 라벨링한다.
-
-- `semantics-gap` — SCI/Clojure runtime이 workload 의미를 표현하지 못함
-- `model-fumble` — 가능한 form인데 모델이 Clojure surface를 잘못 사용함
-- `harness-gap` — host/bootstrap/prompt/protocol adapter가 필요한 기능을 전달하지 못함
+`ipython` 표시 이름을 Phase A에서 전부 개명하지 않는다.
 
 ---
 
-## 코드량
+## Workload와 실패 라벨
 
-날짜 일정은 쓰지 않는다. handwritten diff의 order만 본다.
+Python source와 Clojure form을 같은 문자열 fixture로 만들지 않는다.
 
-| 묶음 | 구현 | 테스트·설정 |
-|---|---:|---:|
-| JSONL reader/dispatcher | 200–350 LOC | 150–250 LOC |
-| persistent SCI eval | 150–250 | 100–200 |
-| result/error/output | 100–200 | 100–180 |
-| host bridge + `rlm` | 150–250 | 120–220 |
-| lifecycle | 80–150 | 80–150 |
-| native-image | 50–150 | 30–80 |
-| TypeScript host 선택면 | 150–300 | 150–250 |
-| Emmy probe | 100–250 | 80–150 |
+Entwurf #88 실측을 Lisp으로 다시 칠 네 개:
 
-Phase A 전체 경보기:
+1. public bindings와 child registry를 Lisp 값으로 조사한다
+2. 문서를 workspace 값으로 붙잡고 필요한 heading만 계산한다
+3. child 둘을 열고 반환 handle을 관찰한다
+4. 파일과 줄을 값에 바인딩하고 Entwurf/RLM 경계를 계산한다
 
-- 구현 약 1,000–1,900 LOC
-- 테스트·설정 약 800–1,400 LOC
-- 전체 약 1,800–3,300 LOC
+실패 라벨:
 
-상단을 넘으면 full parity, broad package migration, premature abstraction이 stem에 섞였는지 먼저 본다.
+- `semantics-gap` — SCI/Clojure가 의미를 표현하지 못함
+- `model-fumble` — 가능한 form인데 모델이 잘못 씀
+- `harness-gap` — host/bootstrap/prompt/protocol adapter가 기능을 전달하지 못함
+
+모델이 만든 form이 Clojure로 바뀌지 않았는데 통과한 것은 성공이 아니라 harness-gap이다.
 
 ---
 
-## GLG 개입 홉
+## Hops · acceptance
 
-기계적인 구현 결정으로 GLG 홉을 소비하지 않는다.
+기계 판단으로 GLG 홉을 소비하지 않는다.
 
-### Hop 1 — workspace
+1. workspace — persistent forms의 촉감
+2. direction — `(rlm ...)`의 동기값 / handle / future 중 하나
+3. coexistence — 작은 Emmy adapter, form → symbolic → numeric/render
+4. fork — hardening / Emmy 확장 / evaluator 변경 / 중단
 
-Persistent forms로 실제 문서·값·함수를 다뤄보고 Clojure/SCI의 촉감을 판단한다.
+Acceptance:
 
-### Hop 2 — direction
+1. 모델이 persistent Lisp form으로 실제 작업을 조직한다
+2. 문서를 값으로 붙잡고 필요한 조각만 계산한다
+3. `(rlm ...)`이 child를 열고 handle을 돌려준다
+4. GLG가 같은 form을 읽고 고친다
+5. 다음 설계에 쓸 성공/실패 흔적이 남는다
 
-실제 child call을 보고 `(rlm ...)`의 동기값, handle, future 표면 중 다음 하나를 고른다.
+아닌 것: CPython보다 빠름, 92 tests green, snapshot 호환, 모든 library 노출, steering/Emacs 완성.
 
-### Hop 3 — coexistence
-
-작은 Emmy adapter로 form → symbolic → numeric/render 경로를 직접 만진다.
-
-### Hop 4 — fork
-
-다음 중 하나를 고른다.
-
-- runtime hardening
-- Emmy surface 확장
-- evaluator 또는 Lisp 변경
-- protocol parity 단계 진입
-- 실험 중단
-
----
-
-## Phase A acceptance
-
-1. Model이 persistent Lisp form으로 실제 작업을 조직한다.
-2. 문서를 값으로 붙잡고 필요한 조각만 계산한다.
-3. `(rlm ...)`이 citizen 내부 child를 열고 handle을 돌려준다.
-4. GLG가 같은 form을 읽고 고칠 수 있다.
-5. 다음 설계 판단에 쓸 성공/실패 흔적이 남는다.
-
-다음은 acceptance가 아니다.
-
-- CPython보다 빠름
-- 92 tests 전체 green
-- Python snapshot 완전 호환
-- 모든 Java/Clojure library 노출
-- Entwurf steering form 완성
-- Emacs live world 통합 완성
-
----
-
-## 순서
-
-1. `prime-agent-runtime-clj` scaffold와 native executable
-2. persistent SCI execute/result/error/output
-3. host-request와 동기 `(rlm ...)`
-4. 공통 wire cases
-5. TypeScript host 선택면
-6. 네 개 실제 workload
-7. GLG Hop 1·2
-8. 작은 Emmy adapter
-9. GLG Hop 3·4
-
-첫 구현 단위는 1–3을 관통하는 vertical slice다. 파일별 완성 순서로 쌓지 않는다.
+코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 284 + test 629 + native-image 128.
 
 ---
 
 ## 금지선
 
-- Python oracle 삭제 금지
-- `~/repos/3rd/pi/prime-agent` 수정 금지
-- Phase A를 protocol v2 완전 호환이라고 부르지 않기
-- 새 steering DSL을 미리 설계하지 않기
-- Entwurf core에 runtime semantics 넣지 않기
-- main의 host repair/bash 변경을 무계획 cherry-pick하지 않기
-- 날짜 단위 일정 제시하지 않기
-- GLG 승인 없이 commit/push하지 않기
+- Python oracle 삭제
+- Phase A를 protocol v2 완전 호환이라고 부르기
+- 새 steering DSL을 미리 설계하기
+- Entwurf core에 runtime semantics 넣기
+- main의 host repair를 무계획 cherry-pick
+- 날짜 단위 일정
+- GLG 승인 없이 commit/push
+- JVM을 작업면으로 쓰기
+- convenence로 capability 열기 (`id` · `mode` · `install/retract` · native +/- 테스트가 함께 오지 않으면 거부)
+- reflect-config / 광범위 Java interop (경계 변경, 별도 GLG gate)
+- Host adapter에 Python API/이름/await 의미를 주입하기

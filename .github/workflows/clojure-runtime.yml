@@ -1,5 +1,10 @@
 name: Clojure runtime
 
+# Intentional: lint only. Do not run native-image, JDK, or tests here.
+# GitHub runners are not the delivery gate — a flaky host should not carry
+# GraalVM weight. Local Nix builds the image and runs clojure -M:test.
+# Do not grow this workflow.
+
 on:
   push:
     branches: [main, 'feat/clojure-runtime']
@@ -20,10 +25,10 @@ permissions:
   contents: read
 
 jobs:
-  lint-jvm:
-    name: lint + test-jvm
+  lint:
+    name: lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: prime-agent-runtime-clj
@@ -33,93 +38,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Java
-        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e # v5.1.0
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Clojure
+      - name: Setup clj-kondo
         uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
         with:
-          # Pin with flake clojure CLI. Bump flake.nix and this together.
-          cli: '1.12.5.1645'
-          # Pin with flake clj-kondo. Bump both together; skew means local 0-warning
-          # does not guarantee CI green (same class of trap as devenv biome).
+          # Binary. No JDK, no Clojure CLI, no native-image.
           clj-kondo: '2026.01.19'
-
-      - name: Cache Clojure deps
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: |
-            ~/.m2
-            ~/.gitlibs
-            ~/.deps.clj
-            prime-agent-runtime-clj/.cpcache
-          key: ${{ runner.os }}-clj-${{ hashFiles('**/deps.edn') }}
-          restore-keys: |
-            ${{ runner.os }}-clj-
 
       - name: clj-kondo
         run: clj-kondo --fail-level warning --lint src test
-
-      - name: test-jvm
-        run: clojure -M:test-jvm
-
-  native:
-    name: native-image + test-native
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: prime-agent-runtime-clj
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Native-image build deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential zlib1g-dev
-
-      - name: Setup Clojure
-        uses: DeLaGuardo/setup-clojure@4c7a6f613e5089821bb3bb2a33a3ee115578580d # 13.6.1
-        with:
-          # Pin with flake clojure CLI. Bump flake.nix and this together.
-          cli: '1.12.5.1645'
-
-      - name: Setup GraalVM
-        uses: graalvm/setup-graalvm@5298d94fb55a4f185c602eeac5de1b553882abe2 # v1.6.4
-        with:
-          java-version: '25'
-          distribution: graalvm-community
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Cache Clojure deps
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: |
-            ~/.m2
-            ~/.gitlibs
-            ~/.deps.clj
-            prime-agent-runtime-clj/.cpcache
-          key: ${{ runner.os }}-clj-${{ hashFiles('**/deps.edn') }}
-          restore-keys: |
-            ${{ runner.os }}-clj-
-
-      - name: native-image
-        run: ./native-image/build.sh
-
-      - name: no JVM in the binary
-        run: |
-          file target/rlm-repl
-          ldd target/rlm-repl
-          if ldd target/rlm-repl | grep -E 'libjvm'; then
-            echo 'libjvm linked — delivery is a native executable, not a JVM launcher' >&2
-            exit 1
-          fi
-
-      - name: test-native
-        run: clojure -M:test-native

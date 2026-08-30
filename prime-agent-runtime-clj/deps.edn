@@ -8,7 +8,4 @@
          :main-opts ["-m" "rlm.test-runner"]}
   :test-native {:extra-paths ["test"]
                 :jvm-opts ["-Drlm.sut=native"]
-                :main-opts ["-m" "rlm.test-runner"]}
-  :test-jvm {:extra-paths ["test"]
-             :jvm-opts ["-Drlm.sut=jvm"]
-             :main-opts ["-m" "rlm.test-runner"]}}}
+                :main-opts ["-m" "rlm.test-runner"]}}}

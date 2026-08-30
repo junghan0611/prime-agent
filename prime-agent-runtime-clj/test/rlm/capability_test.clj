@@ -1,8 +1,7 @@
 (ns rlm.capability-test
   "What is closed. Framing rests on this allow-list — docs/clojure-runtime.md."
   (:require [clojure.test :refer [deftest is testing]]
-            [rlm.harness :as h]
-            [rlm.sut :as sut]))
+            [rlm.harness :as h]))
 
 (defn- closed
   [repl id code]
@@ -21,10 +20,7 @@
       (closed repl "slurp" "(slurp \"/etc/passwd\")")
       (closed repl "spit" "(spit \"/tmp/rlm-capability-probe\" \"x\")")
       (closed repl "sys" "(System/getProperty \"user.dir\")")
-      ;; (.toUpperCase …) is closed on native (delivery). JVM SCI currently
-      ;; evaluates it as ok — reported, src not changed. Do not pin JVM-open.
-      (when (= "native" (sut/mode))
-        (closed repl "inter" "(.toUpperCase \"ab\")"))
+      (closed repl "inter" "(.toUpperCase \"ab\")")
       (let [events (h/execute repl "alive" "(+ 1 1)")]
         (is (= "2" (get (h/one events "result") "text")))))))
 

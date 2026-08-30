@@ -4,6 +4,8 @@ Phase A Lisp runtime. Clojure source, SCI persistent evaluator, GraalVM native-i
 Delivery artifact is `target/rlm-repl`. The process that serves the protocol is a
 native executable — not a JVM.
 
+Contract: `docs/clojure-runtime.md`. Coordinate: `NEXT--feat_clojure-runtime.md`.
+
 ## Build
 
 ```text
@@ -14,23 +16,21 @@ native executable — not a JVM.
 run with `Could not locate clojure/core__init.class`. AOT classes go to
 `target/classes` (gitignored via `target/`).
 
-## Tests — why two rails
+## Tests
 
-Silent JVM fallback is how "green" later means "native is broken". The rails are named.
-
-| alias | SUT | missing/stale binary |
-|---|---|---|
-| `:test-native` (also `:test`) | `target/rlm-repl` | fail immediately, tell you to run `native-image/build.sh` |
-| `:test-jvm` | `clojure -M -m rlm.repl` | n/a — named as JVM on purpose |
-
-`:test` is native. There is no env-var drop to JVM.
+SUT is `target/rlm-repl`. The test runner is Clojure CLI; it spawns that binary.
+Missing or stale binary fails immediately — there is no JVM protocol runtime to fall back to.
 
 ```text
+clojure -M:test           # same as :test-native
 clojure -M:test-native    # fails if target/rlm-repl is missing or older than src/**
-clojure -M:test-jvm       # explicit JVM runtime, implementation means only
 ```
 
-Each run prints which SUT it attached, e.g. `SUT: native /abs/target/rlm-repl (built 17:44:46)`.
+Each run prints the SUT, e.g. `SUT: native /abs/target/rlm-repl (built 17:44:46)`.
+
+Receipt is local: `build.sh`, then `clojure -M:test`, then `ldd target/rlm-repl` has no `libjvm`. GitHub Actions only runs clj-kondo — no JDK, no GraalVM.
+
+GraalVM is a local Nix build tool. It is not the runtime and not a CI image.
 
 ## `bin/rlm` — type forms
 

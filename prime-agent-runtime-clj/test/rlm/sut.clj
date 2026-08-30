@@ -1,14 +1,15 @@
 (ns rlm.sut
-  "Named SUT rails. No silent JVM fallback."
+  "Native SUT only. The test runner is a Clojure CLI process; it spawns
+  target/rlm-repl. There is no JVM protocol runtime."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]))
 
 (defn mode
   []
   (let [m (System/getProperty "rlm.sut")]
-    (when-not (#{"native" "jvm"} m)
+    (when-not (= "native" m)
       (throw (ex-info
-              "rlm.sut must be native or jvm (clojure -M:test-native or :test-jvm). no silent fallback."
+              "rlm.sut must be native (clojure -M:test or :test-native). no JVM SUT."
               {:got m})))
     m))
 
@@ -47,15 +48,11 @@
 
 (defn banner
   []
-  (case (mode)
-    "native"
-    (let [bin (assert-native-ready!)]
-      (str "SUT: native " (.getAbsolutePath bin) " (built " (built-clock bin) ")"))
-    "jvm"
-    "SUT: JVM (clojure -M -m rlm.repl)"))
+  (mode)
+  (let [bin (assert-native-ready!)]
+    (str "SUT: native " (.getAbsolutePath bin) " (built " (built-clock bin) ")")))
 
 (defn command
   []
-  (case (mode)
-    "native" [(.getAbsolutePath (assert-native-ready!))]
-    "jvm" ["clojure" "-M" "-m" "rlm.repl"]))
+  (mode)
+  [(.getAbsolutePath (assert-native-ready!))])
