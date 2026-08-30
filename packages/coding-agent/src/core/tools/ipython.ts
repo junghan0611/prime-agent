@@ -285,6 +285,20 @@ export interface IpythonToolDetails {
 	};
 }
 
+/** Text the model sees for a kernel error. Clojure puts the message in `evalue` and frames in `traceback`; CPython often repeats the message inside traceback. */
+export function formatKernelErrorText(error: { ename: string; evalue: string; traceback: string[] }): string {
+	const evalue = error.evalue.trim();
+	const traceback = error.traceback.join("\n").trim();
+	if (evalue && traceback.includes(evalue)) {
+		return traceback;
+	}
+	const head = [error.ename.trim(), evalue].filter(Boolean).join(": ");
+	if (head && traceback) {
+		return `${head}\n${traceback}`;
+	}
+	return head || traceback;
+}
+
 export interface IpythonToolOptions {
 	/** REPL runtime language for this session's kernel. Defaults to the Python oracle. */
 	runtime?: KernelRuntimeKind;
@@ -539,7 +553,9 @@ export class IpythonKernelProvisioner {
 					{ signal: startupSignal },
 				);
 				if (bootstrap.status !== "ok") {
-					const details = [bootstrap.stderr, bootstrap.error?.traceback.join("\n")].filter(Boolean).join("\n");
+					const details = [bootstrap.stderr, bootstrap.error ? formatKernelErrorText(bootstrap.error) : ""]
+						.filter(Boolean)
+						.join("\n");
 					throw new Error(
 						`Failed to initialize rlm runtime in the ${isClojure ? "Clojure" : "Python"} kernel:\n${details}`,
 					);
@@ -695,7 +711,7 @@ export function createIpythonToolDefinition(
 				if (r.stderr) text += (text ? "\n" : "") + r.stderr;
 				if (r.result) text += (text ? "\n" : "") + r.result;
 				if (r.status === "error" && r.error) {
-					text += (text ? "\n" : "") + r.error.traceback.join("\n");
+					text += (text ? "\n" : "") + formatKernelErrorText(r.error);
 				}
 				if (r.backgroundOutput) {
 					text += `${text ? "\n" : ""}[background output (unattributed)]\n${r.backgroundOutput}`;

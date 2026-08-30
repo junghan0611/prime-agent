@@ -73,6 +73,7 @@ const CLOJURE_REPL_CONTROL_PROMPT = [
 	"`(def x 41)` evaluates to a var, so a cell that only defines names still reports a result. That is this runtime's behavior, not an error.",
 	"",
 	"Public bindings are `rlm` and `host-request` only. Java interop, `slurp`, `future`, and classpath loading are closed in this runtime and raise errors; do not route work through them, and do not report their errors as task failures.",
+	'`(host-request {:type t})` talks to the TypeScript host. `t` is a string. Known types: `rlm.run`, `rlm.list_subagents`, `rlm.find_models`, `rlm.delete_subagent`, `agent_message.list_agents`, `agent_message.send`. Do not invent `:op`. `(rlm "task")` already wraps `rlm.run`.',
 	"",
 	"Do not write Python. `print(...)`, `import`, `await`, f-strings, and `def` are not valid here. Use `println`, `str`, plain synchronous calls, and the forms already in the workspace.",
 ].join("\n");
@@ -188,7 +189,7 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 			'Pass options as a map: `(rlm "sub-task" {:name "api-reviewer"})`. Names must be unique among siblings; if omitted, the host generates a readable unique name.',
 			"A child inherits your model and this same Clojure runtime.",
 			"Spawn independent children in separate calls and end your turn instead of waiting for them.",
-			"A child's answer never comes back through `rlm`. This slice has no messaging or file capability, so bind and report the handle rather than claiming a result you cannot observe.",
+			'A child\'s answer never comes back through `rlm`. List children with `(host-request {:type "rlm.list_subagents"})`. Family roster is `{:type "agent_message.list_agents"}`. Follow-ups use `{:type "agent_message.send"}`. Bind the handle; do not treat `rlm`\'s return as the child\'s answer.',
 		);
 	} else if (allowRecursion && hasIpython) {
 		parts.push(

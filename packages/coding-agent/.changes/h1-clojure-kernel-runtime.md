@@ -1,1 +1,2 @@
 - Added an optional Clojure/SCI native kernel runtime (`PRIME_AGENT_KERNEL_RUNTIME=clojure`) that skips snapshot and `list_names`.
+- Showed Clojure kernel `evalue` to the model and documented `host-request` type names in the Clojure prompt.

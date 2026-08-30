@@ -15,7 +15,11 @@ import { buildRlmPrompt } from "../src/core/prompts/index.js";
 import { type CreateRlmSubagentRuntimeOptions, createRlmRunHostHandler } from "../src/core/rlm-runtime.js";
 import { SessionManager } from "../src/core/session-manager.js";
 import { SettingsManager } from "../src/core/settings-manager.js";
-import { buildClojureBootstrapCode, IpythonKernelProvisioner } from "../src/core/tools/ipython.js";
+import {
+	buildClojureBootstrapCode,
+	formatKernelErrorText,
+	IpythonKernelProvisioner,
+} from "../src/core/tools/ipython.js";
 import { createTestResourceLoader } from "./utilities.js";
 
 const CLOJURE_READY = JSON.stringify({
@@ -71,6 +75,23 @@ function journal(): Array<Record<string, any>> {
 		.filter((line) => line.trim())
 		.map((line) => JSON.parse(line));
 }
+
+describe("formatKernelErrorText", () => {
+	it("shows clojure evalue when traceback is frames only", () => {
+		expect(
+			formatKernelErrorText({
+				ename: "Exception",
+				evalue: "Unable to resolve classname: Throwable",
+				traceback: ["sci.impl.analyzer$throw_error_with_location.invokeStatic"],
+			}),
+		).toContain("Unable to resolve classname: Throwable");
+	});
+
+	it("does not duplicate a python traceback that already contains evalue", () => {
+		const traceback = "Traceback (most recent call last):\nValueError: nope";
+		expect(formatKernelErrorText({ ename: "ValueError", evalue: "nope", traceback: [traceback] })).toBe(traceback);
+	});
+});
 
 describe("clojure kernel runtime", () => {
 	beforeEach(() => {
@@ -172,8 +193,11 @@ describe("clojure kernel runtime", () => {
 		expect(prompt).toMatch(/Do not write Python/);
 		expect(prompt).not.toMatch(/await rlm\(|uv pip install|Pre-installed Python packages|rlm\.harness/);
 		expect(prompt).not.toMatch(/pre-imported|bash\(command\)|top-level `await`|time\.sleep/i);
-		expect(prompt).not.toMatch(/agent_message|agent_observe/);
-		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/agent_message\.send/);
+		expect(prompt).not.toMatch(/await agent_message|agent_observe/);
+		expect(prompt).toMatch(/host-request \{:type t\}/);
+		expect(prompt).toMatch(/rlm\.list_subagents/);
+		expect(prompt).toMatch(/agent_message\.list_agents/);
+		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/await agent_message\.send/);
 	});
 
 	it("hands an rlm child the same runtime as its parent", async () => {
