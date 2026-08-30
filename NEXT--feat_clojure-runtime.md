@@ -24,14 +24,14 @@ CURRENT = H7 대기 (시작 아님). 검수는 GLM `abff01`. 코디 grok `cd2dd4
 - [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`.
 - [x] **H4 process lifecycle** — `4c42dbb4` → `9229aa77`. id registry + setsid group. native 48/313.
 - [x] **H5 edit / write receipts** — `2e5753a2`. write-text / edit-text. native 57/443. GLM `abff01` PASS.
-- [x] **H6 compaction / restart continuity** — `H6SHA`. registry 회수 verb + runtime별 통지. native 65/497. **GLM 실측 대기.**
+- [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497. **GLM 실측 대기.**
 - [ ] **H7–H8** — ROADMAP. H7은 verifier pin + A/B. **시작 아님.**
 
 현재 좌표: H0–H6 checkpoint → H7은 verifier pin (시작 아님)
 
 # NOW — H6 닫힘, 검수·푸시는 GLG
 
-- Stem: H6 `H6SHA` (ahead 2, 푸시 안 함). native 65/497, clj-kondo 0/0, biome+tsgo clean.
+- Stem: H6 `2ea1b170` (ahead 3, 푸시 안 함). native 65/497, clj-kondo 0/0, biome+tsgo clean.
 - Next: GLM `abff01` 실측. 그다음 GLG 푸시. **H7 시작하지 않음.**
 - **H6 이 세운 것 (parity 아님):** compaction 은 프로세스를 안 건드리므로 workspace 가 통째로 남는다 —
   없던 것은 그 사실을 말하는 통지였다. restart 는 snapshot 이 없어 workspace 를 **복원하지 않는다**;
@@ -53,5 +53,5 @@ CURRENT = H7 대기 (시작 아님). 검수는 GLM `abff01`. 코디 grok `cd2dd4
 - [2026-08-30] H3 닫힘. 푸시 `ba2bba55`.
 - [2026-08-30] H4 `4c42dbb4` → `9229aa77`. 푸시 `a114668f`.
 - [2026-08-30] H5 `2e5753a2`. GLM PASS. H5 close 권고.
-- [2026-08-30] H6 `H6SHA`. 새 Opus 구현. 측정된 defect: `(rlm …)` 는 `:rlm-child-id`,
+- [2026-08-30] H6 `2ea1b170`. 새 Opus 구현. 측정된 defect: `(rlm …)` 는 `:rlm-child-id`,
   raw `host-request` 는 `:rlm_child_id` — 회수한 handle 만 어긋났다. 키 정규화로 닫힘.

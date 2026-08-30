@@ -15,7 +15,7 @@
 | H3 | key-shape 계약 → bounded read / context | checkpoint `f0b5183e` → `10fde370` → `13e88738`. symlink known deviation (blocker 아님) |
 | H4 | process lifecycle | checkpoint `4c42dbb4` → `9229aa77`. SCI에 process 객체 금지. setsid group. leftover: no-setsid / re-group / SIGKILL |
 | H5 | edit / write receipts | checkpoint `2e5753a2`. `spit` 닫힘. write는 symlink 거부. H3 read 편차는 그대로 |
-| H6 | compaction / restart continuity | checkpoint `H6SHA`. `list_names` frame 0, snapshot 없음. registry 회수 verb + runtime별 통지. restart 는 복원이 아니라 정직한 빈 workspace |
+| H6 | compaction / restart continuity | checkpoint `2ea1b170`. `list_names` frame 0, snapshot 없음. registry 회수 verb + runtime별 통지. restart 는 복원이 아니라 정직한 빈 workspace |
 | H7 | official verifier config pin + A/B 1회 완주 | **다음. 시작 아님.** **evaluation-ready** (성능 주장 금지). 첫 pilot = 논문 §3 RQ2 long-context → PMPP-Hard. 0 harness/intervention/Python-fallback |
 | H8 | default switch + soak | 다음. **performance-accepted**. 제안 rollback: Clojure median ≥ Python 90% (실측 아님, GLG 승인 전) + PMPP 비열화 + soak harness failure 0 |
 
