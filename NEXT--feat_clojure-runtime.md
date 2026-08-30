@@ -1,7 +1,7 @@
-# feat/clojure-runtime — H3 (같은 브랜치)
+# feat/clojure-runtime — H3 checkpoint, H4 대기
 
-최종 1번은 실사용 대체 (`ROADMAP.md` H8). 이 브랜치를 H1–H2에서 닫지 않는다. H1–H2는 **rollback checkpoint**.
-지금 CURRENT = **H3**. 순서: key-shape 계약 → bounded read/context.
+최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H3는 **rollback checkpoint**. 새 브랜치 없음.
+H4는 시작하지 않음. 시작 때 CURRENT만 H4로 옮긴다.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -21,15 +21,16 @@
 - [x] **H0 runtime** — native-image + SCI. 32/158. GitHub 린트만.
 - [x] **H1 host** — checkpoint `7d509e75`. 기본 python. `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
 - [x] **H2 DeepSeek 4실험 + fan-in** — checkpoint. 수선 `9d8f69f5`. 재측정 s6. **branch close 아님.**
-- [x] **H3 bounded read / context** — key-shape keywordize + `(read-text)`. write 없음. 34/173.
+- [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`. 34/173. GLM 닫힘 동의.
 - [ ] **H4–H8** — ROADMAP. 이 브랜치에서 이어서 할 수 있음. H4≠H5.
 
 현재 좌표: H0–H3 checkpoint → H4는 process lifecycle (H5와 합치지 않음)
 
-# NOW — H3 착지, H4 대기
+# NOW — H4 대기 (시작 아님)
 
-- Stem: key-shape + `(read-text)`가 섰다. native 34/173. 호스트 프롬프트에 이름 있음.
-- Next: H4 process lifecycle. H5 write와 합치지 않음. GLG가 오면 시작.
+- Stem: H3 checkpoint. native 34/173. host 10/10.
+- Next: GLG가 오면 H4. **시작 전에 게이트:** process object를 SCI에 노출하지 않음. runtime registry id→immutable handle map. start/poll/tail/kill. bounded captured output. protocol stdout 불오염. shutdown/EOF cleanup. descendant/process-group 정리. H5 write와 분리.
+- Known deviation (H3, blocker 아님): `(read-text)`는 lexical Path.startsWith. workspace 안 symlink로 루트 밖 가능. 프롬프트 "stay under workspace"는 그 경우 거짓. H4 process가 열리면 OS-permission trust — 보안 경계로 승격하지 않음. sol `f6f942`.
 - Do not touch: Python oracle, `ipython` 개명, `list_names` 구현, spit/write, Emmy, H4+H5 합치기
 - Blocker: 없음. 푸시는 GLG.
 
