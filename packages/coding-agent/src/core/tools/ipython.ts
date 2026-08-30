@@ -17,6 +17,7 @@ import {
 	type KernelSentAgentMessage,
 	ReplKernelManager,
 } from "../kernel/index.js";
+import { DEFAULT_KERNEL_RUNTIME, type KernelRuntimeKind, kernelRuntimeSupportsStateOps } from "../kernel/runtime.js";
 import { manifestPathIn, type RestoreResult, snapshotPathIn } from "../kernel/state-snapshot.js";
 import type { PythonSkillRuntimeInfo } from "../skills.js";
 import { wrapToolDefinition } from "./tool-definition-wrapper.js";
@@ -66,6 +67,20 @@ except Exception as _prime_agent_rlm_error:
     def bash(command):
         rlm._raise_missing()
 `.trim();
+
+// The Clojure runtime interns `rlm` and `host-request` into its SCI user namespace
+// itself, so the bootstrap only has to confirm the workspace it was handed is that
+// runtime. It carries no Python syntax and installs no Python skills.
+const RLM_CLOJURE_BOOTSTRAP_CODE = `
+(def prime-agent-runtime {:language "clojure" :engine "sci"})
+[(fn? rlm) (fn? host-request)]
+`.trim();
+
+const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true]";
+
+export function buildClojureBootstrapCode(): string {
+	return RLM_CLOJURE_BOOTSTRAP_CODE;
+}
 
 export function buildRlmBootstrapCode(pythonSkills: readonly PythonSkillRuntimeInfo[] = []): string {
 	const baseCode = [RLM_BOOTSTRAP_HEADER_CODE, RLM_BOOTSTRAP_RUNTIME_CODE].join("\n\n");
@@ -271,6 +286,8 @@ export interface IpythonToolDetails {
 }
 
 export interface IpythonToolOptions {
+	/** REPL runtime language for this session's kernel. Defaults to the Python oracle. */
+	runtime?: KernelRuntimeKind;
 	/** Python override. Must have prime-agent-runtime installed. */
 	python?: string;
 	env?: Record<string, string>;
@@ -461,12 +478,16 @@ export class IpythonKernelProvisioner {
 					startupSignal,
 				);
 			}
-			const snapshotDir = this.options?.snapshotDir;
+			const runtime = this.options?.runtime ?? DEFAULT_KERNEL_RUNTIME;
+			// Snapshot and restore are Python-oracle state ops. A runtime without them
+			// never gets a snapshot target, so no snapshot/restore frame is ever minted.
+			const snapshotDir = kernelRuntimeSupportsStateOps(runtime) ? this.options?.snapshotDir : undefined;
 			// Always inject an absolute trusted shell (undefined only on win32
 			// without bash, where the runtime's teaching error fires instead).
 			const shellPath = resolveKernelBashShell(this.options?.shellPath);
 			const commandPrefix = this.options?.commandPrefix;
 			const m = new ReplKernelManager({
+				runtime,
 				python: this.options?.python,
 				cwd: this.cwd,
 				// bash() reads these to pick its shell and command prefix.
@@ -511,13 +532,24 @@ export class IpythonKernelProvisioner {
 						pendingRestore = restore ?? { restored: [], failed: [], path: snapshotPathIn(snapshotDir) };
 					}
 				}
-				this.emitStartupProgress("Preparing Python runtime...");
-				const bootstrap = await m.execute(buildRlmBootstrapCode(this.options?.pythonSkills), {
-					signal: startupSignal,
-				});
+				const isClojure = runtime === "clojure";
+				this.emitStartupProgress(isClojure ? "Preparing Clojure runtime..." : "Preparing Python runtime...");
+				const bootstrap = await m.execute(
+					isClojure ? buildClojureBootstrapCode() : buildRlmBootstrapCode(this.options?.pythonSkills),
+					{ signal: startupSignal },
+				);
 				if (bootstrap.status !== "ok") {
 					const details = [bootstrap.stderr, bootstrap.error?.traceback.join("\n")].filter(Boolean).join("\n");
-					throw new Error(`Failed to initialize rlm runtime in the Python kernel:\n${details}`);
+					throw new Error(
+						`Failed to initialize rlm runtime in the ${isClojure ? "Clojure" : "Python"} kernel:\n${details}`,
+					);
+				}
+				// A Clojure kernel that answers without both public bindings is not the
+				// workspace the prompt describes; fail startup instead of teaching a lie.
+				if (isClojure && bootstrap.result?.trim() !== RLM_CLOJURE_BOOTSTRAP_RECEIPT) {
+					throw new Error(
+						`Clojure kernel did not expose the rlm and host-request bindings (bootstrap returned ${bootstrap.result ?? "no value"}).`,
+					);
 				}
 			} catch (error) {
 				// Never leak the kernel process if startup fails after spawn.

@@ -1,5 +1,6 @@
 import { registerSessionResourceCleanup } from "@earendil-works/pi-ai";
 import type { KernelBootstrapProgressHandler, KernelPythonSkill } from "./bootstrap.js";
+import type { KernelRuntimeKind } from "./runtime.js";
 import type { RestoreResult, SnapshotResult } from "./state-snapshot.js";
 
 export const DEFAULT_MAX_OUTPUT_CHARS = 65536;
@@ -124,6 +125,8 @@ export interface KernelSnapshotConfig {
 }
 
 export interface KernelManagerOptions {
+	/** REPL runtime language this kernel speaks. Defaults to the Python oracle. */
+	runtime?: KernelRuntimeKind;
 	/** Python interpreter with the kernel runtime available. Defaults to the auto-bootstrapped kernel. */
 	python?: string;
 	cwd?: string;

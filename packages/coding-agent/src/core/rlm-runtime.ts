@@ -2,7 +2,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Api, Model, ServiceTier } from "@earendil-works/pi-ai";
 import type { AgentSession } from "./agent-session.js";
 import type { ToolDefinition } from "./extensions/index.js";
-import type { HostRequestHandler } from "./kernel/index.js";
+import type { HostRequestHandler, KernelRuntimeKind } from "./kernel/index.js";
 import { THINKING_LEVELS } from "./thinking-levels.js";
 
 /** Request emitted by `rlm.run`; cellSourceCode preserves the spawning cell for display. */
@@ -233,6 +233,8 @@ export interface CreateRlmSubagentRuntimeOptions {
 	rlmDepth: number;
 	rlmMaxDepth: number;
 	rlmParentNodeId: string;
+	/** REPL runtime the parent kernel speaks; a child inherits it rather than re-resolving. */
+	kernelRuntime?: KernelRuntimeKind;
 	/** Source of the Python cell that spawned this subagent, for display. */
 	spawnCode?: string;
 	/** Publish the session to the parent before a host makes the runtime addressable. */

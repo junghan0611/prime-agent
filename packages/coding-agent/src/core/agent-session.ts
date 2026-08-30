@@ -159,6 +159,7 @@ import {
 	validateGoalObjective,
 } from "./goals.js";
 import type { HostRequestHandlers, KernelSentAgentMessage } from "./kernel/index.js";
+import { type KernelRuntimeKind, kernelRuntimeSupportsStateOps, resolveKernelRuntimeKind } from "./kernel/runtime.js";
 import { type RestoreResult, snapshotPathIn } from "./kernel/state-snapshot.js";
 import type { AcpMcpServerConfig } from "./mcp/acp-mcp-types.js";
 import type { McpManager } from "./mcp/mcp-manager.js";
@@ -439,6 +440,11 @@ export interface AgentSessionConfig {
 	rlmSessionDir?: string;
 	rlmParentNodeId?: string;
 	rlmParentAgent?: string;
+	/**
+	 * REPL runtime this session's kernel speaks. An RLM child inherits its parent's
+	 * value; a root session resolves it from the environment.
+	 */
+	kernelRuntime?: KernelRuntimeKind;
 	subagentRuntimeHost?: SubagentRuntimeHost;
 	autonomous?: AgentAutonomousConfig;
 	prewarmIpythonKernel?: boolean;
@@ -1152,6 +1158,7 @@ export class AgentSession {
 	private _rlmMaxDepthSource: RlmMaxDepthSource;
 	private _rlmSessionDir?: string;
 	private _rlmParentNodeId?: string;
+	private readonly _kernelRuntime: KernelRuntimeKind;
 	private _rlmParentAgent?: string;
 	private _repliedToParentSinceTask: boolean | undefined;
 	private _parentReplyCount = 0;
@@ -1259,6 +1266,7 @@ export class AgentSession {
 		this._serializedRefine = config.serializedRefine ?? false;
 		this._rlmSessionDir = config.rlmSessionDir;
 		this._rlmParentNodeId = config.rlmParentNodeId;
+		this._kernelRuntime = config.kernelRuntime ?? resolveKernelRuntimeKind();
 		this._rlmParentAgent = config.rlmParentAgent;
 		// A resumed child may have replied before this process started; false would
 		// claim knowledge that is not present in the session transcript.
@@ -4375,6 +4383,7 @@ export class AgentSession {
 			rlmParentAgent: this._rlmParentAgent,
 			harnessState: this._loadMergedHarnessState(),
 			genericMcpServers: this._mcpManager?.getEnabledGenericServers(),
+			kernelRuntime: this._kernelRuntime,
 		};
 		return buildSystemPrompt(this._baseSystemPromptOptions);
 	}
@@ -7219,7 +7228,16 @@ export class AgentSession {
 		return this.model ? (clampThinkingLevel(this.model, level) as ThinkingLevel) : "off";
 	}
 
+	/** REPL runtime this session's kernel speaks; RLM children inherit it. */
+	get kernelRuntime(): KernelRuntimeKind {
+		return this._kernelRuntime;
+	}
+
 	private async _syncKernelStateAfterCompaction(): Promise<void> {
+		// Runtimes without state ops implement neither snapshot pruning nor list_names.
+		// The whole path is skipped rather than degraded: there is no name listing to
+		// report, so there is no post-compaction notice to write either.
+		if (!kernelRuntimeSupportsStateOps(this._kernelRuntime)) return;
 		const provisioner = this._ipythonKernelProvisioner;
 		if (!provisioner?.hasRunningKernel) return;
 		const pruned = await provisioner.pruneOversizedVariables().catch(() => null);
@@ -8955,6 +8973,7 @@ export class AgentSession {
 			// for continuity — the conversation is unchanged, so there's nothing to flag.
 			const notifyRestore = !this._ipythonRuntimeBuilt;
 			this._ipythonKernelProvisioner = new IpythonKernelProvisioner(this._cwd, {
+				runtime: this._kernelRuntime,
 				env: this._rlmKernelEnv(),
 				commandPrefix: this.settingsManager.getShellCommandPrefix(),
 				shellPath: this.settingsManager.getShellPath(),
@@ -9334,6 +9353,7 @@ export class AgentSession {
 			rlmDepth: this._rlmDepth + 1,
 			rlmMaxDepth: this._rlmMaxDepth,
 			rlmParentNodeId: options.id,
+			kernelRuntime: this._kernelRuntime,
 		};
 	}
 
@@ -9399,6 +9419,7 @@ export class AgentSession {
 			rlmSessionDir: options.sessionDir,
 			rlmParentNodeId: options.rlmParentNodeId,
 			rlmParentAgent: options.parentSession.sessionName ?? options.parentSession.sessionId,
+			kernelRuntime: options.kernelRuntime,
 			sessionStartEvent: { type: "session_start", reason: "startup" },
 		});
 		if (child.sessionName !== options.sessionName) {

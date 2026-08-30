@@ -2,6 +2,7 @@
  * System prompt construction and project context loading
  */
 
+import type { KernelRuntimeKind } from "./kernel/runtime.js";
 import { buildChildAgentDoctrine, buildRlmPrompt, buildSubagentGuidance } from "./prompts/index.js";
 import { formatHarnessStateForPrompt, type HarnessState, REFINE_SKILL_NAME } from "./refinement/index.js";
 import { formatSkillsForPrompt, getPythonSkillRuntimeInfo, type Skill } from "./skills.js";
@@ -35,6 +36,8 @@ export interface BuildSystemPromptOptions {
 	harnessState?: HarnessState;
 	/** Enabled user-configured servers available through the generic kernel MCP API. */
 	genericMcpServers?: string[];
+	/** REPL runtime this session's kernel speaks. Selects the orchestration-language guidance. */
+	kernelRuntime?: KernelRuntimeKind;
 }
 
 /** Build the system prompt with tools, guidelines, and context */
@@ -96,6 +99,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 		prompt += `\nCurrent working directory: ${promptCwd}`;
 
 		const childDoctrine = buildChildAgentDoctrine({
+			kernelRuntime: options.kernelRuntime,
 			depth: options.rlmDepth,
 			parentAgent: options.rlmParentAgent,
 			installedSkills: visiblePythonSkillImportNames,
@@ -122,6 +126,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 
 	let prompt = buildRlmPrompt({
 		cwd: promptCwd,
+		kernelRuntime: options.kernelRuntime,
 		messagesPath: promptMessagesPath,
 		installedSkills: visiblePythonSkillImportNames,
 		activeTools: tools.filter((name) => name === "ipython" || name === "bash" || name === "edit"),
@@ -138,6 +143,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 			getPythonSkillRuntimeInfo(visibleSkills).map((skill) => skill.importName),
 		);
 		prompt += `\n\n${buildSubagentGuidance({
+			kernelRuntime: options.kernelRuntime,
 			includeRefineExamples: hasRefineSkill,
 			hasAgentMessage: visiblePythonSkillNames.has("agent_message"),
 			hasAgentObserve: visiblePythonSkillNames.has("agent_observe"),

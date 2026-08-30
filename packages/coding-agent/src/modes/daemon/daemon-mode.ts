@@ -2632,6 +2632,7 @@ export class AgentDaemon {
 					rlmSessionDir: options.sessionDir,
 					rlmParentNodeId: options.rlmParentNodeId,
 					rlmParentAgent: options.parentSession.sessionName ?? options.parentSession.sessionId,
+					kernelRuntime: options.kernelRuntime,
 				},
 				runtimeMetadata: {
 					kind: "subagent",

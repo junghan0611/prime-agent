@@ -1,11 +1,18 @@
 // Kernel client for the REPL runtime: the kernel is a JSON-lines subprocess
-// (`python -m rlm.repl`) — requests on stdin, events on stdout, stderr kept as
-// a diagnostics tail. The protocol is documented in prime-agent-runtime/src/rlm/repl.md.
+// (`python -m rlm.repl`, or the native `rlm-repl` for the Clojure runtime) — requests
+// on stdin, events on stdout, stderr kept as a diagnostics tail. The protocol is
+// documented in prime-agent-runtime/src/rlm/repl.md.
 import { type ChildProcess, spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { v4 as uuid } from "uuid";
 import { reapKernelOrphanProcesses, recordOrphanProcessState } from "../orphan-process-journal.js";
 import { ensureKernelPython } from "./bootstrap.js";
+import {
+	assertKernelRuntimeReady,
+	DEFAULT_KERNEL_RUNTIME,
+	kernelRuntimeSupportsStateOps,
+	resolveKernelRuntimeCommand,
+} from "./runtime.js";
 import {
 	AGENT_MESSAGE_DISPLAY_MIME,
 	ATTACHMENT_DISPLAY_MIME,
@@ -47,7 +54,6 @@ import {
 	type SnapshotResult,
 } from "./state-snapshot.js";
 
-const REPL_PROTOCOL_VERSION = 2;
 const READY_TIMEOUT_MS = 30_000;
 // Runtime-minted host-request ids never repeat; the bound only guards a
 // misbehaving runtime from growing the dedup set forever.
@@ -103,11 +109,11 @@ function asReasonArray(value: unknown): { name: string; reason: string }[] {
 export class ReplKernelManager {
 	private readonly options: Pick<
 		KernelManagerOptions,
-		"python" | "cwd" | "env" | "sessionId" | "hostHandlers" | "pythonSkills" | "snapshot"
+		"runtime" | "python" | "cwd" | "env" | "sessionId" | "hostHandlers" | "pythonSkills" | "snapshot"
 	>;
 	private readonly handledHostRequestIds = new Set<string>();
 	private child?: ChildProcess;
-	private readyDeferred?: ReturnType<typeof createDeferred<number>>;
+	private readyDeferred?: ReturnType<typeof createDeferred<Record<string, unknown>>>;
 	private kernelStderr = "";
 	/** Serializes execute() calls — the runtime runs one request at a time. */
 	private executionQueue: Promise<unknown> = Promise.resolve();
@@ -135,14 +141,18 @@ export class ReplKernelManager {
 	private snapshotTimer?: ReturnType<typeof globalThis.setTimeout>;
 
 	constructor(options: KernelManagerOptions) {
+		const runtime = options.runtime ?? DEFAULT_KERNEL_RUNTIME;
 		this.options = {
+			runtime,
 			python: options.python,
 			cwd: options.cwd,
 			env: options.env,
 			sessionId: options.sessionId,
 			hostHandlers: options.hostHandlers,
 			pythonSkills: options.pythonSkills,
-			snapshot: options.snapshot,
+			// A runtime without state ops has no snapshot/restore branch to talk to;
+			// dropping the config here keeps every caller's snapshot path a no-op.
+			snapshot: kernelRuntimeSupportsStateOps(runtime) ? options.snapshot : undefined,
 		};
 	}
 
@@ -178,16 +188,23 @@ export class ReplKernelManager {
 		// handlers can dispose a kernel that is still booting.
 		liveKernels.add(this);
 
-		let python: string;
+		const runtimeKind = this.options.runtime ?? DEFAULT_KERNEL_RUNTIME;
+		let command: string;
+		let args: string[];
 		try {
-			python =
-				this.options.python ??
-				(await ensureKernelPython({
-					pythonSkills: this.options.pythonSkills,
-					onProgress: startOptions.onBootstrapProgress,
-				}));
+			// The Clojure runtime is a self-contained native executable: no interpreter
+			// bootstrap, no managed venv, no Python skills to install.
+			const python =
+				runtimeKind === "clojure"
+					? ""
+					: (this.options.python ??
+						(await ensureKernelPython({
+							pythonSkills: this.options.pythonSkills,
+							onProgress: startOptions.onBootstrapProgress,
+						})));
 			if (this.startStale(generation)) throw new Error("Kernel start superseded");
-			this.options.python = python;
+			if (python) this.options.python = python;
+			({ command, args } = resolveKernelRuntimeCommand(runtimeKind, python));
 		} catch (error) {
 			if (this.startStale(generation)) throw error; // never touch a newer start's state
 			liveKernels.delete(this);
@@ -199,7 +216,7 @@ export class ReplKernelManager {
 			throw new Error("Kernel was disposed during startup");
 		}
 
-		const child = spawn(python, ["-m", "rlm.repl"], {
+		const child = spawn(command, args, {
 			cwd: this.options.cwd,
 			// bash.py journals its process groups under this pid so the host can
 			// reap them if the runtime dies without running its shutdown hook.
@@ -212,18 +229,13 @@ export class ReplKernelManager {
 		});
 		this.child = child;
 		if (child.pid !== undefined) recordOrphanProcessState(child.pid, true);
-		this.readyDeferred = createDeferred<number>();
+		this.readyDeferred = createDeferred<Record<string, unknown>>();
 		this.wireChild(child);
 
 		try {
-			const protocol = await this.waitForReady(child);
+			const ready = await this.waitForReady(child);
 			if (this.startStale(generation)) throw new Error("Kernel start superseded");
-			if (protocol !== REPL_PROTOCOL_VERSION) {
-				throw new Error(
-					`Kernel runtime speaks protocol ${protocol}, expected ${REPL_PROTOCOL_VERSION}. ` +
-						"Update prime-agent-runtime in the kernel Python (PRIME_AGENT_KERNEL_PYTHON) to match this prime-agent.",
-				);
-			}
+			assertKernelRuntimeReady(runtimeKind, ready);
 		} catch (e) {
 			if (this.startStale(generation)) throw e; // never tear down a newer start's kernel
 			const canRetryStartup = (this.state as string) !== "shutdown";
@@ -295,13 +307,13 @@ export class ReplKernelManager {
 		});
 	}
 
-	private async waitForReady(child: ChildProcess): Promise<number> {
+	private async waitForReady(child: ChildProcess): Promise<Record<string, unknown>> {
 		const ready = this.readyDeferred;
 		if (!ready) throw new Error("Kernel ready state is missing");
 		let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
 		let onExit: (() => void) | undefined;
 		try {
-			return await new Promise<number>((resolve, reject) => {
+			return await new Promise<Record<string, unknown>>((resolve, reject) => {
 				ready.promise.then(resolve, reject);
 				onExit = () => {
 					const tail = this.kernelStderr.slice(-1024);
@@ -345,7 +357,7 @@ export class ReplKernelManager {
 	private handleEvent(event: Record<string, unknown>): void {
 		const type = event.event;
 		if (type === "ready") {
-			this.readyDeferred?.resolve(typeof event.protocol === "number" ? event.protocol : -1);
+			this.readyDeferred?.resolve(event);
 			return;
 		}
 		if (type === "host_request") {
@@ -1066,6 +1078,9 @@ export class ReplKernelManager {
 
 	/** Live user-defined top-level names, or null if the kernel isn't running. Never throws. */
 	async listNamespaceNames(signal?: AbortSignal): Promise<string[] | null> {
+		// Runtimes without state ops do not implement list_names; sending one would
+		// only earn a protocol error, so the request is never minted.
+		if (!kernelRuntimeSupportsStateOps(this.options.runtime ?? DEFAULT_KERNEL_RUNTIME)) return null;
 		if (!this.isRunning) return null;
 		try {
 			const r = await this.enqueueRequest({ type: "list_names" }, "", { internal: true, signal });

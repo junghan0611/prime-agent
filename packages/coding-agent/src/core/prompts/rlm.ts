@@ -1,7 +1,10 @@
 import { DEFAULT_RLM_EXTRA_IMPORT_LABELS } from "../kernel/bootstrap.js";
+import type { KernelRuntimeKind } from "../kernel/runtime.js";
 
 export interface RlmPromptOptions {
 	cwd: string;
+	/** REPL runtime the kernel speaks. Selects the orchestration-language guidance. */
+	kernelRuntime?: KernelRuntimeKind;
 	skillsDir?: string;
 	installedSkills?: string[];
 	messagesPath: string;
@@ -15,6 +18,12 @@ const LONG_RUNNING_WORK_PROMPT = [
 	"For slow or independently completing work, use a nonblocking control loop: start the work, record its handle or output location, then end your turn. Read the result on a later turn or when a reply arrives.",
 	"When delegation is available and useful, assign independent substantive tasks to separate workers. Start independent workers without waiting for each one sequentially, and let them run in parallel.",
 	"Do not keep the turn open by polling with `time.sleep()` or shell `sleep`, and do not replace polling with a long blocking `await`. Await only the short operation needed to start work or inspect a result that is already available; otherwise end the turn.",
+].join("\n");
+
+const CLOJURE_LONG_RUNNING_WORK_PROMPT = [
+	"For slow or independently completing work, use a nonblocking control loop: start the work, record its handle or output location, then end your turn. Read the result on a later turn or when a reply arrives.",
+	"When delegation is available and useful, assign independent substantive tasks to separate workers. Start independent workers without waiting for each one sequentially, and let them run in parallel.",
+	"Do not keep the turn open by sleeping or by looping until something finishes. Evaluate what is already available, then end the turn.",
 ].join("\n");
 
 const USER_PROGRESS_PROMPT =
@@ -51,7 +60,25 @@ const REPL_CONTROL_PROMPT = [
 	"RLM-native call contract: installed Python skills are pre-imported modules. Read the matching SKILL.md and call its documented function, such as `await <skill_import>.<function>(...)`; when a CLI exists, use `<skill_import> ...` from shell. Continual harness skill entries are Python REPL skills with an explicit Python `reference` and `arguments` contract. Spawn a reusable delegation spec with `await rlm('sub-task')`; admission returns a child handle immediately. Results arrive only through an available messaging capability or files, never as an `rlm()` return value. Do not invent non-native wrappers such as `call_skill(...)` or `run_subagent(...)`.",
 ].join("\n");
 
+// Phase A Clojure runtime. Public bindings are `rlm` and `host-request` only; there
+// is no Python interpreter, no bundled skills, and no snapshot in this workspace, so
+// nothing here may carry Python syntax or promise a capability the runtime lacks.
+const CLOJURE_REPL_CONTROL_PROMPT = [
+	"The `ipython` tool is a persistent Clojure REPL — the agent's long-lived control environment for reasoning, state, and recursive subcalls. The tool name is historical; this session's runtime is Clojure evaluated by SCI in a native process, not Python.",
+	"",
+	"Clojure is the orchestration language: use `let`, `def`, `defn`, sequence functions, and maps for loops, conditionals, parsing, and state. Every form in a cell is evaluated in order; the last non-nil value is returned and bound to `_`.",
+	"",
+	"Workspace state persists across cells and turns: vars, functions, and parsed data stay available. Bind results to names instead of recomputing them.",
+	"",
+	"`(def x 41)` evaluates to a var, so a cell that only defines names still reports a result. That is this runtime's behavior, not an error.",
+	"",
+	"Public bindings are `rlm` and `host-request` only. Java interop, `slurp`, `future`, and classpath loading are closed in this runtime and raise errors; do not route work through them, and do not report their errors as task failures.",
+	"",
+	"Do not write Python. `print(...)`, `import`, `await`, f-strings, and `def` are not valid here. Use `println`, `str`, plain synchronous calls, and the forms already in the workspace.",
+].join("\n");
+
 export interface ChildAgentDoctrineOptions {
+	kernelRuntime?: KernelRuntimeKind;
 	depth?: number;
 	parentAgent?: string;
 	installedSkills?: string[];
@@ -61,7 +88,8 @@ export interface ChildAgentDoctrineOptions {
 export function buildChildAgentDoctrine(options: ChildAgentDoctrineOptions): string | undefined {
 	const depth = options.depth ?? 0;
 	const hasIpython = options.activeTools === undefined || options.activeTools.includes("ipython");
-	const hasAgentMessage = options.installedSkills?.includes("agent_message") ?? false;
+	const hasAgentMessage =
+		options.kernelRuntime !== "clojure" && (options.installedSkills?.includes("agent_message") ?? false);
 	if (depth <= 0) return undefined;
 
 	const lines = [
@@ -78,8 +106,9 @@ export function buildChildAgentDoctrine(options: ChildAgentDoctrineOptions): str
 export function buildRlmPrompt(options: RlmPromptOptions): string {
 	const { cwd, skillsDir, messagesPath } = options;
 	const installedSkills = options.installedSkills ?? [];
-	const hasAgentMessage = installedSkills.includes("agent_message");
-	const hasAgentObserve = installedSkills.includes("agent_observe");
+	const isClojureRuntime = options.kernelRuntime === "clojure";
+	const hasAgentMessage = !isClojureRuntime && installedSkills.includes("agent_message");
+	const hasAgentObserve = !isClojureRuntime && installedSkills.includes("agent_observe");
 	const allowRecursion = options.allowRecursion ?? true;
 	const depth = options.depth ?? 0;
 	const activeTools = options.activeTools ?? [];
@@ -90,7 +119,7 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 		"You solve tasks by breaking down problems into sub-tasks, writing and executing code, observing results, and iterating one step at a time.",
 		"When you are done, stop calling tools and state your final answer.",
 		"",
-		LONG_RUNNING_WORK_PROMPT,
+		isClojureRuntime ? CLOJURE_LONG_RUNNING_WORK_PROMPT : LONG_RUNNING_WORK_PROMPT,
 		"",
 		...(depth === 0 ? [USER_PROGRESS_PROMPT, ""] : []),
 		SIMPLIFIED_TECHNICAL_ENGLISH_PROMPT,
@@ -98,8 +127,14 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 		`Working directory: ${cwd}`,
 		`Conversation log: ${messagesPath}`,
 		`Recursive agent depth: ${depth}`,
-		`Pre-installed Python packages: ${DEFAULT_RLM_EXTRA_IMPORT_LABELS.join(", ")}.`,
-		"Install additional packages with `uv pip install <pkg>` (this is a uv-managed venv with no pip module).",
+		...(isClojureRuntime
+			? [
+					"Runtime: a persistent Clojure workspace served by a native `rlm-repl` process. There is no Python interpreter and no package installer in this session.",
+				]
+			: [
+					`Pre-installed Python packages: ${DEFAULT_RLM_EXTRA_IMPORT_LABELS.join(", ")}.`,
+					"Install additional packages with `uv pip install <pkg>` (this is a uv-managed venv with no pip module).",
+				]),
 	];
 
 	const childDoctrine = buildChildAgentDoctrine(options);
@@ -108,10 +143,10 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 	}
 
 	const skillLines: string[] = [];
-	if (skillsDir) {
+	if (skillsDir && !isClojureRuntime) {
 		skillLines.push(`Local skills live under ${skillsDir}. Read their SKILL.md files when helpful.`);
 	}
-	if (installedSkills.length > 0) {
+	if (installedSkills.length > 0 && !isClojureRuntime) {
 		const installed = installedSkills.map((skill) => `\`${skill}\``).join(", ");
 		if (hasIpython) {
 			skillLines.push(`Installed Python skill modules (pre-imported): ${installed}.`);
@@ -146,7 +181,16 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 		);
 	}
 
-	if (allowRecursion && hasIpython) {
+	if (allowRecursion && hasIpython && isClojureRuntime) {
+		parts.push(
+			"",
+			'An `rlm` function is already bound in your workspace. `(rlm "sub-task")` spawns a child and returns a handle map with `:rlm-child-id`, `:name`, `:session-dir`, and `:model` as soon as the host admits the task; it never waits for or returns the child\'s answer.',
+			'Pass options as a map: `(rlm "sub-task" {:name "api-reviewer"})`. Names must be unique among siblings; if omitted, the host generates a readable unique name.',
+			"A child inherits your model and this same Clojure runtime.",
+			"Spawn independent children in separate calls and end your turn instead of waiting for them.",
+			"A child's answer never comes back through `rlm`. This slice has no messaging or file capability, so bind and report the handle rather than claiming a result you cannot observe.",
+		);
+	} else if (allowRecursion && hasIpython) {
 		parts.push(
 			"",
 			"A callable `rlm` is already in your global namespace. `await rlm('sub-task')` spawns a child and returns immediately after task admission with `rlm_child_id`, `name`, `session_dir`, and `model`; it never waits for or returns the child's answer.",
@@ -173,7 +217,9 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 		);
 	}
 
-	if (hasIpython) {
+	if (hasIpython && isClojureRuntime) {
+		parts.push("", CLOJURE_REPL_CONTROL_PROMPT);
+	} else if (hasIpython) {
 		parts.push("", REPL_CONTROL_PROMPT);
 		if (installedSkills.includes("refine")) {
 			parts.push(
@@ -195,8 +241,22 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
  * harness-state block.
  */
 export function buildSubagentGuidance(
-	options: { includeRefineExamples?: boolean; hasAgentMessage?: boolean; hasAgentObserve?: boolean } = {},
+	options: {
+		includeRefineExamples?: boolean;
+		hasAgentMessage?: boolean;
+		hasAgentObserve?: boolean;
+		kernelRuntime?: KernelRuntimeKind;
+	} = {},
 ): string {
+	if (options.kernelRuntime === "clojure") {
+		return [
+			"# Delegating to sub-agents",
+			"",
+			'Spawn independent, self-contained work with `(def worker (rlm "task" {:name "worker"}))`. The handle map returns at admission, not completion; keep it to refer to the child later.',
+			"Child answers do not return through `rlm`, and this slice has no messaging or file capability to collect them, so delegate only work whose value is the spawn itself.",
+			"Delegate parallel context-heavy work; do a single known computation inline.",
+		].join("\n");
+	}
 	const lines = [
 		"# Delegating to sub-agents",
 		"",

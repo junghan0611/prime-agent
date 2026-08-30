@@ -21,19 +21,19 @@
 제품 8홉 중 이 브랜치에 들어오는 것만 체크한다. H3–H8은 ROADMAP.
 
 - [x] **runtime 1–3b** — native-image + SCI. src 284 + test 629. 32/158. GitHub 린트만.
-- [ ] **H1 host 선택면** ← CURRENT: spawn + Clojure bootstrap/prompt + snapshot-off(**`list_names` 전체 skip**). **구현 220–300 + 테스트 180–250.** `ipython` 이름 유지. Python oracle 토글. `repl-manager.ts` / `ipython.ts` 전면 개조 금지.
-- [ ] **H2 fan-in + DeepSeek 4실험** ← 이 브랜치 닫힘 (제품 1차 boot). 코드량 없음. 메터드 API.
+- [x] **H1 host 선택면** — spawn + Clojure bootstrap/prompt + `list_names` skip. 구현 299 + 테스트 248. GLM 검수 통과.
+- [ ] **H2 fan-in + DeepSeek 4실험** ← CURRENT: 이 브랜치 닫힘 (제품 1차 boot). 코드량 없음. 메터드 API.
 
-현재 좌표: runtime 완료 → H1 진행 → H2가 브랜치 닫힘 → H3+는 ROADMAP
+현재 좌표: H1 완료 → H2 진행 → H3+는 ROADMAP
 
-# NOW — H1
+# NOW — H2
 
-- Stem: Clojure runtime을 TypeScript host가 띄운다. 새 capability 없음.
-- Next: `target/rlm-repl` spawn, Clojure bootstrap/prompt(Python 문법 잔류 금지), snapshot-off + compaction `list_names` skip, child `AgentSession`이 같은 runtime 상속. 상단 300/250 초과 = parity가 stem에 섞인 것.
-- Verify: fake executable argv/ready, Clojure bootstrap·no-Python, snapshot/`list_names` 미호출, Clojure prompt, 로컬 native host-request 관통. 런타임 `clojure -M:test`. `npm run check`. GH GraalVM 없음.
-- Read: `docs/clojure-runtime.md` · `packages/coding-agent/docs/rlm.md` · `packages/coding-agent/docs/rlm-runtime.md` · `ROADMAP.md`
-- Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`/snapshot/restore **구현**, bash/skills/MCP, interrupt 보장, persist CLI 선택면, Python API/await/future 주입, H3 읽기 cap, H4 process, H5 write, Emmy, GH native-image
-- Blocker: 없음.
+- Stem: H1이 호스트에 native SCI를 붙였다. 기본 runtime은 python. Clojure는 `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
+- Next: DeepSeek로 아래 네 개 + fan-in 한 줄을 Clojure form으로 친다. 새 capability 없음. 읽기 cap 부족은 한 줄 적고 H3로.
+- Verify: 라벨 `semantics-gap` / `model-fumble` / `harness-gap`. 영수증에 pin(model)·form·결과. Python fixture 공유 금지.
+- Read: issue #1 · 이 문서 H2 절 · `docs/clojure-runtime.md` · `packages/coding-agent/docs/rlm.md`
+- Do not touch: H1 코드 재개조, `list_names` 구현, H3–H8, Emmy, commit/push (GLG만)
+- Blocker: 없음. DeepSeek는 메터드 — 키는 env, 메시지에 넣지 않음.
 
 # H2 — 이 브랜치 닫힘 실험
 
@@ -55,3 +55,4 @@ README / `rlm.md` 네 개. DeepSeek · Clojure form. Python fixture 공유 금�
 - [2026-08-30] 문서 한 장. JVM SUT·GH GraalVM 삭제. `56631f36`
 - [2026-08-30] sol: 견적 220–300/180–250, `list_names` skip, fan-in 한 줄.
 - [2026-08-30] GLG 교정: 이 브랜치 닫힘 = 1차 boot (H1–H2). 최종 1번 = 실사용 대체 (ROADMAP H1–H8). 논문 첫 pilot은 H7, arXiv 2608.23552 §3 RQ2.
+- [2026-08-30] H1 착지. GLM 검수 green. fragment `h1-clojure-kernel-runtime.md`.

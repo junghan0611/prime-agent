@@ -1,0 +1,1 @@
+- Added an optional Clojure/SCI native kernel runtime (`PRIME_AGENT_KERNEL_RUNTIME=clojure`) that skips snapshot and `list_names`.
