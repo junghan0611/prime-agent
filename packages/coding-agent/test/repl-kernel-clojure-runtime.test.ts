@@ -48,7 +48,7 @@ function writeFakeRuntime(options: { ready?: string; bootstrapResult?: string } 
 			'const readline = require("node:readline");',
 			`const log = ${JSON.stringify(logPath)};`,
 			`const ready = ${JSON.stringify(options.ready ?? CLOJURE_READY)};`,
-			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true true]")};`,
+			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true true true true true true true]")};`,
 			'const note = (entry) => fs.appendFileSync(log, JSON.stringify(entry) + "\\n");',
 			'const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");',
 			"note({ argv: process.argv.slice(2) });",
@@ -155,6 +155,7 @@ describe("clojure kernel runtime", () => {
 			const executed = requests.filter((r) => r.type === "execute").map((r) => String(r.code));
 			expect(executed).toEqual([buildClojureBootstrapCode()]);
 			expect(executed[0]).toMatch(/\(fn\? rlm\)/);
+			expect(executed[0]).toMatch(/\(fn\? process-start\)/);
 			expect(executed[0]).not.toMatch(/\bimport\b|\basync def\b|\bawait\b|print\(/);
 			expect(requests.map((r) => String(r.type))).toEqual(["execute"]);
 		} finally {
@@ -167,7 +168,7 @@ describe("clojure kernel runtime", () => {
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "clojure" });
 		try {
-			await expect(provisioner.ensure()).rejects.toThrow(/did not expose the rlm and host-request bindings/);
+			await expect(provisioner.ensure()).rejects.toThrow(/did not expose its public bindings/);
 		} finally {
 			errorSpy.mockRestore();
 			await provisioner.dispose();
@@ -198,6 +199,8 @@ describe("clojure kernel runtime", () => {
 		expect(prompt).toMatch(/rlm\.list_subagents/);
 		expect(prompt).toMatch(/agent_message\.list_agents/);
 		expect(prompt).toMatch(/read-text/);
+		expect(prompt).toMatch(/process-start/);
+		expect(prompt).toMatch(/process-kill/);
 		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/await agent_message\.send/);
 	});
 

@@ -55,3 +55,27 @@ These are not protocol v2 parity.
 1. **output batching** — `*out*`/`*err*` flush as one event at cell end. Cell-id attribution matches the oracle; mid-cell streaming does not (`eval.clj`).
 2. **ename / traceback** — SCI wraps user errors; `ename` is the wrapper class and traceback still carries runtime frames. OPEN (`repl.clj`).
 3. **interrupt** — request is parsed, cancellation is not guaranteed.
+4. **process containment** — `process-*` reaps a tree through `ProcessHandle.descendants()`. There is no process group, no session, and no orphan journal, so a fully detached double-fork survives, and a SIGKILLed runtime cannot clean up at all (`process.clj`).
+5. **no wait** — `Thread/sleep` is closed, so a cell cannot block on a command. Poll `process-poll` in a later cell; a busy-loop inside one cell holds the runtime and `interrupt` will not free it.
+
+## `process-*` — H4
+
+`(process-start "cmd")` spawns under the shell and returns immediately with a
+data-only handle. The live `java.lang.Process` stays in the runtime registry;
+the workspace only ever holds a `:process-id`.
+
+```text
+> (def h (process-start "echo hello-h4; exit 3"))
+> (process-poll h)
+{:process-id "p1", :command "echo hello-h4; exit 3", :pid 1706302, :status :exited,
+ :exit-code 3, :killed false, :output-bytes 9, :output-truncated false}
+> (process-tail h)
+"hello-h4"
+> (process-kill h)
+```
+
+Output is captured head 128 KiB + tail 128 KiB with the middle dropped. The
+child gets pipes, never the protocol descriptors, and stdin is closed. Shutdown,
+stdin EOF, and SIGTERM to the runtime all reap live trees.
+
+Contract and deviations: `docs/clojure-runtime.md`.

@@ -2,7 +2,8 @@
   "Persistent SCI context. One context lives for the process lifetime."
   (:require [sci.core :as sci]
             [rlm.core :as core]
-            [rlm.io :as io]))
+            [rlm.io :as io]
+            [rlm.process :as process]))
 
 (defn make-ctx
   [runtime]
@@ -10,10 +11,24 @@
         rlm-fn (fn
                  ([prompt] (core/rlm runtime prompt))
                  ([prompt kwargs] (core/rlm runtime prompt kwargs)))
-        read-fn (fn [path] (io/read-text path))]
+        read-fn (fn [path] (io/read-text path))
+        ;; Process verbs take and return ids and data maps. The live
+        ;; java.lang.Process stays on the runtime registry.
+        start-fn (fn [command] (process/start runtime command))
+        poll-fn (fn [id] (process/poll runtime id))
+        tail-fn (fn
+                  ([id] (process/tail runtime id))
+                  ([id n] (process/tail runtime id n)))
+        kill-fn (fn [id] (process/kill runtime id))
+        list-fn (fn [] (process/ls runtime))]
     (sci/init {:namespaces {'user {'host-request host-fn
                                    'rlm rlm-fn
-                                   'read-text read-fn}}})))
+                                   'read-text read-fn
+                                   'process-start start-fn
+                                   'process-poll poll-fn
+                                   'process-tail tail-fn
+                                   'process-kill kill-fn
+                                   'process-list list-fn}}})))
 
 (defn bind-_
   [ctx value]

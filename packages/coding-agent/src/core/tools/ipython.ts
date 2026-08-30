@@ -72,10 +72,11 @@ except Exception as _prime_agent_rlm_error:
 // so the bootstrap only has to confirm the workspace it was handed is that runtime.
 const RLM_CLOJURE_BOOTSTRAP_CODE = `
 (def prime-agent-runtime {:language "clojure" :engine "sci"})
-[(fn? rlm) (fn? host-request) (fn? read-text)]
+[(fn? rlm) (fn? host-request) (fn? read-text)
+ (fn? process-start) (fn? process-poll) (fn? process-tail) (fn? process-kill) (fn? process-list)]
 `.trim();
 
-const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true]";
+const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true true true true true true]";
 
 export function buildClojureBootstrapCode(): string {
 	return RLM_CLOJURE_BOOTSTRAP_CODE;
@@ -559,11 +560,11 @@ export class IpythonKernelProvisioner {
 						`Failed to initialize rlm runtime in the ${isClojure ? "Clojure" : "Python"} kernel:\n${details}`,
 					);
 				}
-				// A Clojure kernel that answers without both public bindings is not the
+				// A Clojure kernel that answers without every public binding is not the
 				// workspace the prompt describes; fail startup instead of teaching a lie.
 				if (isClojure && bootstrap.result?.trim() !== RLM_CLOJURE_BOOTSTRAP_RECEIPT) {
 					throw new Error(
-						`Clojure kernel did not expose the rlm and host-request bindings (bootstrap returned ${bootstrap.result ?? "no value"}).`,
+						`Clojure kernel did not expose its public bindings (bootstrap returned ${bootstrap.result ?? "no value"}).`,
 					);
 				}
 			} catch (error) {

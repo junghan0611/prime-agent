@@ -66,7 +66,9 @@
   [repl]
   (try (.close ^java.io.Writer (:stdin repl)) (catch Exception _))
   (let [proc ^Process (:proc repl)]
-    (when (.isAlive proc)
+    ;; Let EOF cleanup run before reaching for the kill: SIGKILL skips the
+    ;; runtime's shutdown path and would orphan whatever it still owns.
+    (when-not (.waitFor proc 10 TimeUnit/SECONDS)
       (.destroyForcibly proc)
       (.waitFor proc 10 TimeUnit/SECONDS))))
 

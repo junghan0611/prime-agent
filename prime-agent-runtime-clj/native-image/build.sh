@@ -7,7 +7,9 @@ cd "$(dirname "$0")/.."
 # Do not write classes/ at the project root — that path is not ignored.
 rm -rf target/classes
 mkdir -p target/classes target
-clojure -M -e "(binding [*compile-path* \"target/classes\"] (doseq [n '[rlm.io rlm.core rlm.eval rlm.repl]] (compile n)))"
+# warn-on-reflection is a build gate, not decoration: a reflective interop form
+# links fine and then dies in the native image (no reflect-config by contract).
+clojure -M -e "(binding [*compile-path* \"target/classes\" *warn-on-reflection* true] (doseq [n '[rlm.io rlm.core rlm.process rlm.eval rlm.repl]] (compile n)))"
 native-image \
   -cp "$(clojure -Spath):target/classes" \
   --no-fallback \

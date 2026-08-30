@@ -4,7 +4,8 @@
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [rlm.core :as core]
-            [rlm.eval :as eval])
+            [rlm.eval :as eval]
+            [rlm.process :as process])
   (:import [java.io BufferedReader BufferedWriter InputStreamReader OutputStreamWriter]
            [java.util.concurrent LinkedBlockingQueue])
   (:gen-class))
@@ -137,9 +138,13 @@
                  :queue (LinkedBlockingQueue.)
                  :inflight (atom #{})
                  :pending-host (atom {})
-                 :host-closed (atom false)}
+                 :host-closed (atom false)
+                 ;; id -> live entry. Only snapshots of these cross into SCI.
+                 :processes (atom {})
+                 :process-counter (atom 0)}
         send! (fn [event] (send-event! runtime event))
         runtime (assoc runtime :send! send!)]
+    (process/install-shutdown-hook! runtime)
     (assoc runtime :ctx (eval/make-ctx runtime))))
 
 (defn serve
@@ -152,8 +157,11 @@
       (let [req (.take ^LinkedBlockingQueue (:queue runtime))]
         (case (get req "type")
           "shutdown"
-          (when (string? (get req "id"))
-            (send-event! runtime {:event "done" :id (get req "id") :status "ok"}))
+          ;; Kill the tree before answering: a host that exits on `done` must
+          ;; not leave our children behind.
+          (do (process/kill-all! runtime)
+              (when (string? (get req "id"))
+                (send-event! runtime {:event "done" :id (get req "id") :status "ok"})))
           ;; reader only queues execute/shutdown (unknown types die in handle-line).
           "execute"
           (do (handle-execute runtime req)

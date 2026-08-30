@@ -78,10 +78,12 @@ prime-agent-runtime-clj/
   src/rlm/repl.clj            ; JSONL reader, queue, event writer, lifecycle
   src/rlm/eval.clj            ; persistent SCI context
   src/rlm/core.clj            ; host-request, rlm
+  src/rlm/io.clj              ; H3 bounded read-text
+  src/rlm/process.clj         ; H4 process lifecycle + registry
   test/rlm/*.clj
 ```
 
-`process.clj` / `emmy.clj`는 없다. 첫 slice 뒤·Hop 3에서만 생긴다.
+`emmy.clj`는 없다. H8 뒤에만 생긴다.
 한 폴더에 Python과 Clojure를 섞지 않는다.
 
 ---
@@ -115,7 +117,7 @@ prime-agent-runtime-clj/
 - 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
 - `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- public binding은 `rlm`, `host-request`만. Java interop·IO·classpath loading은 열지 않는다.
+- public binding은 `rlm`, `host-request`, `read-text`(H3), `process-*`(H4)만. Java interop·classpath loading은 열지 않는다.
 
 ### `(rlm ...)`
 
@@ -137,11 +139,53 @@ prime-agent-runtime-clj/
 | form | native |
 |---|---|
 | `(.toUpperCase "ab")` / `(.length "abc")` | error |
-| `(slurp …)` / `(System/getProperty …)` / `(future 1)` | error |
+| `(slurp …)` / `(System/getProperty …)` / `(future 1)` / `(Thread/sleep 1)` | error |
 
 `native-image/`에 reflect-config가 없다. 닫힘은 명시적 allow-list가 아니라 reflection metadata 부재로 보인다(인과는 추정, 닫힘 자체는 테스트가 고정). reflect-config를 넣으면 경계가 조용히 열린다.
 
 Framing은 SCI allow-list가 raw Java/native output을 닫고 있어서 지킨다. capability를 열 때 output boundary를 다시 설계한다. 우연한 native closure를 보안 계약이라고 부르지 않는다.
+
+### H4가 바꾼 신뢰 모델 — 읽고 넘어가지 말 것
+
+`(process-start "cmd")`는 shell을 연다. `(read-text)`의 workspace 루트 제한도, `slurp`/`spit` 닫힘도 그 shell 안에서는 성립하지 않는다. `cat /etc/passwd`도 `echo x > /tmp/y`도 process 경유로 된다.
+
+이건 우회가 아니라 H4가 연 capability 그 자체다. NEXT의 결정대로 여기서부터 경계는 **OS permission**이지 runtime allow-list가 아니다. H3 symlink deviation을 보안 경계로 승격하지 않는 이유도 같다.
+
+H4는 write **경로**를 열었을 뿐, H5의 write receipt는 구현하지 않았다. 둘은 합치지 않는다.
+
+---
+
+## Process lifecycle — H4
+
+Python oracle의 `bash()` handle(`prime-agent-runtime/src/rlm/bash.py`)을 참고선으로 삼되 parity는 아니다.
+
+| form | 반환 |
+|---|---|
+| `(process-start "cmd")` | handle snapshot map. 기다리지 않는다 |
+| `(process-poll id)` | 같은 shape의 새 snapshot |
+| `(process-tail id)` / `(process-tail id n)` | 마지막 n줄 (기본 50, 최대 2000) |
+| `(process-kill id)` | tree 종료 후 snapshot |
+| `(process-list)` | registry 전체 snapshot vector |
+
+snapshot은 plain data만 담는다:
+
+```clojure
+{:process-id "p1" :command "…" :pid 1706302 :status :exited
+ :exit-code 3 :killed false :output-bytes 9 :output-truncated false}
+```
+
+- **SCI는 live process를 절대 받지 않는다.** `java.lang.Process`는 runtime map의 `:processes` registry에만 산다. workspace가 쥐는 것은 `:process-id` 문자열뿐이고, interop이 닫혀 있으니 그 map에서 객체로 돌아가는 길이 없다.
+- **stdout/stderr는 pipe로 합쳐 bounded buffer에 담는다.** head 128 KiB + tail 128 KiB, 가운데는 버리고 `... [N bytes dropped] ...`를 남긴다. child가 protocol fd를 상속하지 않으므로 위조 frame이 프레임 스트림에 뜰 수 없다. stdin은 spawn 직후 닫는다 (child가 protocol 입력을 훔치지 못한다).
+- **cleanup은 세 경로 모두 덮는다.** `shutdown` 요청, stdin EOF, 그리고 runtime 자신에 대한 SIGTERM(shutdown hook). 세 개 다 native 테스트가 pid로 확인한다.
+- **descendant 정리는 `ProcessHandle.descendants()`다.** leader를 죽이기 전에 스냅샷을 뜨고(죽이면 자식이 reparent 되어 목록에서 사라진다), TERM → 2s → KILL. sweep 중간에 태어난 손자는 한 번 더 훑지만, 완전히 detach 한 double-fork daemon은 놓칠 수 있다.
+- **cap:** live 16개, registry 64개(초과 시 끝난 것부터 정리).
+
+H4가 하지 않은 것 (oracle과의 차이):
+
+1. **process group / session 격리 없음.** oracle은 POSIX에서 `start_new_session` + orphan journal로 트리를 가둔다. 여기는 `setsid`도 journal도 없다. `descendants()` 스냅샷이 유일한 회수 수단이다.
+2. **SIGKILL 받은 runtime은 정리하지 못한다.** shutdown hook이 안 돈다. oracle의 host reaper에 해당하는 장치가 없다.
+3. **`wait`가 없다.** `Thread/sleep`이 닫혀 있어 한 셀 안에서 완료를 기다릴 방법이 없다. 모델은 다음 셀에서 `process-poll` 해야 한다. 한 셀 안 busy-loop는 runtime을 붙잡는다 — `interrupt`가 취소를 보장하지 않으므로 실제 위험이다. bounded `wait`를 열지 말지는 H4 게이트 밖이라 열지 않았다.
+4. **mid-cell streaming 없음.** 출력은 `process-tail`을 부를 때만 보인다.
 
 ---
 
@@ -154,6 +198,8 @@ Framing은 SCI allow-list가 raw Java/native output을 닫고 있어서 지킨�
 5. `deps.edn`의 `:test`는 **native**다. 바이너리가 없으면 실패하는 게 맞다.
 6. `build.sh`의 `--initialize-at-build-time`(인자 없음)을 패키지 목록으로 "고치면" SCI가 런타임에 `core__init`을 못 찾는다.
 7. `bin/rlm`은 Hop 1 손잡이다. TypeScript host가 아니고 제품 REPL도 아니다.
+8. **reflective interop은 링크는 되고 native에서 죽는다.** `(:import [java.lang ProcessBuilder])` 뒤의 생성자, 그리고 리터럴에 직접 붙인 `^java.util.List` 힌트는 둘 다 `RT.classForName`으로 컴파일되고 image에는 그 클래스가 없다 (`ClassNotFoundException`). 힌트는 **local에** 붙인다. `build.sh`가 AOT를 `*warn-on-reflection* true`로 감싸는 이유다 — reflect-config는 계약상 닫혀 있으므로 이 경고가 유일한 게이트다.
+9. `ProcessHandle.descendants()`는 native-image에서 **돈다** (실측: `sh -c "sleep & sleep & wait"`의 자식 2개 회수). `/proc/<pid>/stat`을 `slurp`하는 쪽은 안 된다.
 
 ---
 
@@ -214,7 +260,7 @@ Acceptance:
 
 아닌 것: CPython보다 빠름, 92 tests green, snapshot 호환, 모든 library 노출, steering/Emacs 완성.
 
-코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 284 + test 629 + native-image 128.
+코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 664 + test 883 + native-image 21 (H4 기준).
 
 ---
 

@@ -3,12 +3,14 @@
             [rlm.capability-test]
             [rlm.framing-test]
             [rlm.host-bridge-test]
+            [rlm.process-test]
             [rlm.repl-test]
             [rlm.sut :as sut]
             [rlm.workspace-test]))
 
 (def ^:private nses
-  '[rlm.repl-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test rlm.framing-test])
+  '[rlm.repl-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test rlm.framing-test
+    rlm.process-test])
 
 (defn -main
   [& _]
