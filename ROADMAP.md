@@ -2,7 +2,7 @@
 
 최종 1번 목표: Clojure/SCI native runtime을 Python kernel의 **실사용 대체물**로 쓴다. 논문/프로젝트가 주장한 평가를 **같은 evaluator · model · budget**에서 실행 가능하게 만든다.
 
-이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H7은 **rollback checkpoint**이지 브랜치 닫힘이 아니다. CURRENT = H8 (착지, 검수 대기). 이 레일의 마지막 홉.
+이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H8은 **rollback checkpoint**. CURRENT = 레일 끝. 새 브랜치 없음. Emmy는 이 레일 밖.
 
 출처: sol `20260830T103427-f6f942`. README 배지 [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), arXiv [2608.23552](https://arxiv.org/abs/2608.23552). 이 repo에 논문 eval config는 없다 — pin/acquisition은 H7 산출물.
 
@@ -17,7 +17,7 @@
 | H5 | edit / write receipts | checkpoint `2e5753a2`. `spit` 닫힘. write는 symlink 거부. H3 read 편차는 그대로 |
 | H6 | compaction / restart continuity | checkpoint `2ea1b170`. `list_names` frame 0, snapshot 없음. registry 회수 verb + runtime별 통지. restart 는 복원이 아니라 정직한 빈 workspace |
 | H7 | 기능 A/B (DeepSeek thinking) | checkpoint `b5e9e424`. 8/8 REPL. clojure Python 유출 0. fan-in은 여전히 harness-gap |
-| H8 | default switch + soak | `edc3a3e8`, 검수 대기. 이 포크 default = clojure, **fallback 없음**(바이너리 없으면 teaching error). oracle 은 `PRIME_AGENT_KERNEL_RUNTIME=python`. flip 델타 +49 tests → 수선 후 **0**. soak: native 65/497 · TS 4,415 pass · default 실측 1회. 90%/PMPP는 홉 밖 |
+| H8 | default switch + soak | checkpoint `edc3a3e8`. default = clojure, fallback 없음. 테라 native 65/497 PASS. 90%/PMPP는 홉 밖 |
 
 ## 이 브랜치 이후 — 공존언어
 

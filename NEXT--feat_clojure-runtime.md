@@ -1,7 +1,7 @@
-# feat/clojure-runtime — H8 착지, 검수 대기 (레일 마지막 홉)
+# feat/clojure-runtime — 8홉 레일 닫힘
 
-최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H7은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = H8 (착지, 검수 대기 — 닫는 것은 코디 `cd2dd4`). Emmy는 H8 뒤, 이번 아님.
+최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
+CURRENT = 레일 끝. Emmy는 별 레일. 9번째 홉 없음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -26,15 +26,14 @@ CURRENT = H8 (착지, 검수 대기 — 닫는 것은 코디 `cd2dd4`). Emmy는 
 - [x] **H5 edit / write receipts** — `2e5753a2`. write-text / edit-text. native 57/443. GLM `abff01` PASS.
 - [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497.
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
-- [~] **H8 default switch + soak** — `edc3a3e8`. 이 포크 default = clojure, fallback 없음.
-      native 65/497, TS 4415 pass, 델타 0. **Tera `55b3ea` 실측 대기.**
+- [x] **H8 default switch + soak** — `edc3a3e8`. default = clojure, fallback 없음. 테라 `55b3ea` native 65/497 PASS.
 
-현재 좌표: H0–H7 checkpoint → **H8 착지, 검수 대기 (레일 끝)**
+현재 좌표: **H0–H8 checkpoint. 이 레일 끝.**
 
-# NOW — H8 착지, 검수·푸시는 GLG
+# NOW — 레일 닫힘, 푸시는 GLG
 
-- Stem: H8 `edc3a3e8` (ahead 3, 푸시 안 함).
-- Next: Tera `55b3ea` 실측. 그다음 GLG 푸시. **9번째 홉 없음.** Emmy는 별건.
+- Stem: H8 `edc3a3e8` (ahead 2, 푸시 안 함).
+- Next: GLG 푸시. **9번째 홉 없음.** Emmy는 별건.
 - **H8 이 한 것:** `DEFAULT_KERNEL_RUNTIME = "clojure"`. oracle 은 `PRIME_AGENT_KERNEL_RUNTIME=python`
   으로 계속 선택 가능. **fallback 안 한다** — 바이너리 없으면 teaching error 로 안 뜬다 (GLG 안 (가)).
 - **테스트가 말하게 된 것:** flip 델타는 +49 tests / 16 files 였고 세 갈래였다.
