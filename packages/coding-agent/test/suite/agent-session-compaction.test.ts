@@ -76,6 +76,9 @@ describe("AgentSession compaction characterization", () => {
 	it("manually compacts using an extension-provided summary", async () => {
 		const harness = await createHarness({
 			settings: { compaction: { keepRecentTokens: 1 } },
+			// State ops are the Python oracle's; this fork defaults to Clojure, which
+			// has none. The Clojure path has its own test below.
+			kernelRuntime: "python",
 			extensionFactories: [
 				(pi) => {
 					pi.on("session_before_compact", async (event) => ({

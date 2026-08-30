@@ -29,7 +29,7 @@ function runningManagerWith(writeLine: (request: Record<string, unknown>) => Pro
 	internals: ReplInternals;
 	kernelKill: ReturnType<typeof vi.fn>;
 } {
-	const manager = new ReplKernelManager({ cwd: process.cwd() });
+	const manager = new ReplKernelManager({ runtime: "python", cwd: process.cwd() });
 	const kernelKill = vi.fn((_signal?: NodeJS.Signals | number) => true);
 	const internals = manager as unknown as ReplInternals;
 	Object.assign(internals, {
@@ -47,7 +47,7 @@ describe("ReplKernelManager abort handling", () => {
 	});
 
 	it("does not poison startup after a caller starts with an aborted signal", async () => {
-		const manager = new ReplKernelManager({ cwd: process.cwd() });
+		const manager = new ReplKernelManager({ runtime: "python", cwd: process.cwd() });
 		let startCount = 0;
 		Object.assign(
 			manager as unknown as {
@@ -68,7 +68,7 @@ describe("ReplKernelManager abort handling", () => {
 	});
 
 	it("does not cancel shared startup when one waiting caller aborts", async () => {
-		const manager = new ReplKernelManager({ cwd: process.cwd() });
+		const manager = new ReplKernelManager({ runtime: "python", cwd: process.cwd() });
 		let releaseStart: () => void = () => {};
 		let startCount = 0;
 		Object.assign(
@@ -219,6 +219,7 @@ describe("ReplKernelManager abort handling", () => {
 	it("starts the snapshot timeout after earlier kernel work finishes", async () => {
 		vi.useFakeTimers();
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			cwd: process.cwd(),
 			snapshot: { path: "/tmp/test-state.dill", manifestPath: "/tmp/test-state.json" },
 		});

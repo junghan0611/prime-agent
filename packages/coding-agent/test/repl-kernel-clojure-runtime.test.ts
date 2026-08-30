@@ -109,8 +109,9 @@ describe("clojure kernel runtime", () => {
 		}
 	});
 
-	it("defaults to the python oracle and only switches on an explicit selection", () => {
-		expect(resolveKernelRuntimeKind({})).toBe("python");
+	it("defaults this fork to the clojure runtime and still takes an explicit python selection", () => {
+		expect(resolveKernelRuntimeKind({})).toBe("clojure");
+		expect(resolveKernelRuntimeKind({ PRIME_AGENT_KERNEL_RUNTIME: "python" })).toBe("python");
 		expect(resolveKernelRuntimeKind({ PRIME_AGENT_KERNEL_RUNTIME: "clojure" })).toBe("clojure");
 		expect(() => resolveKernelRuntimeKind({ PRIME_AGENT_KERNEL_RUNTIME: "lisp" })).toThrow(/python.*clojure/i);
 		expect(() => resolveClojureRuntimeExecutable({ PRIME_AGENT_CLOJURE_RUNTIME: join(tempDir, "absent") })).toThrow(

@@ -486,11 +486,11 @@ active extension doctrine`,
 		const promptPromise = harness.session.prompt("start");
 		await responseStarted.promise;
 		expect(harness.session.agent.state.systemPrompt).toContain("active extension doctrine");
-		expect(harness.session.agent.state.systemPrompt).not.toContain("A callable `rlm`");
+		expect(harness.session.agent.state.systemPrompt).not.toContain("An `rlm` function is already bound");
 
 		await harness.session.setRlmMaxDepth(2);
 
-		expect(harness.session.agent.state.systemPrompt).toContain("A callable `rlm`");
+		expect(harness.session.agent.state.systemPrompt).toContain("An `rlm` function is already bound");
 		expect(harness.session.agent.state.systemPrompt).toContain("active extension doctrine");
 		responseGate.resolve();
 		await promptPromise;

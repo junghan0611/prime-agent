@@ -64,7 +64,7 @@ describe("ACP mode over a real Python kernel", () => {
 		// Every provisioner in this file requests the same skill set: the kernel venv
 		// is shared, and a skill-less kernel here can leave a later skill-dependent
 		// test with an unsynced venv when files run concurrently.
-		provisioner = new IpythonKernelProvisioner(tempDir, { pythonSkills: [AGENT_MESSAGE_SKILL] });
+		provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", pythonSkills: [AGENT_MESSAGE_SKILL] });
 		const manager: KernelClient = await provisioner.ensure();
 
 		const first = await manager.execute("acp_state = 41\nprint('set')");
@@ -88,6 +88,7 @@ describe("ACP mode over a real Python kernel", () => {
 		timeout: 180_000,
 	}, async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [AGENT_MESSAGE_SKILL],
 			env: { RLM_GLOBAL_HARNESS_STATE_DIR: join(tempDir, "harness") },
 		});
@@ -162,6 +163,7 @@ print(json.dumps({
 		timeout: 180_000,
 	}, async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [AGENT_MESSAGE_SKILL],
 			env: { RLM_DEPTH: "0", RLM_MAX_DEPTH: "1" },
 			hostHandlers: {
@@ -215,6 +217,7 @@ print(json.dumps({
 		timeout: 180_000,
 	}, async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [AGENT_MESSAGE_SKILL],
 			hostHandlers: {
 				// The family roster: parent, siblings, and children of this agent.

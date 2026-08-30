@@ -59,7 +59,10 @@ print(f"{'probe':5} {'arm':8} {'cells':5} {'cellErr':7} {'pyLeak':6} {'carried':
 tot=0.0; rows=[]
 for arm in ("python","clojure"):
     for p in PROBES:
-        evs=load(SP/f"{p}-{arm}.jsonl")
+        f=SP/f"{p}-{arm}.jsonl"
+        if not f.exists():
+            continue  # a single-arm directory (e.g. the H8 default smoke) is valid input
+        evs=load(f)
         cells,results=extract(evs)
         cerr=sum(1 for r in results if r["status"]=="error")
         leak=sum(1 for c in cells if PY_SYNTAX.search(c)) if arm=="clojure" else 0

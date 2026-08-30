@@ -39,6 +39,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 
 	function newManager(): ReplKernelManager {
 		return new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: dir,
 			snapshot: { path: snapshotPath, manifestPath },
@@ -79,6 +80,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 	it("treats a missing snapshot as an empty restore (clean start)", async () => {
 		const freshDir = mkdtempSync(join(tmpdir(), "prime-agent-repl-state-empty-"));
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: freshDir,
 			snapshot: { path: join(freshDir, "missing.dill"), manifestPath: join(freshDir, "missing.json") },
@@ -114,6 +116,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 		expect(build.status).toBe(0);
 
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: ipythonArtifactDir,
 			snapshot: { path: ipythonArtifactPath, manifestPath: join(ipythonArtifactDir, "kernel-state.json") },
@@ -132,7 +135,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 
 	it("lists live user-defined names, filtering internals and live handles", async () => {
 		const listDir = mkdtempSync(join(tmpdir(), "prime-agent-repl-state-list-"));
-		const manager = new ReplKernelManager({ python: python as string, cwd: listDir });
+		const manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: listDir });
 		try {
 			expect(await manager.listNamespaceNames()).toBeNull();
 			await manager.execute("alpha = 1\ndef helper(n):\n    return n\n_hidden = 2\nrlm = object()");
@@ -149,6 +152,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 	it("prunes oversized variables via a compaction snapshot", async () => {
 		const boundedDir = mkdtempSync(join(tmpdir(), "prime-agent-repl-state-bounded-"));
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: boundedDir,
 			snapshot: {
@@ -179,6 +183,7 @@ describeIfKernel("repl kernel state snapshot round-trip (real runtime)", { tags:
 		const autoDir = mkdtempSync(join(tmpdir(), "prime-agent-repl-state-auto-"));
 		const autoPath = join(autoDir, "auto.dill");
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: autoDir,
 			snapshot: { path: autoPath, manifestPath: join(autoDir, "auto.json"), debounceMs: 50 },

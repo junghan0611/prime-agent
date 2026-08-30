@@ -34,6 +34,7 @@ describe("agent-observe skill over the kernel host bridge", () => {
 	it("lists agents and reads bounded recent messages", async () => {
 		const requests: Array<{ type: string; payload: Record<string, unknown> }> = [];
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentObserveSkill()],
 			hostHandlers: {
 				"agent_observe.list": async (payload) => {
@@ -92,6 +93,7 @@ print(json.dumps({"agents": agents, "agent": agent, "recent": recent}, sort_keys
 
 	it("validates argument types before sending to the host", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentObserveSkill()],
 			hostHandlers: {
 				"agent_observe.get": async () => {

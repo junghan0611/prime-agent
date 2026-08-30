@@ -285,6 +285,51 @@ compaction · kernel restart · parent restoration 을 모두 넘긴다" 다. �
 
 ---
 
+## Default switch — H8
+
+이 포크의 `DEFAULT_KERNEL_RUNTIME` 은 `clojure` 다
+(`packages/coding-agent/src/core/kernel/runtime.ts`). Python oracle 은 지우지 않았고
+`PRIME_AGENT_KERNEL_RUNTIME=python` 으로 계속 고른다. 상위(upstream)는 여전히 `python` 이 기본이고
+`packages/coding-agent/docs/rlm.md` 도 그쪽을 설명한다 — 그 문서는 고치지 않았다.
+
+### fallback 하지 않는다
+
+native 바이너리가 없으면 세션이 **뜨지 않는다**. `resolveClojureRuntimeExecutable` 이
+빌드하라는 teaching error 를 던진다. 조용히 python 으로 내려가지 않는다:
+어느 runtime 을 받았는지 모르게 되는 것이 이 브랜치가 통째로 반대하는 실패 양식이고,
+H1 의 `assertKernelRuntimeReady` 게이트와도 어긋난다. (GLG 승인: 안 (가), 2026-08-30.)
+
+CI 에는 GraalVM 이 없다 (`clojure-runtime.yml` 은 의도적으로 lint 전용, `ci.yml` 은 native 를
+빌드하지 않는다). 그래서 TS 테스트는 바이너리 없이 초록이어야 하고, 아래 수선이 그것을 만든다.
+
+### 테스트가 무엇을 말하게 됐나
+
+default 를 뒤집자 같은 20파일에서 **+49 tests / 16 files** 가 깨졌다 (python default 8 fail →
+clojure default 57 fail, 트리 동일·상수만 다름). 세 갈래였고, 갈래마다 수선이 다르다.
+
+| 갈래 | 무엇 | 수선 |
+|---|---|---|
+| A | Python 셀을 default 커널에 먹이던 테스트 | `runtime: "python"` 명시 (72곳/16파일) |
+| B | default 자체를 단언하던 테스트 | 단언을 clojure 로 뒤집음 |
+| C | Python-backed skill 테스트 (`agent_message`·`attach_image`·`rlm_heartbeat`·`agent_observe`) | A 와 같음 — 그 skill 은 Clojure 커널에 없다 |
+
+A·C 는 **숨은 의존을 드러낸 것이지 회피가 아니다.** oracle 은 default 가 아니게 됐을 뿐 계속
+지원 대상이고, 그 테스트들은 처음부터 oracle 테스트였다. vitest 에 env 를 심어 우회하지 않았다 —
+그러면 "default 를 바꿨다"가 테스트 안에서 거짓이 된다.
+
+수선 뒤 델타는 **0** 이다: clojure default 로 전체 4,485 중 8 fail / 4 files,
+python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-existing).
+
+### soak
+
+- native `clojure -M:test` — 65 tests / 497 assertions, 0 fail.
+- TS 전량 — 4,415 pass / 8 fail (pre-existing 4파일).
+- default 실측: env 를 **하나도 세우지 않고** `p1-world` 1회. 세션이 Clojure 로 떴고
+  `(sort (keys (ns-publics 'user)))` 로 14개 binding 을 돌려줬다. 1셀, 오류 0, Python 유출 0.
+  `PRIME_AGENT_CLOJURE_RUNTIME` 없이 candidate 경로로 바이너리를 찾았다.
+
+---
+
 ## 코드를 읽어야만 알던 것
 
 1. protocol writer에 `*out*`을 쓰면 안 된다. `-main`이 `*out*`/`*err*`를 stderr로 재바인딩한다. 디버그 `println` 하나가 프레임을 찢는다. **테스트가 없다.**

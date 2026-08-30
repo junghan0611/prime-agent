@@ -75,6 +75,9 @@ describe("createAgentSession session manager defaults", () => {
 			model: model!,
 			sessionManager,
 			tools: ["ipython"],
+			// The cell below is Python, so the session names the oracle instead of
+			// inheriting this fork's Clojure default.
+			kernelRuntime: "python",
 		});
 
 		expect(session.sessionManager).toBe(sessionManager);

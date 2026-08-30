@@ -131,6 +131,9 @@ describe("regression #4428: remove legacy pi-mono built-in tools", () => {
 			sessionManager,
 			resourceLoader,
 			tools: ["ipython"],
+			// This asserts CPython's own %%bash rejection, so it names the oracle
+			// rather than riding the fork default.
+			kernelRuntime: "python",
 		});
 
 		try {

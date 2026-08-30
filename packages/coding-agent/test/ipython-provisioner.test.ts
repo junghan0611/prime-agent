@@ -79,7 +79,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("memoizes concurrent ensure() calls into one startup", async () => {
 		const { python, countRuns } = writeFakePython();
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python });
 
 		const [a, b] = await Promise.allSettled([provisioner.ensure(), provisioner.ensure()]);
 		expect(a.status).toBe("rejected");
@@ -89,7 +89,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("retries after a failed startup instead of caching the rejection", async () => {
 		const { python, countRuns } = writeFakePython();
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python });
 
 		await expect(provisioner.ensure()).rejects.toThrow(/Kernel exited before ready/);
 		await expect(provisioner.ensure()).rejects.toThrow(/Kernel exited before ready/);
@@ -98,7 +98,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("prewarm() swallows the failure and the next ensure() starts fresh", async () => {
 		const { python, countRuns } = writeFakePython();
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python });
 
 		provisioner.prewarm();
 		expect(provisioner.manager).toBeUndefined();
@@ -112,7 +112,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("replays the current startup stage to listeners attaching mid-flight", async () => {
 		const { python } = writeFakePython({ sleepSeconds: 1 });
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python });
 
 		provisioner.prewarm();
 		const messages: string[] = [];
@@ -123,7 +123,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("dispose() settles a startup that is still in flight", async () => {
 		const { python } = writeFakePython();
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python });
 
 		provisioner.prewarm();
 		await provisioner.dispose();
@@ -136,7 +136,7 @@ describe("IpythonKernelProvisioner", () => {
 		const gate = new Promise<void>((r) => {
 			release = r;
 		});
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python, readyGate: gate });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python, readyGate: gate });
 
 		const started = provisioner.ensure().catch(() => {});
 		const disposed = provisioner.dispose(); // aborts while the boot waits on readyGate
@@ -151,7 +151,7 @@ describe("IpythonKernelProvisioner", () => {
 		const gate = new Promise<void>((r) => {
 			release = r;
 		});
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python, readyGate: gate });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python, readyGate: gate });
 		const controller = new AbortController();
 
 		const started = provisioner.ensure(undefined, controller.signal);
@@ -170,7 +170,7 @@ describe("IpythonKernelProvisioner", () => {
 		const gate = new Promise<void>((r) => {
 			release = r;
 		});
-		const provisioner = new IpythonKernelProvisioner(tempDir, { python, readyGate: gate });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", python, readyGate: gate });
 
 		const started = provisioner.ensure().catch(() => {});
 		await new Promise((r) => setTimeout(r, 50));
@@ -182,13 +182,13 @@ describe("IpythonKernelProvisioner", () => {
 	});
 
 	it("namespace maintenance returns null when no kernel is running", async () => {
-		const provisioner = new IpythonKernelProvisioner(tempDir, {});
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python" });
 		expect(await provisioner.listNamespaceNames()).toBeNull();
 		expect(await provisioner.pruneOversizedVariables()).toBeNull();
 	});
 
 	it("does not dispose a running kernel when an ensure caller is aborted", async () => {
-		const provisioner = new IpythonKernelProvisioner(tempDir, {});
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python" });
 		const dispose = vi.fn(async () => {});
 		const manager = { dispose, isRunning: true } as unknown as KernelClient;
 		Object.assign(
@@ -210,7 +210,7 @@ describe("IpythonKernelProvisioner", () => {
 	});
 
 	it("removes startup progress listeners when an ensure caller is aborted", async () => {
-		const provisioner = new IpythonKernelProvisioner(tempDir, {});
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python" });
 		Object.assign(
 			provisioner as unknown as {
 				managerPromise: Promise<KernelClient>;
@@ -240,7 +240,7 @@ describe("IpythonKernelProvisioner", () => {
 		const ensure = vi.fn(async () => manager);
 		const kill = vi.fn(async () => {});
 		const provisioner = { ensure, kill } as unknown as IpythonKernelProvisioner;
-		const tool = createIpythonToolDefinition(tempDir, { provisioner });
+		const tool = createIpythonToolDefinition(tempDir, { provisioner, runtime: "python" });
 
 		const result = await tool.execute("tool-call", { code: "x = 1" }, undefined, undefined, {} as ExtensionContext);
 
@@ -259,7 +259,7 @@ describe("IpythonKernelProvisioner", () => {
 		const provisioner = { ensure, kill } as unknown as IpythonKernelProvisioner;
 		const select = vi.fn(async () => "Wait and preserve state");
 		const { ctx, setWorkingMessage } = createBusyKernelContext(select, { throwWorkingMessage: true });
-		const tool = createIpythonToolDefinition(tempDir, { provisioner });
+		const tool = createIpythonToolDefinition(tempDir, { provisioner, runtime: "python" });
 
 		const result = await tool.execute("tool-call", { code: "x = 1" }, undefined, undefined, ctx);
 
@@ -292,7 +292,7 @@ describe("IpythonKernelProvisioner", () => {
 		const provisioner = { ensure, kill } as unknown as IpythonKernelProvisioner;
 		const select = vi.fn(async () => "Kill kernel and restart");
 		const { ctx, setWorkingMessage } = createBusyKernelContext(select, { throwWorkingMessage: true });
-		const tool = createIpythonToolDefinition(tempDir, { provisioner });
+		const tool = createIpythonToolDefinition(tempDir, { provisioner, runtime: "python" });
 
 		const result = await tool.execute("tool-call", { code: "x = 1" }, undefined, undefined, ctx);
 		const text = result.content[0]?.type === "text" ? result.content[0].text : "";
@@ -311,7 +311,7 @@ describe("IpythonKernelProvisioner", () => {
 
 	it("does not delete the on-disk snapshot (the kernel survives compaction)", async () => {
 		const snapshotDir = join(tempDir, "artifacts");
-		const provisioner = new IpythonKernelProvisioner(tempDir, { snapshotDir });
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", snapshotDir });
 		const dill = join(snapshotDir, "kernel-state.dill");
 		const manifest = join(snapshotDir, "kernel-state.json");
 		mkdirSync(snapshotDir, { recursive: true });
@@ -344,7 +344,7 @@ describe("ReplKernelManager session cleanup during startup", () => {
 		writeFileSync(python, ["#!/bin/sh", "sleep 30", ""].join("\n"));
 		chmodSync(python, 0o755);
 		const sessionId = `provisioner-test-${Date.now()}`;
-		const manager = new ReplKernelManager({ python, cwd: tempDir, sessionId });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir, sessionId });
 
 		try {
 			const startup = manager.start();

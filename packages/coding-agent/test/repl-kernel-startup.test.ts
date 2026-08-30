@@ -27,7 +27,7 @@ describe("ReplKernelManager startup", () => {
 		const python = join(tempDir, "python");
 		writeExecutable(python, ["#!/bin/sh", 'echo "fake runtime died before ready" >&2', "exit 42", ""].join("\n"));
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const manager = new ReplKernelManager({ python, cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir });
 
 		try {
 			await expect(manager.execute("print(1)")).rejects.toThrow(
@@ -46,7 +46,7 @@ describe("ReplKernelManager startup", () => {
 			["#!/bin/sh", `echo '{"event":"ready","protocol":1,"python":"3.13.0"}'`, "exec sleep 60", ""].join("\n"),
 		);
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const manager = new ReplKernelManager({ python, cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir });
 
 		try {
 			await expect(manager.execute("print(1)")).rejects.toThrow(/speaks protocol 1, expected 2/);
@@ -59,7 +59,7 @@ describe("ReplKernelManager startup", () => {
 	it("rejects promptly when the kernel process fails to spawn", async () => {
 		const python = join(tempDir, "does-not-exist");
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const manager = new ReplKernelManager({ python, cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir });
 
 		try {
 			// Without prompt rejection this would ride out the 30s ready timeout.
@@ -75,7 +75,7 @@ describe("ReplKernelManager startup", () => {
 		const python = join(tempDir, "python");
 		writeExecutable(python, ["#!/bin/sh", "exec sleep 120", ""].join("\n"));
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const manager = new ReplKernelManager({ python, cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir });
 
 		try {
 			const startPromise = manager.start();

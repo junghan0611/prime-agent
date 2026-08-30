@@ -1,7 +1,10 @@
 # prime-agent-runtime-clj
 
 Phase A Lisp runtime. Clojure source, SCI persistent evaluator, GraalVM native-image.
-Delivery artifact is `target/rlm-repl`. The process that serves the protocol is a
+Delivery artifact is `target/rlm-repl`, and since H8 it is this fork's **default**
+kernel runtime — build it before running the agent, or the session refuses to start
+with a teaching error rather than falling back to Python. `PRIME_AGENT_KERNEL_RUNTIME=python`
+still selects the oracle. The process that serves the protocol is a
 native executable — not a JVM.
 
 Contract: `docs/clojure-runtime.md`. Coordinate: `NEXT--feat_clojure-runtime.md`.

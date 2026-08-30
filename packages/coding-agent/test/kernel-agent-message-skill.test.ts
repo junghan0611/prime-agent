@@ -43,6 +43,7 @@ describe("agent-message skill over the kernel host bridge", () => {
 	it("lists agents and sends without exposing a spoofable sender", async () => {
 		const requests: Array<{ type: string; payload: Record<string, unknown> }> = [];
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.list_agents": async (payload) => {
@@ -116,6 +117,7 @@ print(json.dumps({"agents": agents, "receipt": receipt}, sort_keys=True))
 
 	it("emits successful broadcast receipts and leaves short errors in the result", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.send": async (payload) => ({
@@ -161,6 +163,7 @@ print(json.dumps(receipt, sort_keys=True))
 
 	it("rejects broadcast combined with role selectors before reaching the host", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.send": async () => {
@@ -182,6 +185,7 @@ except TypeError as error:
 
 	it("rejects a positional name target before reaching the host", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.send": async () => {
@@ -205,6 +209,7 @@ except TypeError as error:
 
 	it("does not expose a queueable delivery mode", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.send": async () => {
@@ -226,6 +231,7 @@ except TypeError as error:
 
 	it("captures sent messages from detached tasks after the cell is idle", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAgentMessageSkill()],
 			hostHandlers: {
 				"agent_message.send": async (payload) => ({
@@ -266,7 +272,7 @@ background_send = asyncio.create_task(send_later())`,
 	});
 
 	it("bounds retained handlers for late sent messages", async () => {
-		const manager = new ReplKernelManager({ cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", cwd: tempDir });
 		const host = manager as unknown as LateHandlerRetentionHost;
 		const handler = () => {};
 

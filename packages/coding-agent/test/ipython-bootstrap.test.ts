@@ -79,7 +79,7 @@ describeIfKernel("RLM bootstrap (real kernel)", () => {
 	});
 
 	it("binds asyncio in the user namespace", async () => {
-		const manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		const manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		try {
 			await manager.start();
 			const bootstrap = await manager.execute(buildRlmBootstrapCode());
@@ -106,6 +106,7 @@ describeIfKernel("RLM bootstrap (real kernel)", () => {
 		writeFileSync(join(secondDir, "same.txt"), "old");
 		const editSkillRoot = join(process.cwd(), "skills", "edit");
 		const manager = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: dir,
 			env: { PYTHONPATH: join(editSkillRoot, "src") },

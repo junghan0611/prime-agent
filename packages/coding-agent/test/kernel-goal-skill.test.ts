@@ -34,6 +34,7 @@ describe("goal skill over the kernel host bridge", { tags: ["kernel-heavy"] }, (
 	it("round-trips goal.create and goal.complete through a live kernel", async () => {
 		const requests: Array<{ type: string; payload: Record<string, unknown> }> = [];
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledGoalSkill()],
 			hostHandlers: {
 				"goal.create": async (payload) => {
@@ -84,6 +85,7 @@ print(_completed["goal"]["status"], _completed["completion_budget_report"])
 
 	it("surfaces host errors and missing handlers as Python exceptions", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledGoalSkill()],
 			hostHandlers: {
 				"goal.complete": async () => {
@@ -126,6 +128,7 @@ except RuntimeError as error:
 
 	it("rejects replies with an unexpected status instead of hanging", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledGoalSkill()],
 			hostHandlers: {
 				"goal.get": async () => ({ status: "partial" }),

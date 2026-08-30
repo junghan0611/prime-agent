@@ -46,7 +46,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 	});
 
 	it("streams stdout/stderr, returns results, and persists state across cells", async () => {
-		manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		const chunks: { name: string; text: string }[] = [];
 		const first = await manager.execute("import sys\nx = 21\nprint('to-out')\nsys.stderr.write('to-err\\n')", {
 			onStream: (chunk, name) => chunks.push({ name, text: chunk }),
@@ -62,7 +62,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 	}, 30_000);
 
 	it("reports cell errors with a clean traceback", async () => {
-		manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		const r = await manager.execute("def boom():\n    raise ValueError('nope')\nboom()");
 		expect(r.status).toBe("error");
 		expect(r.error?.ename).toBe("ValueError");
@@ -71,7 +71,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 	}, 30_000);
 
 	it("parses emitted display payloads into diffs, attachments, and sent messages", async () => {
-		manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		const code = [
 			"from rlm import emit",
 			`emit({${JSON.stringify(DIFF_DISPLAY_MIME)}: {"path": "/tmp/f.py", "old_str": "a", "new_str": "b", "start_line": 3}})`,
@@ -100,7 +100,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 				throw new Error("handler exploded");
 			},
 		};
-		manager = new ReplKernelManager({ python: python as string, cwd: dir, hostHandlers });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir, hostHandlers });
 
 		const ok = await manager.execute(
 			"import rlm\nreply = await rlm.host_request('test.echo', {'value': 7})\nreply['echoed']",
@@ -123,7 +123,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 	}, 30_000);
 
 	it("dispose sends the protocol shutdown so live bash children die with the kernel", async () => {
-		manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		const r = await manager.execute("from rlm import bash\nh = bash('sleep 600')\nh.pid");
 		expect(r.status).toBe("ok");
 		const pid = Number(r.result);
@@ -143,7 +143,7 @@ describeIf("ReplKernelManager execute (real runtime)", () => {
 	}, 30_000);
 
 	it("surfaces unattributed background output separately from cell stdout", async () => {
-		manager = new ReplKernelManager({ python: python as string, cwd: dir });
+		manager = new ReplKernelManager({ runtime: "python", python: python as string, cwd: dir });
 		const first = await manager.execute(
 			[
 				"import threading, time",

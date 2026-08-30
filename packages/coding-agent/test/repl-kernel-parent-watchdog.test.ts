@@ -59,7 +59,7 @@ describe("repl kernel parent watchdog", () => {
 		const journalPath = join(tempDir, "orphans.jsonl");
 		process.env[ORPHAN_PROCESS_JOURNAL_ENV] = journalPath;
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-		const manager = new ReplKernelManager({ python, cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python, cwd: tempDir });
 
 		try {
 			await expect(manager.execute("x")).rejects.toThrow(/Kernel exited before ready/);
@@ -82,7 +82,7 @@ describe("repl kernel parent watchdog", () => {
 	it("leaves the journal record active when the kill signals nothing", async () => {
 		const journalPath = join(tempDir, "orphans.jsonl");
 		process.env[ORPHAN_PROCESS_JOURNAL_ENV] = journalPath;
-		const manager = new ReplKernelManager({ python: "/nonexistent/python", cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python: "/nonexistent/python", cwd: tempDir });
 		const internals = manager as unknown as {
 			child?: { pid?: number; kill(signal: string): boolean };
 			cleanupResources(): void;
@@ -102,7 +102,7 @@ describe("repl kernel parent watchdog", () => {
 	it("writes the inactive journal record when a signaled kill proves ownership", async () => {
 		const journalPath = join(tempDir, "orphans.jsonl");
 		process.env[ORPHAN_PROCESS_JOURNAL_ENV] = journalPath;
-		const manager = new ReplKernelManager({ python: "/nonexistent/python", cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python: "/nonexistent/python", cwd: tempDir });
 		const internals = manager as unknown as {
 			child?: { pid?: number; kill(signal: string): boolean };
 			cleanupResources(signal?: NodeJS.Signals): void;
@@ -128,7 +128,7 @@ describe("repl kernel parent watchdog", () => {
 				resolvePython = resolve;
 			}),
 		);
-		const manager = new ReplKernelManager({ cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", cwd: tempDir });
 		const internals = manager as unknown as {
 			state: string;
 			child?: { pid?: number; kill(signal: string): boolean };
@@ -165,7 +165,7 @@ describe("repl kernel parent watchdog", () => {
 	});
 
 	it("a shutdown superseded by a concurrent kill reports not-owner so recovery cannot resurrect to idle", async () => {
-		const manager = new ReplKernelManager({ python: "/nonexistent-python", cwd: tmpdir() });
+		const manager = new ReplKernelManager({ runtime: "python", python: "/nonexistent-python", cwd: tmpdir() });
 		const internals = manager as unknown as {
 			state: string;
 			child: unknown;
@@ -226,7 +226,7 @@ describe("repl kernel parent watchdog", () => {
 			stdout: { destroy: () => {} },
 			stderr: { destroy: () => {} },
 		});
-		const manager = new ReplKernelManager({ python: "/nonexistent/python", cwd: tempDir });
+		const manager = new ReplKernelManager({ runtime: "python", python: "/nonexistent/python", cwd: tempDir });
 		const internals = manager as unknown as {
 			state: string;
 			child?: unknown;

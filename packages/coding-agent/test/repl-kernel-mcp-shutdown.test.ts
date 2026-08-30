@@ -74,6 +74,7 @@ describeIfKernel("real REPL kernel MCP shutdown", { tags: ["kernel-heavy"] }, ()
 
 	it("closes a stdio MCP child on graceful shutdown", async () => {
 		let manager: ReplKernelManager | undefined = new ReplKernelManager({
+			runtime: "python",
 			python: python as string,
 			cwd: resolve("../../prime-agent-runtime"),
 			hostHandlers: {

@@ -34,6 +34,7 @@ describe("RLM heartbeat skill over the kernel host bridge", () => {
 	it("round-trips create, list, update, and delete through a live kernel", async () => {
 		const requests: Array<{ type: string; payload: Record<string, unknown> }> = [];
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledRlmHeartbeatSkill()],
 			hostHandlers: {
 				"rlm_heartbeat.create": async (payload) => {
@@ -130,6 +131,7 @@ print(json.dumps({
 
 	it("surfaces missing host handlers as Python exceptions", async () => {
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledRlmHeartbeatSkill()],
 			hostHandlers: {},
 		});
@@ -150,6 +152,7 @@ except RuntimeError as error:
 	it("rejects non-string delivery modes before calling the host", async () => {
 		let hostRequestCount = 0;
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledRlmHeartbeatSkill()],
 			hostHandlers: {
 				"rlm_heartbeat.create": async () => {

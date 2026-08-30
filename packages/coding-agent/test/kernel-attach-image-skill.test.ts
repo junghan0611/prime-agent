@@ -38,6 +38,7 @@ describe("attach-image skill over the kernel host bridge", () => {
 		writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -61,6 +62,7 @@ describe("attach-image skill over the kernel host bridge", () => {
 		const imagePath = join(tempDir, "large.png");
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -86,6 +88,7 @@ print(await attach_image(${JSON.stringify(imagePath)}))
 		const imagePath = join(tempDir, "animated.gif");
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -111,6 +114,7 @@ print(await attach_image(${JSON.stringify(imagePath)}))
 		const imagePath = join(tempDir, "transparent.png");
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -138,6 +142,7 @@ print(await attach_image(${JSON.stringify(imagePath)}))
 		const imagePath = join(tempDir, "huge.png");
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -176,6 +181,7 @@ except ValueError as error:
 		writeFileSync(validImagePath, Buffer.from(PNG_BASE64, "base64"));
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -213,6 +219,7 @@ except ValueError as error:
 		writeFileSync(imagePath, Buffer.from(PNG_BASE64, "base64"));
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "openai/gpt-oss-120b", input: ["text"] }),
@@ -240,6 +247,7 @@ except RuntimeError as error:
 		writeFileSync(notImage, "just text");
 
 		provisioner = new IpythonKernelProvisioner(tempDir, {
+			runtime: "python",
 			pythonSkills: [bundledAttachImageSkill()],
 			hostHandlers: {
 				"model.info": async () => ({ id: "anthropic/claude-haiku-4.5", input: ["text", "image"] }),
@@ -260,7 +268,7 @@ except ValueError as error:
 	});
 
 	it("fails the cell loudly when an emitted attachment exceeds the size cap", async () => {
-		provisioner = new IpythonKernelProvisioner(tempDir, { pythonSkills: [] });
+		provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "python", pythonSkills: [] });
 		const manager = await provisioner.ensure();
 		const result = await manager.execute(`
 from rlm import emit

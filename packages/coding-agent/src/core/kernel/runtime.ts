@@ -1,7 +1,14 @@
-// Which REPL runtime a kernel speaks. `python` is the oracle (`python -m rlm.repl`);
-// `clojure` is the native SCI runtime delivered as prime-agent-runtime-clj/target/rlm-repl.
-// The Clojure runtime implements execute/host_reply/interrupt/shutdown only — it has no
-// snapshot, restore, or list_names, so state ops are skipped rather than emulated.
+// Which REPL runtime a kernel speaks. `clojure` is the native SCI runtime delivered as
+// prime-agent-runtime-clj/target/rlm-repl and is this fork's default; `python` is the
+// oracle (`python -m rlm.repl`), still fully supported and selected with
+// PRIME_AGENT_KERNEL_RUNTIME=python. The Clojure runtime implements
+// execute/host_reply/interrupt/shutdown only — it has no snapshot, restore, or
+// list_names, so state ops are skipped rather than emulated.
+//
+// The default does not fall back. A checkout that has not built the native binary gets
+// resolveClojureRuntimeExecutable()'s teaching error, not a silent Python session: a
+// harness that quietly hands you a different runtime than the one it reports is the
+// failure mode this whole branch exists to avoid.
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +18,8 @@ export type KernelRuntimeKind = "python" | "clojure";
 
 export const KERNEL_RUNTIME_ENV_VAR = "PRIME_AGENT_KERNEL_RUNTIME";
 export const CLOJURE_RUNTIME_ENV_VAR = "PRIME_AGENT_CLOJURE_RUNTIME";
-export const DEFAULT_KERNEL_RUNTIME: KernelRuntimeKind = "python";
+/** This fork's default. Upstream ships `python`; see the header note. */
+export const DEFAULT_KERNEL_RUNTIME: KernelRuntimeKind = "clojure";
 export const REPL_PROTOCOL_VERSION = 2;
 
 const CLOJURE_RUNTIME_PACKAGE = "prime-agent-runtime-clj";

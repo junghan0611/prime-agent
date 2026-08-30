@@ -29,7 +29,7 @@ function configuredManager(
 	manager: ReplKernelManager;
 	internals: ShutdownInternals;
 } {
-	const manager = new ReplKernelManager({ cwd: process.cwd(), hostHandlers });
+	const manager = new ReplKernelManager({ runtime: "python", cwd: process.cwd(), hostHandlers });
 	const internals = manager as unknown as ShutdownInternals;
 	const child = Object.assign(new EventEmitter(), {
 		exitCode: null,
