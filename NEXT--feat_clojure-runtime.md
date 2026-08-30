@@ -1,7 +1,7 @@
-# feat/clojure-runtime — H7 checkpoint, H8 대기
+# feat/clojure-runtime — H8 착지, 검수 대기 (레일 마지막 홉)
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H7은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = H8 대기 (시작 아님). 구현 Opus `61f23b`. 검수 테라 `55b3ea` PASS. GLM `abff01` 퇴근.
+CURRENT = H8 (착지, 검수 대기 — 닫는 것은 코디 `cd2dd4`). Emmy는 H8 뒤, 이번 아님.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -26,31 +26,32 @@ CURRENT = H8 대기 (시작 아님). 구현 Opus `61f23b`. 검수 테라 `55b3ea
 - [x] **H5 edit / write receipts** — `2e5753a2`. write-text / edit-text. native 57/443. GLM `abff01` PASS.
 - [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497.
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
-- [ ] **H8** — ROADMAP. **시작 아님.**
+- [~] **H8 default switch + soak** — `edc3a3e8`. 이 포크 default = clojure, fallback 없음.
+      native 65/497, TS 4415 pass, 델타 0. **Tera `55b3ea` 실측 대기.**
 
-현재 좌표: H0–H7 checkpoint → H8는 default switch + soak (시작 아님)
+현재 좌표: H0–H7 checkpoint → **H8 착지, 검수 대기 (레일 끝)**
 
-# NOW — H7 닫힘, 푸시·H8는 GLG
+# NOW — H8 착지, 검수·푸시는 GLG
 
-- Stem: H7 `b5e9e424` (ahead 5, 푸시 안 함). 산출물 `evals/h7-functional-ab/`.
-- Next: GLG 푸시. **H8 시작하지 않음.**
-- **GLG 결정으로 H7 은 논문 eval 이 아니라 기능 A/B 였다.** PMPP pin 안 함, GPU 안 빌림,
-  `prime login` 안 함. 두 arm 의 유일한 차이는 `PRIME_AGENT_KERNEL_RUNTIME`.
-- **결과 한 줄:** 8/8 런이 REPL 을 썼다. clojure arm Python 문법 유출 0, tool crash 0,
-  셀 에러는 clojure 2 / python 2 — Clojure 쪽이 더 틀리지 않았다. 점수 비교 아님.
-- **H7 이 찾은 것 (RESULTS.md 4개):** (1) `process-tail` 이 "lines" 로 읽히는데 String 을
-  돌려줘 모델이 2셀 낭비 — prompt 한 줄이면 닫힘 `harness-gap` (2) `Integer/parseInt` 닫힘은
-  계약대로 동작 `semantics-gap`, 모델이 스스로 `edn/read-string` 으로 회복
-  (3) **H2 fan-in gap 그대로** — clojure arm 은 `agent_message` 가 없어 child 가 답을 못 보낸다.
-  P4 에서 부모가 답을 안 것은 host 의 terminal notice 가 "Last assistant text: ok" 를
-  실어 날랐기 때문. capability 아니라 우연 `harness-gap`
-  (4) spawn handle 의 `name` 과 registry entry 의 `session_name` 이 다르다 — **양쪽 runtime 다**.
-  python arm 이 여기서 `AttributeError` 로 죽었다. H6 은 키 *철자*만 통일했지 field set 은 아니다.
-- **(1)(2) 는 prompt 한 줄씩이면 닫히지만 안 고쳤다.** 측정 뒤 표면을 바꾸면 RESULTS.md 와
-  GLM 실측이 어긋난다. 요청하면 고칩니다.
-- **H6 leftover / H5 leftover / H4 leftover:** 이전 그대로.
-- Do not touch: Python oracle, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`,
-  Emmy, H8, verifiers env / GPU / `prime login`.
+- Stem: H8 `edc3a3e8` (ahead 3, 푸시 안 함).
+- Next: Tera `55b3ea` 실측. 그다음 GLG 푸시. **9번째 홉 없음.** Emmy는 별건.
+- **H8 이 한 것:** `DEFAULT_KERNEL_RUNTIME = "clojure"`. oracle 은 `PRIME_AGENT_KERNEL_RUNTIME=python`
+  으로 계속 선택 가능. **fallback 안 한다** — 바이너리 없으면 teaching error 로 안 뜬다 (GLG 안 (가)).
+- **테스트가 말하게 된 것:** flip 델타는 +49 tests / 16 files 였고 세 갈래였다.
+  A(Python 셀을 default 커널에 먹임)·C(Python-backed skill)는 `runtime: "python"` 72곳 명시 —
+  숨은 의존을 드러낸 것이지 회피 아님. B(default 단언)는 clojure 로 뒤집음.
+  vitest env 우회는 쓰지 않았다. **수선 뒤 델타 0** (양쪽 default 다 8 fail / 4 files, 전부 pre-existing).
+- **soak 영수증:** native `clojure -M:test` 65/497 · TS 4,415 pass / 8 fail(pre-existing 4파일) ·
+  biome+tsgo clean · default 실측 = env 하나도 없이 p1 1회, Clojure 로 떠서 14 binding 반환,
+  1셀·오류 0·Python 유출 0 ($0.0008).
+- **레일 밖 (H8 게이트대로 안 함):** 90% median 주장, PMPP, Emmy, `list_names`, snapshot.
+- **CI 주의:** GraalVM 없음 — `clojure-runtime.yml` 은 의도적 lint 전용. 그래서 TS 는 바이너리 없이
+  초록이어야 하고, 위 A·C 고정이 그것을 만든다.
+- **누적 leftover (전부 blocker 아님):** H4 (a)no-setsid (b)re-group (c)SIGKILL orphan ·
+  H5 symlink 거부/diff event 없음/delete·rename·mkdir 없음 · H6 busy-kernel 대화상자 Python 어휘 ·
+  H7 `process-tail` 문구·`Integer/parseInt` 문구·**fan-in harness-gap(clojure arm 은 child 가 답을 못 보낸다)** ·
+  spawn handle `name` vs registry `session_name` 불일치(양쪽 runtime).
+- Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy.
 - Blocker: 없음. 푸시는 GLG.
 
 # RECENT
@@ -60,5 +61,6 @@ CURRENT = H8 대기 (시작 아님). 구현 Opus `61f23b`. 검수 테라 `55b3ea
 - [2026-08-30] H5 `2e5753a2`. GLM PASS. H5 close 권고.
 - [2026-08-30] H6 `2ea1b170`. GLM PASS, 코디가 닫음. 측정된 defect: `(rlm …)` 는 `:rlm-child-id`,
   raw `host-request` 는 `:rlm_child_id` — 회수한 handle 만 어긋났다. 키 정규화로 닫힘.
+- [2026-08-30] H8 `edc3a3e8`. default = clojure. flip 델타 +49 → 수선 후 0. 레일 8홉 끝.
 - [2026-08-30] H7 `b5e9e424`. GLG 가 논문 eval 대신 **기능 A/B** 로 돌림. DeepSeek 8런 $0.00576.
   P4 에서 `(rlm-children)` 이 live 로 동작 — H6 이 만든 dashed key 가 트레이스에 보인다.
