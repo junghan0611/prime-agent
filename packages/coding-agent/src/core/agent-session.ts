@@ -9141,7 +9141,14 @@ export class AgentSession {
 				.filter((skill) => !skill.disableModelInvocation)
 				.map((skill) => skill.name),
 		);
-		if (this._agentMessageController && visibleKernelSkillNames.has(AGENT_MESSAGE_SKILL_NAME)) {
+		// Handler registration tracks what the prompt promised the model, not which
+		// Python package got installed. On Python that promise is the agent-message
+		// skill's SKILL.md; on Clojure the RLM prompt names the host verbs directly
+		// (prompts/rlm.ts) because no Python package can be installed into SCI. The
+		// host verbs themselves are runtime-neutral.
+		const agentMessageAnnouncedToModel =
+			this._kernelRuntime === "clojure" || visibleKernelSkillNames.has(AGENT_MESSAGE_SKILL_NAME);
+		if (this._agentMessageController && agentMessageAnnouncedToModel) {
 			Object.assign(
 				handlers,
 				createAgentMessageHostHandlers({

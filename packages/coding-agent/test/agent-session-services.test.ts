@@ -278,17 +278,134 @@ describe("createAgentSessionFromServices", () => {
 			},
 		};
 
+		// Pinned to python: skill visibility is what announces the verb on that arm,
+		// so hiding the skill must also withhold the host handler. The Clojure arm
+		// announces the verbs from the RLM prompt instead and is covered below.
 		const { session } = await createAgentSessionFromServices({
 			services,
 			sessionManager: SessionManager.create(tempDir, join(tempDir, "sessions")),
 			model: faux.getModel(),
 			agentMessageController,
+			kernelRuntime: "python",
 		});
 
 		try {
 			expect(() => session.handleAgentMessageHostRequest("agent_message.list")).toThrow(
 				"unknown agent message request",
 			);
+			expect(
+				(
+					session as unknown as {
+						_createKernelHostHandlers(): Record<string, unknown>;
+					}
+				)._createKernelHostHandlers(),
+			).not.toHaveProperty("agent_message.send");
+		} finally {
+			session.dispose();
+		}
+	});
+
+	it("exposes agent message host verbs on the clojure arm, which installs no python skill", async () => {
+		// The RLM prompt names `agent_message.list_agents` / `.send` to a Clojure
+		// workspace directly, because no Python package can be installed into SCI.
+		// Registration has to follow that promise rather than a skill import name,
+		// or the model calls a verb the host refuses to answer.
+		const tempDir = join(tmpdir(), `pi-session-clj-message-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(tempDir, { recursive: true });
+		cleanupPaths.push(tempDir);
+
+		const faux = registerFauxProvider();
+		unregisters.push(() => faux.unregister());
+
+		const authStorage = AuthStorage.inMemory();
+		authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+		const services = await createAgentSessionServices({
+			cwd: tempDir,
+			agentDir: tempDir,
+			authStorage,
+			resourceLoaderOptions: {
+				noPromptTemplates: true,
+				noThemes: true,
+				// Same as a real `primeclj` session: no skills at all.
+				skillsOverride: () => ({ skills: [], diagnostics: [] }),
+			},
+		});
+		services.modelRegistry.registerProvider(faux.getModel().provider, {
+			baseUrl: faux.getModel().baseUrl,
+			apiKey: "faux-key",
+			api: faux.api,
+			models: faux.models,
+		});
+
+		const agentMessageController: AgentSessionMessageController = {
+			listAgents: () => ({
+				current: { activeSessionId: "current", sessionId: "session-current", runtimeKind: "top-level" },
+				agents: [],
+			}),
+			sendAgentMessage: async () => {
+				throw new Error("not used");
+			},
+		};
+
+		const { session } = await createAgentSessionFromServices({
+			services,
+			sessionManager: SessionManager.create(tempDir, join(tempDir, "sessions")),
+			model: faux.getModel(),
+			agentMessageController,
+			kernelRuntime: "clojure",
+		});
+
+		try {
+			const handlers = (
+				session as unknown as {
+					_createKernelHostHandlers(): Record<string, unknown>;
+				}
+			)._createKernelHostHandlers();
+			expect(handlers).toHaveProperty("agent_message.send");
+			expect(handlers).toHaveProperty("agent_message.list_agents");
+		} finally {
+			session.dispose();
+		}
+	});
+
+	it("withholds agent message host verbs when no controller is attached", async () => {
+		// The un-gate is about skill visibility only. A session with no messaging
+		// controller — an in-process spawn with no daemon behind it — still has no
+		// verb to register, on either runtime.
+		const tempDir = join(tmpdir(), `pi-session-no-ctrl-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		mkdirSync(tempDir, { recursive: true });
+		cleanupPaths.push(tempDir);
+
+		const faux = registerFauxProvider();
+		unregisters.push(() => faux.unregister());
+
+		const authStorage = AuthStorage.inMemory();
+		authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+		const services = await createAgentSessionServices({
+			cwd: tempDir,
+			agentDir: tempDir,
+			authStorage,
+			resourceLoaderOptions: {
+				noPromptTemplates: true,
+				noThemes: true,
+				skillsOverride: () => ({ skills: [], diagnostics: [] }),
+			},
+		});
+		services.modelRegistry.registerProvider(faux.getModel().provider, {
+			baseUrl: faux.getModel().baseUrl,
+			apiKey: "faux-key",
+			api: faux.api,
+			models: faux.models,
+		});
+
+		const { session } = await createAgentSessionFromServices({
+			services,
+			sessionManager: SessionManager.create(tempDir, join(tempDir, "sessions")),
+			model: faux.getModel(),
+			kernelRuntime: "clojure",
+		});
+
+		try {
 			expect(
 				(
 					session as unknown as {

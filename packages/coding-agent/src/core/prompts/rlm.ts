@@ -98,14 +98,22 @@ export interface ChildAgentDoctrineOptions {
 export function buildChildAgentDoctrine(options: ChildAgentDoctrineOptions): string | undefined {
 	const depth = options.depth ?? 0;
 	const hasIpython = options.activeTools === undefined || options.activeTools.includes("ipython");
-	const hasAgentMessage =
-		options.kernelRuntime !== "clojure" && (options.installedSkills?.includes("agent_message") ?? false);
+	const isClojureRuntime = options.kernelRuntime === "clojure";
+	const hasAgentMessage = !isClojureRuntime && (options.installedSkills?.includes("agent_message") ?? false);
 	if (depth <= 0) return undefined;
 
 	const lines = [
 		`You are a child agent spawned by ${options.parentAgent ?? "your parent agent"}. Task prompts are labeled \`[task from parent]\`.`,
 	];
-	if (hasAgentMessage && hasIpython) {
+	// Same sentence on both runtimes; only the transport spelling differs. The
+	// Clojure workspace reaches the same host verb through `host-request`, so the
+	// map is spelled out literally — the host reads snake_case field names, while
+	// the rest of the Clojure surface returns dashed keys.
+	if (isClojureRuntime && hasIpython) {
+		lines.push(
+			'When a task calls for an answer, reply explicitly with `(host-request {:type "agent_message.send" :message "your answer" :receiver_role "parent"})`. Not every message or task needs a reply; continue cleanup after sending and go idle normally.',
+		);
+	} else if (hasAgentMessage && hasIpython) {
 		lines.push(
 			'When a task calls for an answer, reply explicitly with `await agent_message.send(message, receiver_role="parent")`. Not every message or task needs a reply; continue cleanup after sending and go idle normally.',
 		);
@@ -263,7 +271,7 @@ export function buildSubagentGuidance(
 			"# Delegating to sub-agents",
 			"",
 			'Spawn independent, self-contained work with `(def worker (rlm "task" {:name "worker"}))`. The handle map returns at admission, not completion; keep it to refer to the child later.',
-			"Child answers do not return through `rlm`, and this slice has no messaging or file capability to collect them, so delegate only work whose value is the spawn itself.",
+			'Child answers do not return through `rlm`. Ask for an explicit reply when you need one: the child sends `(host-request {:type "agent_message.send" :message "your answer" :receiver_role "parent"})` and it arrives here as an ordinary agent message. Your own follow-ups to a child use `:receiver_role "child"` with `:receiver_name`. Not every task needs a reply.',
 			"Use `(rlm-children)` after compaction or a kernel restart: the workspace may have lost the var holding a handle, but the host still has the registry.",
 			"Delegate parallel context-heavy work; do a single known computation inline.",
 		].join("\n");

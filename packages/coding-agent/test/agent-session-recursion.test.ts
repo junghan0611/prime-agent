@@ -21,7 +21,7 @@ import {
 import { AgentSession } from "../src/core/agent-session.js";
 import { AuthStorage } from "../src/core/auth-storage.js";
 import type { LoadExtensionsResult } from "../src/core/extensions/index.js";
-import { type HostRequestHandlers, ReplKernelManager } from "../src/core/kernel/index.js";
+import { type HostRequestHandlers, type KernelRuntimeKind, ReplKernelManager } from "../src/core/kernel/index.js";
 import { convertToLlm } from "../src/core/messages.js";
 import { ModelRegistry } from "../src/core/model-registry.js";
 import {
@@ -190,6 +190,8 @@ describe("AgentSession rlm recursion", () => {
 			sessionManager?: SessionManager;
 			settingsManager?: SettingsManager;
 			extensionsResult?: LoadExtensionsResult;
+			kernelRuntime?: KernelRuntimeKind;
+			withoutAgentMessageSkill?: boolean;
 		} = {},
 	): AgentSession {
 		const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
@@ -217,24 +219,25 @@ describe("AgentSession rlm recursion", () => {
 			modelRegistry: ModelRegistry.create(authStorage, join(tempDir, "models.json")),
 			resourceLoader: createTestResourceLoader({
 				extensionsResult: options.extensionsResult,
-				skills: options.agentMessageController
-					? [
-							{
-								name: "agent-message",
-								description: "test",
-								filePath: join(tempDir, "SKILL.md"),
-								baseDir: tempDir,
-								sourceInfo: createSyntheticSourceInfo(join(tempDir, "SKILL.md"), { source: "test" }),
-								disableModelInvocation: false,
-								kind: "python",
-								python: {
-									importName: "agent_message",
-									packagePath: tempDir,
-									pyprojectPath: join(tempDir, "pyproject.toml"),
+				skills:
+					options.agentMessageController && !options.withoutAgentMessageSkill
+						? [
+								{
+									name: "agent-message",
+									description: "test",
+									filePath: join(tempDir, "SKILL.md"),
+									baseDir: tempDir,
+									sourceInfo: createSyntheticSourceInfo(join(tempDir, "SKILL.md"), { source: "test" }),
+									disableModelInvocation: false,
+									kind: "python",
+									python: {
+										importName: "agent_message",
+										packagePath: tempDir,
+										pyprojectPath: join(tempDir, "pyproject.toml"),
+									},
 								},
-							},
-						]
-					: undefined,
+							]
+						: undefined,
 			}),
 			agentMessageController: options.agentMessageController,
 			subagentRuntimeHost: options.subagentRuntimeHost,
@@ -242,6 +245,7 @@ describe("AgentSession rlm recursion", () => {
 			rlmDepth: options.depth,
 			rlmMaxDepth: options.maxDepth,
 			rlmSessionDir: options.rlmSessionDir,
+			kernelRuntime: options.kernelRuntime,
 		});
 		return session;
 	}
@@ -1339,6 +1343,61 @@ describe("AgentSession rlm recursion", () => {
 				expect.objectContaining({ rlm_child_id: spawned.rlm_child_id, status: "completed" }),
 			);
 		});
+		expect(
+			root.messages.filter(
+				(message) => message.role === "custom" && message.customType === "rlm_child_terminal_notice",
+			),
+		).toHaveLength(0);
+	});
+
+	it("lets a clojure child reply through the host verb, so no terminal notice is written", async () => {
+		// The receive close, end to end on the arm that has no python skill: the
+		// child reaches `agent_message.send` because the RLM prompt named it, and
+		// the parent learns the answer as an ordinary agent message. The absence of
+		// "completed without sending a reply" is the machine-checkable half — it is
+		// written only when the child's parent reply count never moved.
+		const child = createSession({
+			depth: 1,
+			kernelRuntime: "clojure",
+			withoutAgentMessageSkill: true,
+			rlmSessionDir: join(tempDir, "clojure-replying-child"),
+			agentMessageController: {
+				listAgents: () => ({ agents: [] }),
+				roster: () => ({
+					current: { name: "clj-reply-worker", id: child.sessionId, depth: 1 },
+					entries: [{ relationship: "parent", name: "parent", id: "parent-session", depth: 0, status: "idle" }],
+				}),
+				sendAgentMessage: async () => ({
+					id: "agentmsg-clojure-child-reply",
+					source: "agent_message",
+					target: { activeSessionId: "parent-active", sessionId: "parent-session" },
+					message: "ok",
+					deliveryStatus: "delivered",
+				}),
+			},
+		});
+		vi.spyOn(child, "promptAndWait").mockImplementation(async () => {
+			const send = (child as unknown as InspectableRlmSession)._createKernelHostHandlers()["agent_message.send"];
+			if (!send) throw new Error("Missing agent_message.send host handler on the clojure arm");
+			// The payload a `(host-request {...})` cell produces: snake_case fields.
+			await send({ message: "ok", receiver_role: "parent" });
+		});
+		const root = createSession({
+			kernelRuntime: "clojure",
+			withoutAgentMessageSkill: true,
+			subagentRuntimeHost: {
+				createRlmSubagentRuntime: async () => ({ session: child }),
+				deleteRlmSubagentRuntime: async () => {},
+			},
+		});
+
+		const spawned = await root.runRlmChild("reply with ok", { name: "clj-reply-worker" });
+		await vi.waitFor(async () => {
+			expect((await root.listRlmSubagents()).subagents).toContainEqual(
+				expect.objectContaining({ rlm_child_id: spawned.rlm_child_id, status: "completed" }),
+			);
+		});
+		expect(child.repliedToParentSinceTask).toBe(true);
 		expect(
 			root.messages.filter(
 				(message) => message.role === "custom" && message.customType === "rlm_child_terminal_notice",

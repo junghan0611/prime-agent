@@ -11,7 +11,7 @@ import { ReplKernelManager } from "../src/core/kernel/index.js";
 import { resolveClojureRuntimeExecutable, resolveKernelRuntimeKind } from "../src/core/kernel/runtime.js";
 import { convertToLlm } from "../src/core/messages.js";
 import { ModelRegistry } from "../src/core/model-registry.js";
-import { buildRlmPrompt } from "../src/core/prompts/index.js";
+import { buildChildAgentDoctrine, buildRlmPrompt, buildSubagentGuidance } from "../src/core/prompts/index.js";
 import { type CreateRlmSubagentRuntimeOptions, createRlmRunHostHandler } from "../src/core/rlm-runtime.js";
 import { SessionManager } from "../src/core/session-manager.js";
 import { SettingsManager } from "../src/core/settings-manager.js";
@@ -211,6 +211,56 @@ describe("clojure kernel runtime", () => {
 		expect(prompt).toMatch(/\(keys \(ns-publics 'user\)\)/);
 		expect(prompt).toMatch(/kernel restart/);
 		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/await agent_message\.send/);
+	});
+
+	it("tells a clojure child how to reply, in the spelling the host reads", () => {
+		// The child is where the loop was breaking: it was never told to answer, so
+		// it went idle and the host reported "completed without sending a reply".
+		// The host reads snake_case fields while the rest of the Clojure surface
+		// returns dashed keys, so the map is spelled out rather than described.
+		const doctrine = buildChildAgentDoctrine({
+			kernelRuntime: "clojure",
+			depth: 1,
+			parentAgent: "root",
+			installedSkills: [],
+			activeTools: ["ipython"],
+		});
+		expect(doctrine).toMatch(/host-request \{:type "agent_message\.send"/);
+		expect(doctrine).toContain(':receiver_role "parent"');
+		expect(doctrine).not.toMatch(/await agent_message|:receiver-role/);
+
+		// A child with no REPL has no way to reach the host verb.
+		expect(
+			buildChildAgentDoctrine({
+				kernelRuntime: "clojure",
+				depth: 1,
+				parentAgent: "root",
+				activeTools: ["bash"],
+			}),
+		).not.toMatch(/agent_message\.send/);
+
+		// The oracle's sentence is untouched.
+		const pythonDoctrine = buildChildAgentDoctrine({
+			depth: 1,
+			parentAgent: "root",
+			installedSkills: ["agent_message"],
+			activeTools: ["ipython"],
+		});
+		expect(pythonDoctrine).toContain('await agent_message.send(message, receiver_role="parent")');
+		expect(pythonDoctrine).not.toMatch(/host-request/);
+	});
+
+	it("stops telling a clojure parent that it cannot collect a child's answer", () => {
+		// The same prompt used to name `agent_message.list_agents` and then claim
+		// this slice had no messaging capability. The host refused the verb, so the
+		// model fell back to reading the child's transcript — a side channel.
+		const guidance = buildSubagentGuidance({ kernelRuntime: "clojure" });
+		expect(guidance).not.toMatch(/no messaging or file capability/);
+		expect(guidance).toMatch(/host-request \{:type "agent_message\.send"/);
+		expect(guidance).toContain(':receiver_role "child"');
+		// Fan-in is the messaging contract, not a file convention.
+		expect(guidance).not.toMatch(/rlm-answer|drop-box|write-text/);
+		expect(guidance).toMatch(/\(rlm-children\)/);
 	});
 
 	it("tells a restarted clojure workspace what died and what did not", async () => {
