@@ -159,17 +159,18 @@ Framing은 SCI allow-list가 raw Java/native output을 닫고 있어서 지킨�
 
 ## Host 연결 — 아직 없음
 
-Runtime은 독립 driver로 관통했다. TypeScript host에 붙이는 일은 RAIL 4다. 입구 결정은 NEXT에 있고, 승인 전에 host diff를 시작하지 않는다.
+Runtime은 독립 driver로 관통했다. TypeScript host에 붙이는 일은 RAIL 4다. 새 capability는 열지 않는다. spawn·bootstrap·prompt·snapshot-off만.
 
-붙는 날의 범위만 적어 둔다.
+붙는 날의 범위만 적어 둔다. 견적: 구현 220–300 + 테스트 180–250.
 
-1. native executable spawn
-2. runtime별 bootstrap
-3. runtime별 orchestration prompt
-4. snapshot disabled
-5. Python oracle와 Lisp runtime을 같은 workload에서 고르는 선택면
+1. native executable spawn (`target/rlm-repl`). argv/ready를 테스트로 고정. ready는 protocol 숫자만이 아니라 `runtime.language=clojure`.
+2. runtime별 bootstrap — Python 문법 잔류 금지
+3. runtime별 orchestration prompt — Python 문법 잔류 금지
+4. snapshot disabled. compaction의 `list_names` 경로 **전체 skip**. `list_names`를 구현하지 않는다.
+5. Python oracle와 Lisp runtime을 같은 workload에서 고르는 선택면. child `AgentSession`은 같은 runtime을 상속한다.
 
 `ipython` 표시 이름을 Phase A에서 전부 개명하지 않는다.
+`(rlm ...)` 반환값은 admission handle이다. child 최종 답의 fan-in(`agent_message` / 파일)이 이 slice에 없으면 harness-gap으로 기록하고 열지 않는다.
 
 ---
 

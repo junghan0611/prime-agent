@@ -1,81 +1,57 @@
-# feat/clojure-runtime — Phase A boot sector
+# feat/clojure-runtime — 제품 8홉 중 H1–H2 (1차 boot)
 
-CPython 복제가 아니다. Lisp workspace를 실제로 써서 다른 form이 생기는지 보는 번역 실험.
-계약은 `docs/clojure-runtime.md` 한 장. 이 파일은 좌표다.
+최종 1번은 이 브랜치가 아니다. Clojure/SCI를 Prime Agent **실사용 대체**로 쓰는 것 — 8홉 전체는 `ROADMAP.md`.
+이 파일은 **H1–H2만**. 여기 닫힘 = boot sector. 대체 완료가 아니다.
+
+계약: `docs/clojure-runtime.md`.
 
 # COMPASS — Entwurf #88
 
-나머지를 안 읽어도 이건 읽는다.
-
-1. 목표는 CPython 복제가 아니다. Lisp workspace를 **실제로 써서** 다른 form이 생기는지 보는 것이다.
-2. REPL 언어축 / steering 표현축 / Emacs 공존면축은 독립이다. 지금은 **첫 축만** 연다.
+1. 목표는 CPython 복제가 아니다. Lisp workspace를 써서 원저자 RLM 루프가 서는지를 본다.
+2. 이 브랜치는 REPL 언어축의 **host 접속 + 4실험**만. steering / Emacs / Emmy / 실사용 default는 ROADMAP.
 3. Entwurf는 transport, local REPL은 computation이다. 섞지 않는다.
 4. 자연어는 탐색과 해석, Lisp는 공개 상태·계약·계산 가능한 form이다.
-5. install은 execute가 아니다. capability / provenance / retract가 경계를 만든다.
-6. 성공은 **GLG가 실제 form을 읽고 고치며 더 명확히 판단하는가**다. parity도 속도도 아니다.
+5. 새 capability를 편의로 열지 않는다. H1–H2는 있는 `rlm` / `host-request`로 평가한다. 읽기·process·write는 H3–H5.
+6. 이 브랜치 닫힘: **DeepSeek가 Clojure form으로 원저자 실험 네 개 + fan-in 한 줄을 조직하고 라벨이 남는가.** 최종 대체(H8)가 아니다.
 
 # RAIL — 현재 좌표
 
-- [x] **1. 연구 질문과 경계 복원**
-- [x] **2. Phase A 설계** — native-image + SCI. 계약은 `docs/clojure-runtime.md`.
-- [x] **3. Lisp runtime vertical slice** — native process가 persistent form과 `(rlm ...)`을 관통한다.
-- [x] **3b. 실행 경로 분리** — native가 정본 SUT, `bin/rlm`. 영수증은 로컬 native-image + test. GitHub는 린트만.
-- [ ] **4. Prime Agent 실제 접속** ← CURRENT: **Hop 1(`bin/rlm`)은 열려 있음. 입구 다섯은 승인 대기. host diff 아님.**
-- [ ] **5. 공존언어 probe** ← PAUSED: RAIL 4 닫힌 뒤. Emmy/SICM 작은 adapter.
+작업량은 구현 LOC + 테스트 LOC. 견적: sol `20260830T103427-f6f942`.
 
-현재 좌표: 1–3b 완료 → 4 Hop 1 가능 / 입구 승인 대기 → 5 보류
+제품 8홉 중 이 브랜치에 들어오는 것만 체크한다. H3–H8은 ROADMAP.
 
-# NOW — RAIL 4 입구 계약
+- [x] **runtime 1–3b** — native-image + SCI. src 284 + test 629. 32/158. GitHub 린트만.
+- [ ] **H1 host 선택면** ← CURRENT: spawn + Clojure bootstrap/prompt + snapshot-off(**`list_names` 전체 skip**). **구현 220–300 + 테스트 180–250.** `ipython` 이름 유지. Python oracle 토글. `repl-manager.ts` / `ipython.ts` 전면 개조 금지.
+- [ ] **H2 fan-in + DeepSeek 4실험** ← 이 브랜치 닫힘 (제품 1차 boot). 코드량 없음. 메터드 API.
 
-- Stem: runtime이 native로 선다. 영수증은 로컬(`./native-image/build.sh` + `clojure -M:test` + `ldd`에 libjvm 없음). host를 붙이기 전에 되돌리기 어려워지는 것을 먼저 정한다.
-- Next: (1) Hop 1 — `./bin/rlm`으로 persistent form 촉감. host 없음. 구현 아님. (2) 아래 다섯을 GLG가 판독. (3) 둘 다 끝나기 전에 host diff 시작하지 않는다.
-- Verify: RAIL 4는 test count·속도·wire parity로 닫히지 않는다. 실제 model trace 4개 + `semantics-gap`/`model-fumble`/`harness-gap` + GLG Hop 판독이 있어야 닫힌다.
-- Read: 이 문서 COMPASS + NOW, 계약은 `docs/clojure-runtime.md`. 손잡이는 `prime-agent-runtime-clj/README.md`.
-- Do not touch: Python oracle, TypeScript host, `ipython` 개명, reflect-config, write/process capability, Emmy, parity 항목 승격, JVM protocol SUT 부활, GitHub에 GraalVM/native-image 올리기.
-- Blocker: 입구 다섯 미판독. Hop 1은 blocker가 아니다 — `bin/rlm`은 있다.
+현재 좌표: runtime 완료 → H1 진행 → H2가 브랜치 닫힘 → H3+는 ROADMAP
 
-## 표류 방지
+# NOW — H1
 
-원문을 안 읽은 팀이 관성으로 흘러갈 경로. 각 문장이 막는다.
+- Stem: Clojure runtime을 TypeScript host가 띄운다. 새 capability 없음.
+- Next: `target/rlm-repl` spawn, Clojure bootstrap/prompt(Python 문법 잔류 금지), snapshot-off + compaction `list_names` skip, child `AgentSession`이 같은 runtime 상속. 상단 300/250 초과 = parity가 stem에 섞인 것.
+- Verify: fake executable argv/ready, Clojure bootstrap·no-Python, snapshot/`list_names` 미호출, Clojure prompt, 로컬 native host-request 관통. 런타임 `clojure -M:test`. `npm run check`. GH GraalVM 없음.
+- Read: `docs/clojure-runtime.md` · `packages/coding-agent/docs/rlm.md` · `packages/coding-agent/docs/rlm-runtime.md` · `ROADMAP.md`
+- Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`/snapshot/restore **구현**, bash/skills/MCP, interrupt 보장, persist CLI 선택면, Python API/await/future 주입, H3 읽기 cap, H4 process, H5 write, Emmy, GH native-image
+- Blocker: 없음.
 
-1. **parity를 backlog로 읽기.** 어제 감사 문서는 지웠다. gap을 RAIL/NOW로 올리려면 **측정된 Phase A workload failure**와 **GLG 명시 승격**이 함께 있어야 한다. Python oracle `repl.md`는 비교 원본이지 할 일 목록이 아니다.
-2. **편의로 capability 열기.** `id` · `mode` · `install/retract` · **native +/- 테스트**가 함께 오지 않으면 거부. reflect-config와 광범위 Java interop은 경계 변경, 별도 GLG gate.
-3. **JVM을 작업면에 끼우기.** 작업면은 native process + SCI다. 가운데가 두꺼워서다. GitHub Actions에 GraalVM/native-image/JDK를 올리지 않는다. 린트만 돌린다. 이미지 빌드는 로컬 Nix. `nix develop .#jvm`은 편집 셸이다. 어떤 checkpoint도 로컬 native SUT + fresh `build.sh` 영수증 없이 닫지 않는다.
-4. **Python 모양으로 shim.** Host adapter는 transport·spawn·bootstrap만 번역한다. Python API/이름/await를 SCI에 주입해 기존 prompt를 통과시키지 않는다. 그건 `harness-gap`.
-5. **엉뚱한 성공 측정.** "92 tests green", "CPython보다 빠름", "테스트 개수 증가"는 acceptance가 아니다.
+# H2 — 이 브랜치 닫힘 실험
 
-## 입구에서 정할 다섯 — GLG 판독 대기
+README / `rlm.md` 네 개. DeepSeek · Clojure form. Python fixture 공유 금지.
 
-### 1. read-only document capability (write 아님)
-`slurp`와 `spit`을 묶지 마라. RAIL 4에 필요한 건 **읽기 하나**.
-AOT wrapper가 session/project root 아래 path를 검증하고 text를 반환. stdout·Java interop에 노출하지 않는다. 읽기만이면 output boundary 재설계가 아니다.
-native에 positive(읽기) + negative(쓰기·interop·raw output 닫힘)를 **짝으로**.
-RAIL 4 안에서 발견으로 정할 것: API 이름, path scope/size/error, read-only로 부족한 사례. **사례 전에는 write를 열지 않는다.**
+1. **world** — public bindings와 child registry를 Lisp 값으로
+2. **prompt-as-variable** — 문서를 값으로 붙잡고 heading만 계산
+3. **`rlm`은 답이 아님** — child 둘, **admission handle**만
+4. **harness 경계** — 파일과 줄을 값에 바인딩
 
-### 2. retract의 의미 — 이름 unmap은 retract가 아니다
-SCI에서 이름만 지워도, 모델이 그 함수 값을 `_`·atom·closure에 담아두면 계속 호출한다.
-계약: **retract는 이전에 보관된 reference를 통한 이후 호출도 실패시킨다.** 못 하면 `unbind`라 부른다.
-구현(revocable proxy / generation token / active atom)은 RAIL 4에서 고른다. 이미 컴파일된 raw Var를 그대로 노출하는 안은 rollback이 아니다.
+**fan-in (`rlm.md:53-72`):** child 최종 답은 `rlm` 반환값이 아니다. `agent_message` 또는 파일. 이 slice에 입구가 없으면 **`harness-gap`으로 기록하고 cap을 열지 않는다.** README:47 “returns their results programmatically”와 정밀 계약의 충돌을 영수증에 남긴다.
 
-### 3. evidence-integrity 경계 (adversarial sandbox 아님)
-"IO가 없어 공짜"는 SCI 안의 직접 수정에만 참이다. `(rlm ...)` child는 host 안에서 파일을 고친다.
-verifier 실행과 증거 수집은 SCI **밖**(coordinator/CI). workspace capability로 verifier 명령·fixture를 노출하지 않는다.
-child diff는 별도 review + 영수증. Phase A evidence-integrity 경계이지 적대적 보안 경계가 아니다.
-
-### 4. capability manifest
-install/retract 이전에 "무엇을 설치하는가"의 SSOT. 최소 `id`, `mode`, 노출 Var, active generation/version, native 테스트. `ready` frame을 당장 늘릴 필요는 없다.
-
-### 5. RAIL 4 실험 기록 양식
-workload 4개마다: 생성된 Clojure form, result/error, 사용한 capability, 세 실패 라벨, GLG 판독.
-없으면 host를 붙여도 Python shim과 엉뚱한 성공을 판별할 수 없다.
-
-### 지금 정하지 않을 것
-general steering DSL, write/process capability, 전체 sandbox, Emmy surface, 최종 prompt 문구, capability grammar 전체.
+라벨: `semantics-gap` / `model-fumble` / `harness-gap`.
+2번이 읽기 없이 부족하면 한 줄 적고 닫는다 — H3로 보낸다.
 
 # RECENT
 
-- [2026-08-29] 포크 `junghan0611/prime-agent` + `feat/clojure-runtime`. 틀을 잡았다. 성공.
-- [2026-08-29] JVM-hosted eval 초안을 버리고 native-image + SCI로 관통. native 32/158.
-- [2026-08-29] JVM을 작업면에서 뺐다. 다음 실무는 native + SCI만.
-- [2026-08-30] `docs/`를 계약 한 장으로 접었다. devenv·parity-audit을 지웠다.
-- [2026-08-30] GitHub에서 GraalVM/native-image/`test-jvm`을 뺐다. Actions는 clj-kondo만. 이미지 빌드는 로컬 Nix — GH가 불안해서 무거운 게이트를 올릴 자리가 아니다.
+- [2026-08-29] 포크 + native SCI. 32/158.
+- [2026-08-30] 문서 한 장. JVM SUT·GH GraalVM 삭제. `56631f36`
+- [2026-08-30] sol: 견적 220–300/180–250, `list_names` skip, fan-in 한 줄.
+- [2026-08-30] GLG 교정: 이 브랜치 닫힘 = 1차 boot (H1–H2). 최종 1번 = 실사용 대체 (ROADMAP H1–H8). 논문 첫 pilot은 H7, arXiv 2608.23552 §3 RQ2.
