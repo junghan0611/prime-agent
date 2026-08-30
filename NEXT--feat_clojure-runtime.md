@@ -1,7 +1,7 @@
-# feat/clojure-runtime — H3 checkpoint, H4 대기
+# feat/clojure-runtime — H4 checkpoint, H5 대기
 
-최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H3는 **rollback checkpoint**. 새 브랜치 없음.
-H4는 시작하지 않음. 시작 때 CURRENT만 H4로 옮긴다.
+최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H4는 **rollback checkpoint**. 새 브랜치 없음.
+CURRENT = H5 대기 (시작 아님). 시작 때 CURRENT만 H5로 옮긴다.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -21,21 +21,26 @@ H4는 시작하지 않음. 시작 때 CURRENT만 H4로 옮긴다.
 - [x] **H0 runtime** — native-image + SCI. 32/158. GitHub 린트만.
 - [x] **H1 host** — checkpoint `7d509e75`. 기본 python. `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
 - [x] **H2 DeepSeek 4실험 + fan-in** — checkpoint. 수선 `9d8f69f5`. 재측정 s6. **branch close 아님.**
-- [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`. 34/173. GLM 닫힘 동의.
-- [ ] **H4–H8** — ROADMAP. 이 브랜치에서 이어서 할 수 있음. H4≠H5.
+- [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`. 34/173.
+- [x] **H4 process lifecycle** — `4c42dbb4` → `9229aa77`. id registry + setsid group. native 48/313. GLM `abff01` 2차 PASS.
+- [ ] **H5–H8** — ROADMAP. H5는 write/edit receipts. H4와 합치지 않음.
 
-현재 좌표: H0–H3 checkpoint → H4는 process lifecycle (H5와 합치지 않음)
+현재 좌표: H0–H4 checkpoint → H5는 edit/write receipts (시작 아님)
 
-# NOW — H4 대기 (시작 아님)
+# NOW — H4 닫힘, 푸시·H5는 GLG
 
-- Stem: H3 checkpoint. native 34/173. host 10/10.
-- Next: GLG가 오면 H4. **시작 전에 게이트:** process object를 SCI에 노출하지 않음. runtime registry id→immutable handle map. start/poll/tail/kill. bounded captured output. protocol stdout 불오염. shutdown/EOF cleanup. descendant/process-group 정리. H5 write와 분리.
-- Known deviation (H3, blocker 아님): `(read-text)`는 lexical Path.startsWith. workspace 안 symlink로 루트 밖 가능. 프롬프트 "stay under workspace"는 그 경우 거짓. H4 process가 열리면 OS-permission trust — 보안 경계로 승격하지 않음. sol `f6f942`.
-- Do not touch: Python oracle, `ipython` 개명, `list_names` 구현, spit/write, Emmy, H4+H5 합치기
+- Stem: H4 `4c42dbb4` + `9229aa77`. ahead 2. native 48/313 (GLM 3연속 재실측).
+- Next: GLG 푸시. H5는 시작하지 않음.
+- **H4 leftover (blocker 아님):** (a) setsid 없는 host (`:contained false`, `cmd & exit 0` 탈출) (b) 스스로 re-group 하는 자식 (c) SIGKILLed runtime. orphan journal은 H6/H7 전 안건.
+- Known deviation (H3, blocker 아님): `(read-text)` lexical Path.startsWith. symlink 경유 시 workspace 밖 가능. H4는 OS-permission trust — 보안 경계로 승격하지 않음.
+- Do not touch until H5 opens: Python oracle, `ipython` 개명, `list_names`, spit/write receipts, Emmy, H4+H5 합치기.
 - Blocker: 없음. 푸시는 GLG.
 
 # RECENT
 
 - [2026-08-30] H1 `7d509e75`. GLM green.
 - [2026-08-30] H2 evalue/:type `9d8f69f5`. s6 world·fan-in 성공.
-- [2026-08-30] 도장 `52a5f9db`는 checkpoint 기록. GLG: 같은 브랜치에서 H3 계속. 새 브랜치 없음.
+- [2026-08-30] H3 닫힘 `f0b5183e` → `10fde370` → `13e88738`. 푸시 `ba2bba55`.
+- [2026-08-30] 코디 회전: grok `20260830T132225-cd2dd4`. H4 Opus `110899` + GLM `abff01`.
+- [2026-08-30] H4 `4c42dbb4` registry. GLM 1차: leader-exit orphan. GLG (b) setsid.
+- [2026-08-30] H4 (b) `9229aa77`. GLM 2차 48/313 PASS. H4 close 권고.
