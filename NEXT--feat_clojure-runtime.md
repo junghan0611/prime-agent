@@ -1,7 +1,7 @@
-# feat/clojure-runtime — H7 A/B 착지, GLM 실측 대기
+# feat/clojure-runtime — H7 checkpoint, H8 대기
 
-최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H6은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = H7 (검수 대기 — 닫는 것은 코디 `cd2dd4`). 구현 Opus `61f23b`. 검수 GLM `abff01`.
+최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H7은 **rollback checkpoint**. 새 브랜치 없음.
+CURRENT = H8 대기 (시작 아님). 구현 Opus `61f23b`. 검수 테라 `55b3ea` PASS. GLM `abff01` 퇴근.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -24,17 +24,16 @@ CURRENT = H7 (검수 대기 — 닫는 것은 코디 `cd2dd4`). 구현 Opus `61f
 - [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`.
 - [x] **H4 process lifecycle** — `4c42dbb4` → `9229aa77`. id registry + setsid group. native 48/313.
 - [x] **H5 edit / write receipts** — `2e5753a2`. write-text / edit-text. native 57/443. GLM `abff01` PASS.
-- [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497. **GLM 실측 대기.**
-- [~] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 논문 벤치/PMPP 아님.
-      8/8 REPL 사용, clojure arm Python 유출 0 / tool crash 0. **GLM 실측 대기.**
-- [ ] **H8** — ROADMAP. H7 다음.
+- [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497.
+- [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
+- [ ] **H8** — ROADMAP. **시작 아님.**
 
-현재 좌표: H0–H6 checkpoint → **H7 A/B 착지, 검수 대기**
+현재 좌표: H0–H7 checkpoint → H8는 default switch + soak (시작 아님)
 
-# NOW — H7 A/B 착지, 검수·푸시는 GLG
+# NOW — H7 닫힘, 푸시·H8는 GLG
 
 - Stem: H7 `b5e9e424` (ahead 5, 푸시 안 함). 산출물 `evals/h7-functional-ab/`.
-- Next: GLM `abff01` 실측. 그다음 GLG 푸시. **H8 시작하지 않음.**
+- Next: GLG 푸시. **H8 시작하지 않음.**
 - **GLG 결정으로 H7 은 논문 eval 이 아니라 기능 A/B 였다.** PMPP pin 안 함, GPU 안 빌림,
   `prime login` 안 함. 두 arm 의 유일한 차이는 `PRIME_AGENT_KERNEL_RUNTIME`.
 - **결과 한 줄:** 8/8 런이 REPL 을 썼다. clojure arm Python 문법 유출 0, tool crash 0,

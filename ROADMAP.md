@@ -2,7 +2,7 @@
 
 최종 1번 목표: Clojure/SCI native runtime을 Python kernel의 **실사용 대체물**로 쓴다. 논문/프로젝트가 주장한 평가를 **같은 evaluator · model · budget**에서 실행 가능하게 만든다.
 
-이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H6은 **rollback checkpoint**이지 브랜치 닫힘이 아니다. CURRENT = H7 (A/B 착지, 검수 대기).
+이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H7은 **rollback checkpoint**이지 브랜치 닫힘이 아니다. CURRENT = H8 대기 (시작 아님).
 
 출처: sol `20260830T103427-f6f942`. README 배지 [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), arXiv [2608.23552](https://arxiv.org/abs/2608.23552). 이 repo에 논문 eval config는 없다 — pin/acquisition은 H7 산출물.
 
@@ -16,7 +16,7 @@
 | H4 | process lifecycle | checkpoint `4c42dbb4` → `9229aa77`. SCI에 process 객체 금지. setsid group. leftover: no-setsid / re-group / SIGKILL |
 | H5 | edit / write receipts | checkpoint `2e5753a2`. `spit` 닫힘. write는 symlink 거부. H3 read 편차는 그대로 |
 | H6 | compaction / restart continuity | checkpoint `2ea1b170`. `list_names` frame 0, snapshot 없음. registry 회수 verb + runtime별 통지. restart 는 복원이 아니라 정직한 빈 workspace |
-| H7 | 기능 A/B (DeepSeek thinking) | **지금.** 논문 벤치 아님. Python vs Clojure, 같은 모델. RLM을 하는가. 성능 주장 금지. PMPP/OOLONG은 H7 밖 |
+| H7 | 기능 A/B (DeepSeek thinking) | checkpoint `b5e9e424`. 8/8 REPL. clojure Python 유출 0. fan-in은 여전히 harness-gap |
 | H8 | default switch + soak | 다음. **performance-accepted**. 제안 rollback: Clojure median ≥ Python 90% (실측 아님, GLG 승인 전) + PMPP 비열화 + soak harness failure 0 |
 
 ## 이 브랜치 이후 — 공존언어
