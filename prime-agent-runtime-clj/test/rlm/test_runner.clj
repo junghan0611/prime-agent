@@ -6,11 +6,12 @@
             [rlm.process-test]
             [rlm.repl-test]
             [rlm.sut :as sut]
-            [rlm.workspace-test]))
+            [rlm.workspace-test]
+            [rlm.write-test]))
 
 (def ^:private nses
   '[rlm.repl-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test rlm.framing-test
-    rlm.process-test])
+    rlm.process-test rlm.write-test])
 
 (defn -main
   [& _]

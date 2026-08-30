@@ -12,6 +12,9 @@
                  ([prompt] (core/rlm runtime prompt))
                  ([prompt kwargs] (core/rlm runtime prompt kwargs)))
         read-fn (fn [path] (io/read-text path))
+        ;; Write verbs return receipt maps. No file handle, no spit.
+        write-fn (fn [path content] (io/write-text path content))
+        edit-fn (fn [path old new] (io/edit-text path old new))
         ;; Process verbs take and return ids and data maps. The live
         ;; java.lang.Process stays on the runtime registry.
         start-fn (fn [command] (process/start runtime command))
@@ -24,6 +27,8 @@
     (sci/init {:namespaces {'user {'host-request host-fn
                                    'rlm rlm-fn
                                    'read-text read-fn
+                                   'write-text write-fn
+                                   'edit-text edit-fn
                                    'process-start start-fn
                                    'process-poll poll-fn
                                    'process-tail tail-fn

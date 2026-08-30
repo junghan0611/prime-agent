@@ -78,7 +78,7 @@ prime-agent-runtime-clj/
   src/rlm/repl.clj            ; JSONL reader, queue, event writer, lifecycle
   src/rlm/eval.clj            ; persistent SCI context
   src/rlm/core.clj            ; host-request, rlm
-  src/rlm/io.clj              ; H3 bounded read-text
+  src/rlm/io.clj              ; H3 bounded read-text + H5 write-text/edit-text
   src/rlm/process.clj         ; H4 process lifecycle + registry
   test/rlm/*.clj
 ```
@@ -117,7 +117,7 @@ prime-agent-runtime-clj/
 - 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
 - `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- public binding은 `rlm`, `host-request`, `read-text`(H3), `process-*`(H4)만. Java interop·classpath loading은 열지 않는다.
+- public binding은 `rlm`, `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5)만. Java interop·classpath loading은 열지 않는다.
 
 ### `(rlm ...)`
 
@@ -139,7 +139,7 @@ prime-agent-runtime-clj/
 | form | native |
 |---|---|
 | `(.toUpperCase "ab")` / `(.length "abc")` | error |
-| `(slurp …)` / `(System/getProperty …)` / `(future 1)` / `(Thread/sleep 1)` | error |
+| `(slurp …)` / `(spit …)` / `(System/getProperty …)` / `(future 1)` / `(Thread/sleep 1)` | error |
 
 `native-image/`에 reflect-config가 없다. 닫힘은 명시적 allow-list가 아니라 reflection metadata 부재로 보인다(인과는 추정, 닫힘 자체는 테스트가 고정). reflect-config를 넣으면 경계가 조용히 열린다.
 
@@ -151,7 +151,7 @@ Framing은 SCI allow-list가 raw Java/native output을 닫고 있어서 지킨�
 
 이건 우회가 아니라 H4가 연 capability 그 자체다. NEXT의 결정대로 여기서부터 경계는 **OS permission**이지 runtime allow-list가 아니다. H3 symlink deviation을 보안 경계로 승격하지 않는 이유도 같다.
 
-H4는 write **경로**를 열었을 뿐, H5의 write receipt는 구현하지 않았다. 둘은 합치지 않는다.
+H4는 write **경로**를 열었을 뿐이고, H5가 그 위에 계약 있는 write 를 얹었다. 둘은 합치지 않았다: `(process-start "echo x > f")` 는 H5 API 가 아니다.
 
 ---
 
@@ -191,6 +191,39 @@ H4가 하지 않은 것 (oracle과의 차이):
 2. **SIGKILL 받은 runtime은 정리하지 못한다.** shutdown hook이 안 돈다. oracle의 host reaper에 해당하는 장치가 없다.
 3. **`wait`가 없다.** `Thread/sleep`이 닫혀 있어 한 셀 안에서 완료를 기다릴 방법이 없다. 모델은 다음 셀에서 `process-poll` 해야 한다. 한 셀 안 busy-loop는 runtime을 붙잡는다 — `interrupt`가 취소를 보장하지 않으므로 실제 위험이다. bounded `wait`를 열지 말지는 H4 게이트 밖이라 열지 않았다.
 4. **mid-cell streaming 없음.** 출력은 `process-tail`을 부를 때만 보인다.
+
+---
+
+## Write / edit — H5
+
+Python `edit` skill (`packages/coding-agent/skills/edit/`)이 참고선이다. parity 가 아니다.
+
+| form | 반환 |
+|---|---|
+| `(write-text "rel/path" content)` | `{:path :action :bytes :lines}`. `:action` 은 `:created` 또는 `:replaced` |
+| `(edit-text "rel/path" old new)` | `{:path :action :line :bytes-before :bytes-after}`. `:action` 은 `:edited` |
+
+- **receipt 는 plain data map 이다.** file handle 도, `spit` 의 nil 도 아니다. `:line` 은 match 가
+  시작한 1-based 줄 — oracle skill 의 `content.count("\n", 0, idx) + 1` 과 같은 정의.
+- **경계는 `read-text` 와 같다.** 상대 경로만, 루트 아래, 1 MiB cap, UTF-8.
+- **단, write 는 lexical 검사에 기대지 않는다.** parent 의 real path 를 확인하고 target 이
+  symlink 면 거부한다. H3 의 symlink deviation 은 read 쪽 기록으로 그대로 두되, 파괴하는
+  verb 에까지 물려주지 않는다. (테스트: workspace 안 symlink 로 루트 밖 파일을 겨눠도 거부되고
+  대상 파일은 그대로다.)
+- **parent 디렉토리는 이미 있어야 한다.** 이 slice 는 파일을 만들지 디렉토리 트리를 만들지 않는다.
+  필요하면 H4 `process-start` 로 `mkdir` 한다.
+- **거부된 edit 는 파일을 건드리지 않는다.** 검사는 전부 write 앞에서 끝난다.
+- **uniqueness 가 계약이다.** 0개면 `not found`, 2개 이상이면 개수를 말하고 더 넓은 snippet 을
+  요구한다. 어느 쪽을 고를지 runtime 이 추측하지 않는다.
+- `slurp` / `spit` 은 계속 닫혀 있다. capability_test 와 write_test 둘 다 그것을 고정한다.
+
+H5 가 하지 않은 것:
+
+1. **diff display event 없음.** oracle skill 은 host 로 `application/vnd.prime-agent.diff+json` 을
+   emit 한다. 이 runtime 에 `emit`/display 축이 없다. receipt 만 돌려준다.
+2. **delete / rename / mkdir 없음.** 게이트는 write + targeted edit 까지다.
+3. **동시 write 조정 없음.** 두 셀이 같은 파일을 쓰면 마지막이 이긴다. atomic replace 도 아니다
+   (oracle 의 `write_text` 와 같은 자리).
 
 ---
 
@@ -265,7 +298,7 @@ Acceptance:
 
 아닌 것: CPython보다 빠름, 92 tests green, snapshot 호환, 모든 library 노출, steering/Emacs 완성.
 
-코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 715 + test 997 + native-image 21 (H4 기준).
+코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 856 + test 1224 + native-image 21 (H5 기준).
 
 ---
 

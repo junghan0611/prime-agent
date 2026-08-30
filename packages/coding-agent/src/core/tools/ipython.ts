@@ -72,11 +72,11 @@ except Exception as _prime_agent_rlm_error:
 // so the bootstrap only has to confirm the workspace it was handed is that runtime.
 const RLM_CLOJURE_BOOTSTRAP_CODE = `
 (def prime-agent-runtime {:language "clojure" :engine "sci"})
-[(fn? rlm) (fn? host-request) (fn? read-text)
+[(fn? rlm) (fn? host-request) (fn? read-text) (fn? write-text) (fn? edit-text)
  (fn? process-start) (fn? process-poll) (fn? process-tail) (fn? process-kill) (fn? process-list)]
 `.trim();
 
-const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true true true true true true]";
+const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true true true true true true true true]";
 
 export function buildClojureBootstrapCode(): string {
 	return RLM_CLOJURE_BOOTSTRAP_CODE;

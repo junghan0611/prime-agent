@@ -57,6 +57,7 @@ These are not protocol v2 parity.
 3. **interrupt** — request is parsed, cancellation is not guaranteed.
 4. **process containment** — commands run under `setsid`, so cleanup signals the whole process group and reclaims a child whose leader already exited (`cmd & exit 0`). What is left: a host with no `setsid` (`:contained false` in the snapshot) falls back to the `ProcessHandle.descendants()` sweep alone and loses that child; a process that re-groups itself escapes either way; a SIGKILLed runtime cannot clean up at all. There is no orphan journal (`process.clj`).
 5. **no wait** — `Thread/sleep` is closed, so a cell cannot block on a command. Poll `process-poll` in a later cell; a busy-loop inside one cell holds the runtime and `interrupt` will not free it.
+6. **write receipts, no diff event** — `write-text`/`edit-text` return receipt maps. The Python `edit` skill also emits a diff display event to the host; this runtime has no display axis, so it does not (`io.clj`). There is no delete, rename, or mkdir, and two cells writing the same file do not coordinate.
 
 ## `process-*` — H4
 
@@ -83,3 +84,21 @@ stdin EOF, and SIGTERM to the runtime all reap the whole process group.
 descendants sweep.
 
 Contract and deviations: `docs/clojure-runtime.md`.
+
+## `write-text` / `edit-text` — H5
+
+Same workspace bound as `read-text`: relative paths, under the root, 1 MiB cap,
+UTF-8. Receipts are plain maps, never a file handle; `slurp` and `spit` stay
+closed.
+
+```text
+> (write-text "notes/a.md" "hello\nworld\n")
+{:path "notes/a.md", :action :created, :bytes 12, :lines 2}
+> (edit-text "notes/a.md" "world" "there")
+{:path "notes/a.md", :action :edited, :line 2, :bytes-before 12, :bytes-after 12}
+```
+
+`old` must occur exactly once — 0 or 2+ matches are refused and the file is left
+untouched. The parent directory must already exist. Unlike `read-text`, the
+write verbs resolve the parent's real path and refuse a symlink target, so a
+symlink inside the workspace cannot aim a write outside it.
