@@ -19,9 +19,15 @@
 | H7 | 기능 A/B (DeepSeek thinking) | checkpoint `b5e9e424`. 8/8 REPL. clojure Python 유출 0. fan-in은 여전히 harness-gap |
 | H8 | default switch + soak | checkpoint `edc3a3e8`. default = clojure, fallback 없음. 테라 native 65/497 PASS. 90%/PMPP는 홉 밖 |
 
+## H8 다음, Emmy 전 — 일상 루프 닫힘
+
+8홉은 “면이 선다”. 그다음 Prime Agent 기본 작업이 **끝까지** 가는지.
+inspect → read → compute → spawn → **receive** → run → edit → verify.
+지금 빈 칸은 **receive (fan-in)**. interrupt는 GLG가 `primeclj`로 밟은 뒤에. wait/snapshot은 아님.
+
 ## 이 브랜치 이후 — 공존언어
 
-**Emmy / SICM probe.** form → symbolic → numeric/render. H8 뒤에 연다. REPL 언어축과 독립.
+**Emmy / SICM probe.** form → symbolic → numeric/render. fan-in(그리고 실사용 interrupt) 뒤에 연다. REPL 언어축과 독립.
 
 ## 더 뒤
 

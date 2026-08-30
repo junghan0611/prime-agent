@@ -54,3 +54,6 @@ result-*
 .clj-kondo/.cache/
 .lsp/.cache/
 prime-agent-runtime-clj/target/
+
+# RLM drop-box scratch (not the receive contract)
+rlm-answer-*.txt

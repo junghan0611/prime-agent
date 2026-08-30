@@ -1,7 +1,7 @@
 # feat/clojure-runtime — 8홉 레일 닫힘
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = 레일 끝. Emmy는 별 레일. 9번째 홉 없음.
+CURRENT = 8홉 레일 끝. 다음 실사용 닫힘 = **fan-in (receive)**. Emmy는 그 뒤. 9번째 제품홉 없음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -28,12 +28,18 @@ CURRENT = 레일 끝. Emmy는 별 레일. 9번째 홉 없음.
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
 - [x] **H8 default switch + soak** — `edc3a3e8`. default = clojure, fallback 없음. 테라 `55b3ea` native 65/497 PASS.
 
-현재 좌표: **H0–H8 checkpoint. 이 레일 끝.**
+현재 좌표: **H0–H8 checkpoint.** 일상 RLM 루프에서 빈 칸 = receive.
 
-# NOW — 레일 닫힘, 푸시는 GLG
+# NOW — fan-in (receive). 8홉 아님, 일상 루프 닫힘
 
-- Stem: H8 `edc3a3e8` (ahead 2, 푸시 안 함).
-- Next: GLG 푸시. **9번째 홉 없음.** Emmy는 별건.
+- Stem: origin `619790d1`. 인터뷰 SSOT: `docs/BASELINE.md`.
+- **2026-08-30 primeclj (DeepSeek v4 pro):** Q-R0/R1/R2/R4 PASS. **Q-R3 FAIL receive.** spawn `sub-72a686e0` 됨. `agent_message.*` unavailable. 모델이 `agent_observe.recent`로 대본을 읽음 — 사이드 채널이지 receive 아님. host notice `completed without sending a reply`. H7 P4와 같은 구멍.
+- Next: fan-in 닫힘 = **기존 host messaging의 thin Clojure exposure** (Python 스킬 이름에 묶인 게이트를 풂 + child doctrine). drop-box 파일 / observe 승격은 PASS 아님. `rlm-answer-*.txt` 는 gitignore만.
+- Q-R3 PASS 6항 (GPT): spawn → child 끝 → **명시 capability로 reply** → parent가 scrape/notice 없이 받음 → provenance에 child id → Python/Clojure 같은 계약.
+- 같은 `docs/BASELINE.md` 인터뷰를 다시 돈다. 그 다음 실측 blocker.
+- 2번: interrupt. 이번 인터뷰에서 안 밟음. 미리 넣지 않음.
+- wait / snapshot: 지금 열지 않음. restart는 빈 workspace가 정직.
+- 기준점: stable = v0.8.1. oracle pin = v0.8.1 + post-release `bc0fa7606` (sibling messaging). “stable 그대로”라고 부르지 않음. Entwurf #88.
 - **H8 이 한 것:** `DEFAULT_KERNEL_RUNTIME = "clojure"`. oracle 은 `PRIME_AGENT_KERNEL_RUNTIME=python`
   으로 계속 선택 가능. **fallback 안 한다** — 바이너리 없으면 teaching error 로 안 뜬다 (GLG 안 (가)).
 - **테스트가 말하게 된 것:** flip 델타는 +49 tests / 16 files 였고 세 갈래였다.
@@ -46,12 +52,11 @@ CURRENT = 레일 끝. Emmy는 별 레일. 9번째 홉 없음.
 - **레일 밖 (H8 게이트대로 안 함):** 90% median 주장, PMPP, Emmy, `list_names`, snapshot.
 - **CI 주의:** GraalVM 없음 — `clojure-runtime.yml` 은 의도적 lint 전용. 그래서 TS 는 바이너리 없이
   초록이어야 하고, 위 A·C 고정이 그것을 만든다.
-- **누적 leftover (전부 blocker 아님):** H4 (a)no-setsid (b)re-group (c)SIGKILL orphan ·
+- **누적 leftover (blocker 아님):** H4 (a)no-setsid (b)re-group (c)SIGKILL orphan ·
   H5 symlink 거부/diff event 없음/delete·rename·mkdir 없음 · H6 busy-kernel 대화상자 Python 어휘 ·
-  H7 `process-tail` 문구·`Integer/parseInt` 문구·**fan-in harness-gap(clojure arm 은 child 가 답을 못 보낸다)** ·
-  spawn handle `name` vs registry `session_name` 불일치(양쪽 runtime).
+  H7 `process-tail` 문구·`Integer/parseInt` 문구 · spawn handle `name` vs registry `session_name`.
 - Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy.
-- Blocker: 없음. 푸시는 GLG.
+- **Blocker: fan-in (receive).** interrupt는 인터뷰 흔적 보고.
 
 # RECENT
 

@@ -14,7 +14,8 @@ Production 교체 명세가 아니다. persistent programmable workspace를 Lisp
 
 | 항목 | 값 |
 |---|---|
-| fork pin | `bc0fa7606` — protocol v2 oracle. main의 v3 / `#1839` / `#1836` / `#1838`은 통합 전에 다시 고른다 |
+| stable | Prime Agent **v0.8.1** (2026-08-26, tag). “stable 그대로”가 아님 |
+| fork pin | `bc0fa7606` — v0.8.1 + selected post-release (sibling messaging 포함). protocol v2 oracle. main의 v3 / `#1839` / `#1836` / `#1838`은 통합 전에 다시 고른다 |
 | host protocol | JSONL protocol v2 names. 완전 호환이라고 부르지 않는다 |
 | Python oracle | `prime-agent-runtime/src/rlm/repl.py` + `repl.md` |
 | delivery artifact | `prime-agent-runtime-clj/target/rlm-repl` |
