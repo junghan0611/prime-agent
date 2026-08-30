@@ -30,13 +30,37 @@ CURRENT = 8홉 레일 끝. 다음 실사용 닫힘 = **fan-in (receive)**. Emmy�
 
 현재 좌표: **H0–H8 checkpoint.** 일상 RLM 루프에서 빈 칸 = receive.
 
-# NOW — fan-in (receive). 8홉 아님, 일상 루프 닫힘
+# NOW — H2 leftover: receive (fan-in)
+
+명분: H2 제목이 child/registry/**fan-in** 이었으나 receive는 harness-gap으로 남고 H3–H8이 그 위에 섰다. H8(default=clojure)을 다시 여는 게 아니다. 9번째 제품홉도 아니다. `primeclj` 일상 루프가 기본 런타임에서 끊기지 않게 H2가 못 닫은 칸을 닫는다.
 
 - Stem: origin `619790d1`. 인터뷰 SSOT: `docs/BASELINE.md`.
 - **2026-08-30 primeclj (DeepSeek v4 pro):** Q-R0/R1/R2/R4 PASS. **Q-R3 FAIL receive.** spawn `sub-72a686e0` 됨. `agent_message.*` unavailable. 모델이 `agent_observe.recent`로 대본을 읽음 — 사이드 채널이지 receive 아님. host notice `completed without sending a reply`. H7 P4와 같은 구멍.
 - Next: fan-in 닫힘 = **기존 host messaging의 thin Clojure exposure** (Python 스킬 이름에 묶인 게이트를 풂 + child doctrine). drop-box 파일 / observe 승격은 PASS 아님. `rlm-answer-*.txt` 는 gitignore만.
 - Q-R3 PASS 6항 (GPT): spawn → child 끝 → **명시 capability로 reply** → parent가 scrape/notice 없이 받음 → provenance에 child id → Python/Clojure 같은 계약.
+- **랜딩됨 (A+B+C, 코드 3곳 전부 조건/텍스트):**
+  A `agent-session.ts:9144` 게이트에 `kernelRuntime === "clojure"` OR — Python 분기 무변경.
+  B `prompts/rlm.ts` clojure child doctrine 1줄 (전에는 0줄), 맵 리터럴 `:receiver_role "parent"`.
+  C `rlm.ts` clojure subagent guidance 의 자기모순 문장 제거.
+  새 Clojure verb 없음 · dashed 키 관대화 없음 · Python 패키지 SCI 설치 없음.
+- **진단 영수증:** 인터뷰의 *not available in this session* 은 `kernel/repl-manager.ts:835`(**미등록 핸들러**)
+  이지 `agent-session.ts:3183`(컨트롤러 부재)가 아니었다. 같은 프롬프트가 `rlm.ts:198` 에서
+  `(host-request {:type "agent_message.list_agents"})` 를 이미 가르치면서 host 는 verb 를 등록하지 않았다 —
+  프롬프트와 핸들러의 불일치가 원인. 컨트롤러 공급처는 daemon 3곳뿐이고(`daemon-mode.ts:1732/2602/3023`)
+  **런타임 조건이 없다.** 그래서 `primeclj` = daemon 필수.
+- **테스트 영수증:** 새 4건 (clojure 게이트 · 컨트롤러 없으면 여전히 미등록 · child doctrine 철자 · guidance 정합).
+  게이트를 되돌리면 그중 2건이 실패한다(확인함) — 테스트가 이 변경을 실제로 잡는다.
+  `npm run check` clean. 표적 실행 14파일 pass; `4649-subagent-model-selection` 2 fail 은
+  **stash 한 깨끗한 트리에서도 동일** = pre-existing.
+  `agent-session-services.test.ts` 의 hidden-skill 단언은 `kernelRuntime: "python"` 으로 명시 고정 —
+  회피가 아니라 그 규칙이 python 팔의 규칙임을 드러낸 것(H8 flip 때와 같은 처리).
+- **레일 밖 결정 (기록):** clojure 에서는 `agent-message` 스킬의 `disableModelInvocation` 이 더는
+  host verb 를 막지 못한다. clojure 프롬프트(`rlm.ts:198`)가 애초에 그 플래그를 보지 않고 verb 를
+  광고해 왔으므로 핸들러도 같게 맞춘 것. 되돌리려면 capability 개념을 1급으로 들여야 하는데 이번 게이트 밖.
 - 같은 `docs/BASELINE.md` 인터뷰를 다시 돈다. 그 다음 실측 blocker.
+- **재인터뷰 판정 신호:** `agent-session.ts:10507-10510` — notice 는 child 의 parent reply 수가
+  안 움직였을 때만 쓰인다. 그래서 Q-R3 에서 `completed without sending a reply` 가 **안 보이면**
+  criterion 4 통과의 기계 영수증이고, 또 보이면 send 가 안 일어난 것이다(모델 서술 무관).
 - 2번: interrupt. 이번 인터뷰에서 안 밟음. 미리 넣지 않음.
 - wait / snapshot: 지금 열지 않음. restart는 빈 workspace가 정직.
 - 기준점: stable = v0.8.1. oracle pin = v0.8.1 + post-release `bc0fa7606` (sibling messaging). “stable 그대로”라고 부르지 않음. Entwurf #88.
