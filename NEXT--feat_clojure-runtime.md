@@ -29,7 +29,7 @@
 # NOW — H3
 
 - Stem: boot는 섰다. 다음이 읽기. 그 전에 reply key 규약이 먼저다.
-- Next: `(rlm)` keyword keys vs `(host-request)` string keys. `(:status roster)` silent nil. **string 유지 vs recursive keyword normalize** 중 하나를 계약으로 고정하고 nested registry fixture로 검수한 뒤, session/project root 아래 **읽기만** 연다. write 아님.
+- Next: key-shape는 **recursive keywordize at SCI boundary**로 고정 (`walk/keywordize-keys`). 와이어 JSON은 string. nested registry fixture 통과 (33/162). 다음은 session/project root 아래 **읽기만**. write 아님.
 - Verify: key-shape 테스트 + read positive/negative 짝 (쓰기·interop·raw output 닫힘).
 - Read: issue #1 · `docs/clojure-runtime.md` · H2 leftover (s6)
 - Do not touch: Python oracle, `ipython` 개명, `list_names` 구현, write/process, Emmy, H4+H5 합치기
