@@ -5,8 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # AOT into target/classes (already gitignored via prime-agent-runtime-clj/target/).
 # Do not write classes/ at the project root — that path is not ignored.
+rm -rf target/classes
 mkdir -p target/classes target
-clojure -M -e "(binding [*compile-path* \"target/classes\"] (compile 'rlm.repl))"
+clojure -M -e "(binding [*compile-path* \"target/classes\"] (doseq [n '[rlm.io rlm.core rlm.eval rlm.repl]] (compile n)))"
 native-image \
   -cp "$(clojure -Spath):target/classes" \
   --no-fallback \

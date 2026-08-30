@@ -21,18 +21,16 @@
 - [x] **H0 runtime** — native-image + SCI. 32/158. GitHub 린트만.
 - [x] **H1 host** — checkpoint `7d509e75`. 기본 python. `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
 - [x] **H2 DeepSeek 4실험 + fan-in** — checkpoint. 수선 `9d8f69f5`. 재측정 s6. **branch close 아님.**
-- [ ] **H3 bounded read / context** ← CURRENT: (1) host-request reply key 규약 고정 (2) 그다음 read cap.
+- [x] **H3 bounded read / context** — key-shape keywordize + `(read-text)`. write 없음. 34/173.
 - [ ] **H4–H8** — ROADMAP. 이 브랜치에서 이어서 할 수 있음. H4≠H5.
 
-현재 좌표: H0–H2 checkpoint → H3 진행
+현재 좌표: H0–H3 checkpoint → H4는 process lifecycle (H5와 합치지 않음)
 
-# NOW — H3
+# NOW — H3 착지, H4 대기
 
-- Stem: boot는 섰다. 다음이 읽기. 그 전에 reply key 규약이 먼저다.
-- Next: key-shape는 **recursive keywordize at SCI boundary**로 고정 (`walk/keywordize-keys`). 와이어 JSON은 string. nested registry fixture 통과 (33/162). 다음은 session/project root 아래 **읽기만**. write 아님.
-- Verify: key-shape 테스트 + read positive/negative 짝 (쓰기·interop·raw output 닫힘).
-- Read: issue #1 · `docs/clojure-runtime.md` · H2 leftover (s6)
-- Do not touch: Python oracle, `ipython` 개명, `list_names` 구현, write/process, Emmy, H4+H5 합치기
+- Stem: key-shape + `(read-text)`가 섰다. native 34/173. 호스트 프롬프트에 이름 있음.
+- Next: H4 process lifecycle. H5 write와 합치지 않음. GLG가 오면 시작.
+- Do not touch: Python oracle, `ipython` 개명, `list_names` 구현, spit/write, Emmy, H4+H5 합치기
 - Blocker: 없음. 푸시는 GLG.
 
 # RECENT

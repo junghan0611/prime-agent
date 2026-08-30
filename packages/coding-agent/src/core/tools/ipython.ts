@@ -68,15 +68,14 @@ except Exception as _prime_agent_rlm_error:
         rlm._raise_missing()
 `.trim();
 
-// The Clojure runtime interns `rlm` and `host-request` into its SCI user namespace
-// itself, so the bootstrap only has to confirm the workspace it was handed is that
-// runtime. It carries no Python syntax and installs no Python skills.
+// The Clojure runtime interns public bindings into its SCI user namespace itself,
+// so the bootstrap only has to confirm the workspace it was handed is that runtime.
 const RLM_CLOJURE_BOOTSTRAP_CODE = `
 (def prime-agent-runtime {:language "clojure" :engine "sci"})
-[(fn? rlm) (fn? host-request)]
+[(fn? rlm) (fn? host-request) (fn? read-text)]
 `.trim();
 
-const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true]";
+const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true]";
 
 export function buildClojureBootstrapCode(): string {
 	return RLM_CLOJURE_BOOTSTRAP_CODE;

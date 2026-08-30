@@ -48,7 +48,7 @@ function writeFakeRuntime(options: { ready?: string; bootstrapResult?: string } 
 			'const readline = require("node:readline");',
 			`const log = ${JSON.stringify(logPath)};`,
 			`const ready = ${JSON.stringify(options.ready ?? CLOJURE_READY)};`,
-			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true]")};`,
+			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true true]")};`,
 			'const note = (entry) => fs.appendFileSync(log, JSON.stringify(entry) + "\\n");',
 			'const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");',
 			"note({ argv: process.argv.slice(2) });",
@@ -197,6 +197,7 @@ describe("clojure kernel runtime", () => {
 		expect(prompt).toMatch(/host-request \{:type t\}/);
 		expect(prompt).toMatch(/rlm\.list_subagents/);
 		expect(prompt).toMatch(/agent_message\.list_agents/);
+		expect(prompt).toMatch(/read-text/);
 		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/await agent_message\.send/);
 	});
 

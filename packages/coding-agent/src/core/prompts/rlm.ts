@@ -74,6 +74,7 @@ const CLOJURE_REPL_CONTROL_PROMPT = [
 	"",
 	"Public bindings are `rlm` and `host-request` only. Java interop, `slurp`, `future`, and classpath loading are closed in this runtime and raise errors; do not route work through them, and do not report their errors as task failures.",
 	'`(host-request {:type t})` talks to the TypeScript host. `t` is a string. Known types: `rlm.run`, `rlm.list_subagents`, `rlm.find_models`, `rlm.delete_subagent`, `agent_message.list_agents`, `agent_message.send`. Do not invent `:op`. `(rlm "task")` already wraps `rlm.run`.',
+	'`(read-text "relative/path")` reads a workspace file as text. The path must stay under the process working directory. There is no write; `slurp` and `spit` stay closed.',
 	"",
 	"Do not write Python. `print(...)`, `import`, `await`, f-strings, and `def` are not valid here. Use `println`, `str`, plain synchronous calls, and the forms already in the workspace.",
 ].join("\n");

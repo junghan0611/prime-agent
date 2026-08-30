@@ -1,16 +1,19 @@
 (ns rlm.eval
   "Persistent SCI context. One context lives for the process lifetime."
   (:require [sci.core :as sci]
-            [rlm.core :as core]))
+            [rlm.core :as core]
+            [rlm.io :as io]))
 
 (defn make-ctx
   [runtime]
   (let [host-fn (fn [data] (core/host-request runtime data))
         rlm-fn (fn
                  ([prompt] (core/rlm runtime prompt))
-                 ([prompt kwargs] (core/rlm runtime prompt kwargs)))]
+                 ([prompt kwargs] (core/rlm runtime prompt kwargs)))
+        read-fn (fn [path] (io/read-text path))]
     (sci/init {:namespaces {'user {'host-request host-fn
-                                   'rlm rlm-fn}}})))
+                                   'rlm rlm-fn
+                                   'read-text read-fn}}})))
 
 (defn bind-_
   [ctx value]

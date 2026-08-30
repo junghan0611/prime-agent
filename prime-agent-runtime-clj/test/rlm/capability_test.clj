@@ -21,8 +21,19 @@
       (closed repl "spit" "(spit \"/tmp/rlm-capability-probe\" \"x\")")
       (closed repl "sys" "(System/getProperty \"user.dir\")")
       (closed repl "inter" "(.toUpperCase \"ab\")")
+      (closed repl "abs" "(read-text \"/etc/passwd\")")
+      (closed repl "esc" "(read-text \"../README.md\")")
       (let [events (h/execute repl "alive" "(+ 1 1)")]
         (is (= "2" (get (h/one events "result") "text")))))))
+
+(deftest read-text-reads-under-cwd
+  (h/with-repl
+    (fn [repl _]
+      (let [events (h/execute repl "rd" "(read-text \"deps.edn\")")
+            text (get (h/one events "result") "text")]
+        (is (re-find #":paths" text))
+        (is (= "ok" (get (h/one events "done") "status")))
+        (is (nil? (h/one events "error")))))))
 
 (deftest future-is-closed-hop2-not-security
   ;; Hop 2 안건: 설계 문서는 (future (rlm ...)) 를 병렬 경로로 제안했는데 지금 닫혀 있다.
