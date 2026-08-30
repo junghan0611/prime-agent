@@ -15,6 +15,7 @@ import { AgentSession, type AgentSessionEvent, type AutoRefineReviewer } from ".
 import { AuthStorage } from "../../src/core/auth-storage.js";
 import type { AgentAutonomousConfig } from "../../src/core/autonomous.js";
 import type { ExtensionRunner } from "../../src/core/extensions/index.js";
+import type { KernelRuntimeKind } from "../../src/core/kernel/runtime.js";
 import { convertToLlm } from "../../src/core/messages.js";
 import { ModelRegistry } from "../../src/core/model-registry.js";
 import type { SubagentRuntimeHost } from "../../src/core/rlm-runtime.js";
@@ -79,6 +80,8 @@ export interface HarnessOptions {
 	autoRefineReviewer?: AutoRefineReviewer;
 	serializedRefine?: boolean;
 	initialGoal?: { objective: string; tokenBudget?: number };
+	/** REPL runtime the session's kernel speaks; defaults to the resolved one. */
+	kernelRuntime?: KernelRuntimeKind;
 }
 
 export interface Harness {
@@ -203,6 +206,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		autoRefineReviewer: options.autoRefineReviewer,
 		serializedRefine: options.serializedRefine,
 		initialGoal: options.initialGoal,
+		kernelRuntime: options.kernelRuntime,
 	});
 
 	const events: AgentSessionEvent[] = [];

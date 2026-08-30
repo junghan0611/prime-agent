@@ -6,8 +6,13 @@
   the awaiting cell *is* the in-flight execute.
 
   JSON host replies arrive with string keys. The SCI workspace sees keyword
-  keys so (:status reply) matches (rlm) handles. Wire JSON is unchanged."
-  (:require [clojure.walk :as walk]))
+  keys so (:status reply) matches (rlm) handles. Wire JSON is unchanged.
+
+  The child registry lives in the host, not in this process. That is what makes
+  it the one piece of workspace state that outlives both host compaction and a
+  kernel restart, and why (rlm-children) is a recovery verb rather than a cache."
+  (:require [clojure.string :as str]
+            [clojure.walk :as walk]))
 
 (def closed ::closed)
 
@@ -47,6 +52,32 @@
 (defn- reply-field [reply k]
   (or (get reply k) (get reply (keyword k))))
 
+(defn- reply-ok!
+  "Every host reply carries a status. Raise the host's own message rather than
+  hand the workspace a map that quietly lacks its payload."
+  [reply op]
+  (let [status (reply-status reply)]
+    (cond
+      (= "ok" status) reply
+      (= "error" status)
+      (throw (RuntimeException. (str (or (reply-field reply "error")
+                                         (str "host request " op " failed")))))
+      :else
+      (throw (RuntimeException.
+              (str "host request " op " returned unexpected status: "
+                   (pr-str status)))))))
+
+(defn- dash-keys
+  "Host JSON spells registry fields snake_case, while (rlm ...) already hands the
+  workspace dashed keys. Normalize to one shape so a handle recovered after
+  compaction or a restart matches the handle the workspace learned at spawn."
+  [form]
+  (let [dash (fn [[k v]]
+               (if (keyword? k)
+                 [(keyword (str/replace (name k) \_ \-)) v]
+                 [k v]))]
+    (walk/postwalk (fn [x] (if (map? x) (into {} (map dash) x) x)) form)))
+
 (defn rlm
   "Spawn a recursive child and return once the host admits it.
 
@@ -59,18 +90,49 @@
    (let [payload {:type "rlm.run"
                   :prompt prompt
                   :kwargs (if (map? kwargs) kwargs {})}
-         reply (host-request runtime payload)
-         status (reply-status reply)]
-     (cond
-       (= "ok" status)
-       {:rlm-child-id (reply-field reply "rlm_child_id")
-        :name (reply-field reply "name")
-        :session-dir (reply-field reply "session_dir")
-        :model (reply-field reply "model")}
-       (= "error" status)
-       (throw (RuntimeException. (str (or (reply-field reply "error")
-                                          "host request rlm.run failed"))))
-       :else
-       (throw (RuntimeException.
-               (str "host request rlm.run returned unexpected status: "
-                    (pr-str status))))))))
+         reply (reply-ok! (host-request runtime payload) "rlm.run")]
+     {:rlm-child-id (reply-field reply "rlm_child_id")
+      :name (reply-field reply "name")
+      :session-dir (reply-field reply "session_dir")
+      :model (reply-field reply "model")})))
+
+(defn rlm-children
+  "The direct child registry, as workspace data.
+
+  The registry is the host's, so it survives host compaction and a kernel
+  restart that empties every var in this process. A restarted workspace gets
+  its child handles back here, in the key shape (rlm ...) returns."
+  [runtime]
+  (let [reply (reply-ok! (host-request runtime {:type "rlm.list_subagents"})
+                         "rlm.list_subagents")
+        subagents (reply-field reply "subagents")]
+    (when-not (sequential? subagents)
+      (throw (RuntimeException.
+              "host request rlm.list_subagents returned no subagents list")))
+    (mapv dash-keys subagents)))
+
+(defn- child-target
+  "A child id string, or any handle/registry entry that carries one."
+  [target]
+  (cond
+    (string? target) (not-empty (str/trim target))
+    (map? target) (some (fn [k]
+                          (let [v (get target k)]
+                            (when (string? v) (not-empty (str/trim v)))))
+                        [:rlm-child-id :rlm_child_id])
+    :else nil))
+
+(defn rlm-delete-child
+  "Drop one direct child from the registry. Takes the id or the handle itself.
+
+  Rejected before any frame reaches the host when the target carries no id."
+  [runtime target]
+  (let [id (child-target target)]
+    (when-not id
+      (throw (IllegalArgumentException.
+              (str "delete target must be a child id string or a handle map "
+                   "carrying :rlm-child-id, got " (pr-str target)))))
+    (-> (host-request runtime {:type "rlm.delete_subagent" :target id})
+        (reply-ok! "rlm.delete_subagent")
+        (dissoc :status)
+        (dash-keys))))

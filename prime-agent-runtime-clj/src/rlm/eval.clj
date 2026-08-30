@@ -11,6 +11,10 @@
         rlm-fn (fn
                  ([prompt] (core/rlm runtime prompt))
                  ([prompt kwargs] (core/rlm runtime prompt kwargs)))
+        ;; Registry verbs. The registry is the host's, so these are how a
+        ;; workspace emptied by a kernel restart recovers its child handles.
+        children-fn (fn [] (core/rlm-children runtime))
+        delete-child-fn (fn [target] (core/rlm-delete-child runtime target))
         read-fn (fn [path] (io/read-text path))
         ;; Write verbs return receipt maps. No file handle, no spit.
         write-fn (fn [path content] (io/write-text path content))
@@ -26,6 +30,8 @@
         list-fn (fn [] (process/ls runtime))]
     (sci/init {:namespaces {'user {'host-request host-fn
                                    'rlm rlm-fn
+                                   'rlm-children children-fn
+                                   'rlm-delete-child delete-child-fn
                                    'read-text read-fn
                                    'write-text write-fn
                                    'edit-text edit-fn

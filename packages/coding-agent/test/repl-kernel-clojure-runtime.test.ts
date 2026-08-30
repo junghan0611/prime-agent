@@ -19,6 +19,7 @@ import {
 	buildClojureBootstrapCode,
 	formatKernelErrorText,
 	IpythonKernelProvisioner,
+	kernelRestartNotice,
 } from "../src/core/tools/ipython.js";
 import { createTestResourceLoader } from "./utilities.js";
 
@@ -48,7 +49,7 @@ function writeFakeRuntime(options: { ready?: string; bootstrapResult?: string } 
 			'const readline = require("node:readline");',
 			`const log = ${JSON.stringify(logPath)};`,
 			`const ready = ${JSON.stringify(options.ready ?? CLOJURE_READY)};`,
-			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true true true true true true true true true]")};`,
+			`const bootstrapResult = ${JSON.stringify(options.bootstrapResult ?? "[true true true true true true true true true true true true]")};`,
 			'const note = (entry) => fs.appendFileSync(log, JSON.stringify(entry) + "\\n");',
 			'const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");',
 			"note({ argv: process.argv.slice(2) });",
@@ -204,7 +205,42 @@ describe("clojure kernel runtime", () => {
 		expect(prompt).toMatch(/edit-text/);
 		expect(prompt).toMatch(/process-start/);
 		expect(prompt).toMatch(/process-kill/);
+		expect(prompt).toMatch(/rlm-children/);
+		expect(prompt).toMatch(/rlm-delete-child/);
+		expect(prompt).toMatch(/\(keys \(ns-publics 'user\)\)/);
+		expect(prompt).toMatch(/kernel restart/);
 		expect(buildRlmPrompt({ ...options, depth: 1, parentAgent: "root" })).not.toMatch(/await agent_message\.send/);
+	});
+
+	it("tells a restarted clojure workspace what died and what did not", async () => {
+		// A restart is the one break in continuity: no snapshot revives the vars.
+		// The child registry is the host's, so it is the one thing that crossed.
+		const notice = kernelRestartNotice("clojure");
+		expect(notice).toMatch(/Clojure workspace was restarted/);
+		expect(notice).toMatch(/\(rlm-children\)/);
+		expect(notice).toMatch(/process-start` registry/);
+		// The Clojure workspace has no imports and no async tasks to lose.
+		expect(notice).not.toMatch(/Python|imports|async tasks/);
+		// The oracle's wording is untouched.
+		expect(kernelRestartNotice("python")).toMatch(/Python kernel was restarted/);
+		expect(kernelRestartNotice("python")).not.toMatch(/rlm-children/);
+	});
+
+	it("bootstraps the registry-recovery bindings a restarted workspace needs", async () => {
+		const code = buildClojureBootstrapCode();
+		expect(code).toMatch(/\(fn\? rlm-children\)/);
+		expect(code).toMatch(/\(fn\? rlm-delete-child\)/);
+		// A kernel that answers without them would leave a restarted workspace with
+		// no way back to its children, so startup must reject it.
+		writeFakeRuntime({ bootstrapResult: "[true true true true true true true true true true]" });
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const provisioner = new IpythonKernelProvisioner(tempDir, { runtime: "clojure" });
+		try {
+			await expect(provisioner.ensure()).rejects.toThrow(/did not expose its public bindings/);
+		} finally {
+			errorSpy.mockRestore();
+			await provisioner.dispose();
+		}
 	});
 
 	it("hands an rlm child the same runtime as its parent", async () => {

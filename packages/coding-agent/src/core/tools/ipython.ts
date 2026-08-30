@@ -73,10 +73,11 @@ except Exception as _prime_agent_rlm_error:
 const RLM_CLOJURE_BOOTSTRAP_CODE = `
 (def prime-agent-runtime {:language "clojure" :engine "sci"})
 [(fn? rlm) (fn? host-request) (fn? read-text) (fn? write-text) (fn? edit-text)
- (fn? process-start) (fn? process-poll) (fn? process-tail) (fn? process-kill) (fn? process-list)]
+ (fn? process-start) (fn? process-poll) (fn? process-tail) (fn? process-kill) (fn? process-list)
+ (fn? rlm-children) (fn? rlm-delete-child)]
 `.trim();
 
-const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true true true true true true true true]";
+const RLM_CLOJURE_BOOTSTRAP_RECEIPT = "[true true true true true true true true true true true true]";
 
 export function buildClojureBootstrapCode(): string {
 	return RLM_CLOJURE_BOOTSTRAP_CODE;
@@ -175,6 +176,20 @@ const KERNEL_RESTART_NOTICE = [
 	"The Python kernel was restarted after a previous interrupted cell kept running. Variables, imports, async tasks, and open resources from before the restart are no longer available; recreate them before using them.",
 	"</ipython_kernel_reset>",
 ].join("\n");
+// The Clojure workspace has no imports and no async tasks to lose, and no
+// snapshot to revive what it did lose. What it keeps is the child registry,
+// which is the host's rather than this process's — so the notice has to name
+// the recovery verb instead of implying everything is gone.
+const CLOJURE_KERNEL_RESTART_NOTICE = [
+	"<ipython_kernel_reset>",
+	"The Clojure workspace was restarted after a previous interrupted cell kept running. Vars, functions, and the `process-start` registry from before the restart are gone, and nothing revives them; redefine what you still need. Children spawned with `rlm` are registered by the host and survived the restart: recover their handles with `(rlm-children)`.",
+	"</ipython_kernel_reset>",
+].join("\n");
+
+/** Restart wording for the runtime that actually restarted. */
+export function kernelRestartNotice(runtime: KernelRuntimeKind): string {
+	return runtime === "clojure" ? CLOJURE_KERNEL_RESTART_NOTICE : KERNEL_RESTART_NOTICE;
+}
 
 function createAbortError(): Error {
 	return new Error("Python execution aborted");
@@ -717,7 +732,8 @@ export function createIpythonToolDefinition(
 					text += `${text ? "\n" : ""}[background output (unattributed)]\n${r.backgroundOutput}`;
 				}
 				if (kernelRestarted) {
-					text = text ? `${KERNEL_RESTART_NOTICE}\n\n${text}` : KERNEL_RESTART_NOTICE;
+					const notice = kernelRestartNotice(options?.runtime ?? DEFAULT_KERNEL_RUNTIME);
+					text = text ? `${notice}\n\n${text}` : notice;
 				}
 
 				const imageBlocks = imageBlocksFromAttachments(r.attachments);

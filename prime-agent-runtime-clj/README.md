@@ -58,6 +58,7 @@ These are not protocol v2 parity.
 4. **process containment** — commands run under `setsid`, so cleanup signals the whole process group and reclaims a child whose leader already exited (`cmd & exit 0`). What is left: a host with no `setsid` (`:contained false` in the snapshot) falls back to the `ProcessHandle.descendants()` sweep alone and loses that child; a process that re-groups itself escapes either way; a SIGKILLed runtime cannot clean up at all. There is no orphan journal (`process.clj`).
 5. **no wait** — `Thread/sleep` is closed, so a cell cannot block on a command. Poll `process-poll` in a later cell; a busy-loop inside one cell holds the runtime and `interrupt` will not free it.
 6. **write receipts, no diff event** — `write-text`/`edit-text` return receipt maps. The Python `edit` skill also emits a diff display event to the host; this runtime has no display axis, so it does not (`io.clj`). There is no delete, rename, or mkdir, and two cells writing the same file do not coordinate.
+7. **no snapshot, so a restart does not restore** — the oracle revives its namespace from a snapshot file; there is no `snapshot`, `restore`, or `list_names` here. Host compaction leaves this process alone, so the workspace keeps everything. A kernel restart is a new process and keeps nothing: vars, functions, and the process registry are gone. Only the child registry crosses, because the host owns it (`core.clj`).
 
 ## `process-*` — H4
 
@@ -84,6 +85,35 @@ stdin EOF, and SIGTERM to the runtime all reap the whole process group.
 descendants sweep.
 
 Contract and deviations: `docs/clojure-runtime.md`.
+
+## `rlm-children` / `rlm-delete-child` — H6
+
+The child registry lives in the host, so it is the one piece of workspace state
+that survives a kernel restart. These two verbs are how an emptied workspace
+reaches it. Both are wrappers over host requests that `host-request` could
+already reach; they add no capability, only one key shape.
+
+```text
+> (rlm "review the auth flow" {:name "auth-reviewer"})
+{:rlm-child-id "c1", :name "auth-reviewer", :session-dir "/…/c1", :model "…"}
+> (rlm-children)
+[{:rlm-child-id "c1", :active-session-id nil, :session-id "s1",
+  :session-name "auth-reviewer", :session-dir "/…/c1", :status "running"}]
+> (rlm-delete-child {:rlm-child-id "c1"})
+{:subagent {:rlm-child-id "c1", …}, :outcome "deleted"}
+```
+
+Host JSON spells that field `rlm_child_id`, and `(rlm …)` had already taught the
+workspace `:rlm-child-id`. Both verbs normalize every key the host sends from
+`_` to `-`, so a handle recovered after a compaction or a restart matches the
+handle the workspace learned at spawn. A host error, or a reply with no
+`subagents`, raises instead of handing back a map with the payload missing. A
+delete target that carries no id is refused before any frame goes out.
+
+After a compaction, nothing was lost: `(keys (ns-publics 'user))` lists what is
+still bound — the runtime's own bindings among them — and `(process-list)` still
+holds the running commands.
+
 
 ## `write-text` / `edit-text` — H5
 

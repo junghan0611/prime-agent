@@ -7234,6 +7234,10 @@ export class AgentSession {
 	}
 
 	private async _syncKernelStateAfterCompaction(): Promise<void> {
+		if (this._kernelRuntime === "clojure") {
+			this._noticeClojureWorkspaceSurvivedCompaction();
+			return;
+		}
 		// Runtimes without state ops implement neither snapshot pruning nor list_names.
 		// The whole path is skipped rather than degraded: there is no name listing to
 		// report, so there is no post-compaction notice to write either.
@@ -7261,15 +7265,31 @@ export class AgentSession {
 			pruned && pruned.length > 0
 				? ` Variables above the per-variable snapshot limit were removed: ${pruned.join(", ")}.`
 				: "";
-		const content = [
-			"<ipython_state>",
+		this._appendKernelStateNotice(
 			`Your Python kernel persisted through compaction; its remaining variables, imports, and helpers are still available.${prunedDetail}${detail}`,
-			"</ipython_state>",
-		].join("\n");
+		);
+	}
+
+	/**
+	 * The Clojure kernel has no snapshot to prune and no `list_names` to call, so
+	 * this notice carries no name listing and mints no state-op frame. What it does
+	 * carry is the part the model cannot see from a compacted transcript: the
+	 * workspace it built is still there, and these are the forms that show it.
+	 */
+	private _noticeClojureWorkspaceSurvivedCompaction(): void {
+		if (!this._ipythonKernelProvisioner?.hasRunningKernel) return;
+		this._appendKernelStateNotice(
+			"Your Clojure workspace persisted through compaction. Every var, function, and value you defined is still bound, and commands started with `process-start` are still in the registry; compaction removed none of it. " +
+				"List what is currently defined with `(keys (ns-publics 'user))` — that includes the runtime's own bindings alongside yours. Use `(process-list)` for running commands and `(rlm-children)` for child handles.",
+		);
+	}
+
+	/** Write one `ipython_state` notice into the transcript and the session log. */
+	private _appendKernelStateNotice(body: string): void {
 		const message = {
 			role: "custom" as const,
 			customType: "ipython_state",
-			content,
+			content: ["<ipython_state>", body, "</ipython_state>"].join("\n"),
 			display: false,
 			timestamp: Date.now(),
 		} satisfies CustomMessage;

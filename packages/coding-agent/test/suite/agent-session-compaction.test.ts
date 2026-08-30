@@ -128,6 +128,92 @@ describe("AgentSession compaction characterization", () => {
 		expect(harness.session.messages[0]?.role).toBe("compactionSummary");
 	});
 
+	it("tells a clojure workspace it survived compaction and never asks for a name listing", async () => {
+		// The Clojure runtime has no snapshot to prune and no list_names to call, so
+		// this path used to return before writing anything. The workspace survived
+		// either way; what the compacted model lost was any record that it had.
+		const harness = await createHarness({
+			settings: { compaction: { keepRecentTokens: 1 } },
+			kernelRuntime: "clojure",
+			extensionFactories: [
+				(pi) => {
+					pi.on("session_before_compact", async (event) => ({
+						compaction: {
+							summary: "summary from extension",
+							firstKeptEntryId: event.preparation.firstKeptEntryId,
+							tokensBefore: event.preparation.tokensBefore,
+							details: { source: "extension" },
+						},
+					}));
+				},
+			],
+		});
+		harnesses.push(harness);
+
+		await harness.session.prompt("one");
+		await harness.session.prompt("two");
+
+		const pruneOversizedVariables = vi.fn(async () => ["large_text"]);
+		const listNamespaceNames = vi.fn(async () => ["small_value"]);
+		const internals = harness.session as unknown as { _ipythonKernelProvisioner?: unknown };
+		const previousProvisioner = internals._ipythonKernelProvisioner;
+		internals._ipythonKernelProvisioner = {
+			hasRunningKernel: true,
+			pruneOversizedVariables,
+			listNamespaceNames,
+		};
+		try {
+			await harness.session.compact();
+		} finally {
+			internals._ipythonKernelProvisioner = previousProvisioner;
+		}
+
+		// Neither state op is reachable on this runtime, so neither may be attempted.
+		expect(pruneOversizedVariables).not.toHaveBeenCalled();
+		expect(listNamespaceNames).not.toHaveBeenCalled();
+
+		const notice = harness.session.messages.find(
+			(message) => message.role === "custom" && message.customType === "ipython_state",
+		);
+		expect(notice).toBeDefined();
+		const content = String((notice as { content: string }).content);
+		expect(content).toContain("Clojure workspace persisted through compaction");
+		expect(content).toContain("(keys (ns-publics 'user))");
+		expect(content).toContain("(rlm-children)");
+		// No name listing, and no Python vocabulary for a runtime that has none.
+		expect(content).not.toMatch(/These names are still defined|Python|imports/);
+	});
+
+	it("skips the kernel-state notice when a clojure session has no running kernel", async () => {
+		const harness = await createHarness({
+			settings: { compaction: { keepRecentTokens: 1 } },
+			kernelRuntime: "clojure",
+			extensionFactories: [
+				(pi) => {
+					pi.on("session_before_compact", async (event) => ({
+						compaction: {
+							summary: "summary from extension",
+							firstKeptEntryId: event.preparation.firstKeptEntryId,
+							tokensBefore: event.preparation.tokensBefore,
+							details: { source: "extension" },
+						},
+					}));
+				},
+			],
+		});
+		harnesses.push(harness);
+
+		await harness.session.prompt("one");
+		await harness.session.prompt("two");
+		await harness.session.compact();
+
+		expect(
+			harness.session.messages.some(
+				(message) => message.role === "custom" && message.customType === "ipython_state",
+			),
+		).toBe(false);
+	});
+
 	it("compacts through the model summarizer, persists metadata, emits events, and remains usable", async () => {
 		const harness = await createHarness({
 			settings: { compaction: { keepRecentTokens: 1 } },

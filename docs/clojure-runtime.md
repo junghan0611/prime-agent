@@ -77,7 +77,7 @@ prime-agent-runtime-clj/
   native-image/build.sh
   src/rlm/repl.clj            ; JSONL reader, queue, event writer, lifecycle
   src/rlm/eval.clj            ; persistent SCI context
-  src/rlm/core.clj            ; host-request, rlm
+  src/rlm/core.clj            ; host-request, rlm, H6 registry verbs
   src/rlm/io.clj              ; H3 bounded read-text + H5 write-text/edit-text
   src/rlm/process.clj         ; H4 process lifecycle + registry
   test/rlm/*.clj
@@ -117,7 +117,7 @@ prime-agent-runtime-clj/
 - 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
 - `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- public binding은 `rlm`, `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5)만. Java interop·classpath loading은 열지 않는다.
+- public binding은 `rlm`, `rlm-children`/`rlm-delete-child`(H6), `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5)만. Java interop·classpath loading은 열지 않는다.
 
 ### `(rlm ...)`
 
@@ -224,6 +224,64 @@ H5 가 하지 않은 것:
 2. **delete / rename / mkdir 없음.** 게이트는 write + targeted edit 까지다.
 3. **동시 write 조정 없음.** 두 셀이 같은 파일을 쓰면 마지막이 이긴다. atomic replace 도 아니다
    (oracle 의 `write_text` 와 같은 자리).
+
+---
+
+## Compaction / restart continuity — H6
+
+Python oracle 의 주장(`packages/coding-agent/docs/rlm.md`)은 "kernel state + child registry 가
+compaction · kernel restart · parent restoration 을 모두 넘긴다" 다. 이 runtime 은 snapshot 이
+없으므로 그 주장을 **반으로 쪼개서** 참인 쪽만 말한다. parity 가 아니다.
+
+| 무엇이 | compaction | kernel restart |
+|---|---|---|
+| SCI workspace (var/fn/값) | 그대로. 프로세스가 안 죽는다 | **사라진다.** 되살리는 snapshot 이 없다 |
+| `process-*` registry | 그대로 | 사라진다. 명령도 H4 정리 경로로 함께 죽는다 |
+| child registry | 그대로 | **그대로.** host(AgentSession) 소유라 프로세스 밖에 산다 |
+
+그래서 H6 이 세운 것은 "복원"이 아니라 **정직한 통지 + 살아남은 registry 의 회수 경로** 다.
+
+### 회수 verb
+
+| form | 반환 |
+|---|---|
+| `(rlm-children)` | registry entry vector. `:rlm-child-id :active-session-id :session-id :session-name :session-dir :status` |
+| `(rlm-delete-child target)` | `{:subagent {…} :outcome "deleted"}`. target 은 id 문자열 또는 handle/entry map |
+
+- **키 모양이 하나다.** host JSON 은 `rlm_child_id` 로 쓰는데 `(rlm …)` 는 이미 `:rlm-child-id` 를
+  가르쳤다. 그대로 두면 같은 객체가 workspace 안에서 키 두 벌이 되고, 그 불일치는 **회수한 handle 을
+  읽는 순간** — 즉 compaction/restart 직후에만 — 드러난다. 두 verb 는 host 가 보낸 모든 키를
+  `_` → `-` 로 정규화한다. whitelist 가 아니라 규칙이라, host 가 필드를 늘려도 안 없어진다.
+- **둘 다 이미 `host-request` 로 닿던 것의 래퍼다.** 새 OS/Java 면을 열지 않는다.
+- **실패는 던진다.** host 가 `status: "error"` 로 답하거나 `subagents` 가 없으면 error event 다.
+  payload 가 빠진 map 을 workspace 에 조용히 건네지 않는다.
+- `(rlm-delete-child {:name "x"})` 처럼 id 가 없는 target 은 **frame 이 나가기 전에** 거부된다.
+
+### 통지 (host 쪽)
+
+- **compaction:** `_syncKernelStateAfterCompaction()` 이 clojure 에서 조용히 return 하던 것을
+  멈췄다. workspace 는 살아남았는데 통지가 없어 모델만 그 사실을 몰랐다. 새 통지는
+  **이름을 나열하지 않는다** — `list_names` frame 은 여전히 0 이고
+  `kernelRuntimeSupportsStateOps` 는 false 그대로다. 대신 in-band 조사 form 을 가리킨다:
+  `(keys (ns-publics 'user))` · `(process-list)` · `(rlm-children)`.
+  `ns-publics` 는 runtime 자기 binding 까지 같이 내놓는다. 통지가 그렇다고 말한다.
+- **restart:** `KERNEL_RESTART_NOTICE` 는 runtime 무관 상수였다. clojure 세션에
+  "The Python kernel was restarted … variables, imports, async tasks" 가 그대로 주입됐다 —
+  없는 capability(imports/async tasks)를 가르치는 문장이다. 이제 runtime 별로 갈린다.
+  clojure 판은 var/fn/process registry 가 갔다고 말하고, child registry 는 살아남았으니
+  `(rlm-children)` 으로 회수하라고 말한다.
+
+### H6 가 하지 않은 것
+
+1. **`list_names` 없음. snapshot/restore 없음.** Python snapshot 호환은 목표가 아니다.
+   restart 후 workspace 는 비어 있고, 그게 정직한 상태다.
+2. **var dump verb 없음.** `(keys (ns-publics 'user))` 는 SCI 가 이미 주는 것이고 통지가 그걸
+   가리킬 뿐이다. `list_names` 의 workspace 판을 새로 만들지 않았다.
+3. **SIGKILL 된 runtime 은 여전히 못 치운다.** H4 leftover (c) 그대로. graceful restart 는
+   H4 정리 경로가 트리를 죽이지만, SIGKILL 이면 고아가 남고 새 프로세스는 그 id 를 모른다.
+4. **busy-kernel 대화상자는 Python 어휘 그대로다.** "Interrupted Python cell is still running" /
+   "Waiting for Python kernel…". 사용자 UI 문자열이라 H6 에서 손대지 않았다. 모델이 읽는 문장만
+   고쳤다.
 
 ---
 

@@ -60,19 +60,24 @@ const REPL_CONTROL_PROMPT = [
 	"RLM-native call contract: installed Python skills are pre-imported modules. Read the matching SKILL.md and call its documented function, such as `await <skill_import>.<function>(...)`; when a CLI exists, use `<skill_import> ...` from shell. Continual harness skill entries are Python REPL skills with an explicit Python `reference` and `arguments` contract. Spawn a reusable delegation spec with `await rlm('sub-task')`; admission returns a child handle immediately. Results arrive only through an available messaging capability or files, never as an `rlm()` return value. Do not invent non-native wrappers such as `call_skill(...)` or `run_subagent(...)`.",
 ].join("\n");
 
-// Phase A Clojure runtime. Public bindings are `rlm` and `host-request` only; there
-// is no Python interpreter, no bundled skills, and no snapshot in this workspace, so
-// nothing here may carry Python syntax or promise a capability the runtime lacks.
+// Phase A Clojure runtime. The public bindings are the ones listed below and nothing
+// else; there is no Python interpreter, no bundled skills, and no snapshot in this
+// workspace, so nothing here may carry Python syntax or promise a capability the
+// runtime lacks. With no snapshot, the continuity claim has to be split: compaction
+// leaves the workspace untouched, a kernel restart empties it, and only the child
+// registry — which the host owns — crosses both.
 const CLOJURE_REPL_CONTROL_PROMPT = [
 	"The `ipython` tool is a persistent Clojure REPL — the agent's long-lived control environment for reasoning, state, and recursive subcalls. The tool name is historical; this session's runtime is Clojure evaluated by SCI in a native process, not Python.",
 	"",
 	"Clojure is the orchestration language: use `let`, `def`, `defn`, sequence functions, and maps for loops, conditionals, parsing, and state. Every form in a cell is evaluated in order; the last non-nil value is returned and bound to `_`.",
 	"",
-	"Workspace state persists across cells and turns: vars, functions, and parsed data stay available. Bind results to names instead of recomputing them.",
+	"Workspace state persists across cells and turns: vars, functions, and parsed data stay available. Bind results to names instead of recomputing them. It also persists through compaction, which trims this conversation and never touches the workspace; `(keys (ns-publics 'user))` lists what is currently bound, your own names alongside the runtime's.",
+	"",
+	"A kernel restart is the one break: it is a new process, nothing revives its vars or its `process-start` registry, and you redefine what you still need. Children spawned with `rlm` are the exception — the host keeps that registry, so `(rlm-children)` returns them after a restart.",
 	"",
 	"`(def x 41)` evaluates to a var, so a cell that only defines names still reports a result. That is this runtime's behavior, not an error.",
 	"",
-	"Public bindings are `rlm`, `host-request`, `read-text`, and the `process-*` verbs below. Java interop, `slurp`, `future`, `Thread/sleep`, and classpath loading are closed in this runtime and raise errors; do not route work through them, and do not report their errors as task failures.",
+	"Public bindings are `rlm`, `rlm-children`, `rlm-delete-child`, `host-request`, `read-text`, `write-text`, `edit-text`, and the `process-*` verbs below. Java interop, `slurp`, `future`, `Thread/sleep`, and classpath loading are closed in this runtime and raise errors; do not route work through them, and do not report their errors as task failures.",
 	'`(host-request {:type t})` talks to the TypeScript host. `t` is a string. Known types: `rlm.run`, `rlm.list_subagents`, `rlm.find_models`, `rlm.delete_subagent`, `agent_message.list_agents`, `agent_message.send`. Do not invent `:op`. `(rlm "task")` already wraps `rlm.run`.',
 	'`(read-text "relative/path")` reads a workspace file as text. The path must stay under the process working directory. `slurp` and `spit` stay closed.',
 	'`(write-text "relative/path" content)` creates or replaces a file and `(edit-text "relative/path" old new)` replaces one exact occurrence of `old`, which must appear exactly once — widen the snippet if it does not. Both return a receipt map (`:path`, `:action`, `:bytes`, and `:line` for an edit), both stay under the working directory, both cap at 1 MiB, and the parent directory must already exist. A rejected edit leaves the file untouched.',
@@ -193,7 +198,7 @@ export function buildRlmPrompt(options: RlmPromptOptions): string {
 			'Pass options as a map: `(rlm "sub-task" {:name "api-reviewer"})`. Names must be unique among siblings; if omitted, the host generates a readable unique name.',
 			"A child inherits your model and this same Clojure runtime.",
 			"Spawn independent children in separate calls and end your turn instead of waiting for them.",
-			'A child\'s answer never comes back through `rlm`. List children with `(host-request {:type "rlm.list_subagents"})`. Family roster is `{:type "agent_message.list_agents"}`. Follow-ups use `{:type "agent_message.send"}`. Bind the handle; do not treat `rlm`\'s return as the child\'s answer.',
+			'A child\'s answer never comes back through `rlm`. `(rlm-children)` returns the registry — the same `:rlm-child-id` and `:session-dir` keys, plus `:session-name` and `:status` — and it is how you recover handles after compaction or a kernel restart, because the host owns that registry rather than this process. `(rlm-delete-child handle)` drops one; it takes the id or the handle map. Family roster is `(host-request {:type "agent_message.list_agents"})` and follow-ups use `{:type "agent_message.send"}`. Bind the handle; do not treat `rlm`\'s return as the child\'s answer.',
 		);
 	} else if (allowRecursion && hasIpython) {
 		parts.push(
@@ -259,6 +264,7 @@ export function buildSubagentGuidance(
 			"",
 			'Spawn independent, self-contained work with `(def worker (rlm "task" {:name "worker"}))`. The handle map returns at admission, not completion; keep it to refer to the child later.',
 			"Child answers do not return through `rlm`, and this slice has no messaging or file capability to collect them, so delegate only work whose value is the spawn itself.",
+			"Use `(rlm-children)` after compaction or a kernel restart: the workspace may have lost the var holding a handle, but the host still has the registry.",
 			"Delegate parallel context-heavy work; do a single known computation inline.",
 		].join("\n");
 	}

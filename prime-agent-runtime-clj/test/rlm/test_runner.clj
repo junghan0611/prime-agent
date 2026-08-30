@@ -1,6 +1,7 @@
 (ns rlm.test-runner
   (:require [clojure.test :as t]
             [rlm.capability-test]
+            [rlm.continuity-test]
             [rlm.framing-test]
             [rlm.host-bridge-test]
             [rlm.process-test]
@@ -11,7 +12,7 @@
 
 (def ^:private nses
   '[rlm.repl-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test rlm.framing-test
-    rlm.process-test rlm.write-test])
+    rlm.process-test rlm.write-test rlm.continuity-test])
 
 (defn -main
   [& _]
