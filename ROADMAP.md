@@ -2,7 +2,7 @@
 
 최종 1번 목표: Clojure/SCI native runtime을 Python kernel의 **실사용 대체물**로 쓴다. 논문/프로젝트가 주장한 평가를 **같은 evaluator · model · budget**에서 실행 가능하게 만든다.
 
-이 파일은 제품 8홉. `feat/clojure-runtime`은 **H1–H2만** (1차 boot sector). 그 브랜치 닫힘 ≠ 최종 대체.
+이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H2는 **rollback checkpoint**이지 브랜치 닫힘이 아니다.
 
 출처: sol `20260830T103427-f6f942`. README 배지 [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), arXiv [2608.23552](https://arxiv.org/abs/2608.23552). 이 repo에 논문 eval config는 없다 — pin/acquisition은 H7 산출물.
 
@@ -10,9 +10,9 @@
 
 | 홉 | 무엇 | 어디서 |
 |---|---|---|
-| H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | `feat/clojure-runtime` **닫힘** (`7d509e75`) |
-| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | 같은 브랜치 **boot 닫힘**. 재측정 s6. leftover = host-request string keys |
-| H3 | bounded read / context | **다음 브랜치.** 첫 게이트: host-request reply key 규약(string 유지 vs keyword normalize)을 read cap보다 먼저 |
+| H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | checkpoint `7d509e75` |
+| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | checkpoint. s6. leftover → H3 입구 |
+| H3 | key-shape 계약 → bounded read / context | **지금. 같은 브랜치.** read cap보다 key 규약이 먼저 |
 | H4 | process lifecycle | 다음. H5와 별도 |
 | H5 | edit / write receipts | 다음. H4와 별도 |
 | H6 | compaction / restart continuity | 다음 |
