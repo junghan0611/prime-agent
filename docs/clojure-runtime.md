@@ -171,18 +171,23 @@ snapshot은 plain data만 담는다:
 
 ```clojure
 {:process-id "p1" :command "…" :pid 1706302 :status :exited
- :exit-code 3 :killed false :output-bytes 9 :output-truncated false}
+ :exit-code 3 :killed false :contained true :output-bytes 9 :output-truncated false}
 ```
+
+key 순서는 계약이 아니다. key 로 읽는다.
 
 - **SCI는 live process를 절대 받지 않는다.** `java.lang.Process`는 runtime map의 `:processes` registry에만 산다. workspace가 쥐는 것은 `:process-id` 문자열뿐이고, interop이 닫혀 있으니 그 map에서 객체로 돌아가는 길이 없다.
 - **stdout/stderr는 pipe로 합쳐 bounded buffer에 담는다.** head 128 KiB + tail 128 KiB, 가운데는 버리고 `... [N bytes dropped] ...`를 남긴다. child가 protocol fd를 상속하지 않으므로 위조 frame이 프레임 스트림에 뜰 수 없다. stdin은 spawn 직후 닫는다 (child가 protocol 입력을 훔치지 못한다).
 - **cleanup은 세 경로 모두 덮는다.** `shutdown` 요청, stdin EOF, 그리고 runtime 자신에 대한 SIGTERM(shutdown hook). 세 개 다 native 테스트가 pid로 확인한다.
-- **descendant 정리는 `ProcessHandle.descendants()`다.** leader를 죽이기 전에 스냅샷을 뜨고(죽이면 자식이 reparent 되어 목록에서 사라진다), TERM → 2s → KILL. sweep 중간에 태어난 손자는 한 번 더 훑지만, 완전히 detach 한 double-fork daemon은 놓칠 수 있다.
+- **정리의 1차 손잡이는 process group이다.** 명령은 `setsid` 아래에서 뜬다. setsid 는 제자리에서 exec 하므로(Java 가 띄운 child 는 group leader 가 아니다) leader pid == pgid 가 되고, 정리는 group 전체에 TERM → 2s → KILL 을 보낸다. Java 에 `killpg` 가 없어 짧은 shell 하나가 대신 신호를 보내고, 그 stream 은 DISCARD 라 protocol writer 에 닿지 못한다.
+  - **이게 `cmd & exit 0` 를 잡는 유일한 수단이다.** leader 가 먼저 끝나면 자식은 reparent 되어 `descendants()` 에서 사라지지만 process group 에서는 안 나간다. 실측: `sleep 301 & echo $!; exit 0` → leader `:exit-code 0`, 고아 살아 있음 → shutdown 후 고아 회수됨.
+- **`ProcessHandle.descendants()` 는 2차 sweep으로 남는다.** leader 가 살아 있을 때 스냅샷을 뜨고, sweep 중간에 태어난 손자를 위해 한 번 더 훑는다. `setsid` 가 없는 host 에서는 이게 전부다.
+- **`:contained`** 가 그 사실을 밖으로 말한다. `false` = 이 host 에 `setsid` 가 없다 = leader 보다 오래 사는 자식이 탈출할 수 있다.
 - **cap:** live 16개, registry 64개(초과 시 끝난 것부터 정리).
 
 H4가 하지 않은 것 (oracle과의 차이):
 
-1. **process group / session 격리 없음.** oracle은 POSIX에서 `start_new_session` + orphan journal로 트리를 가둔다. 여기는 `setsid`도 journal도 없다. `descendants()` 스냅샷이 유일한 회수 수단이다.
+1. **orphan journal 이 없다.** oracle 은 POSIX 에서 `start_new_session` + journal 두 겹으로 가둔다. 여기는 session/group 한 겹뿐이라 다음이 남는다: (a) `setsid` 가 없는 host — `:contained false` 로 알리고 descendants sweep 으로 떨어진다, (b) 스스로 `setsid`/`setpgid` 로 그룹을 벗어나는 자식, (c) 아래 2번.
 2. **SIGKILL 받은 runtime은 정리하지 못한다.** shutdown hook이 안 돈다. oracle의 host reaper에 해당하는 장치가 없다.
 3. **`wait`가 없다.** `Thread/sleep`이 닫혀 있어 한 셀 안에서 완료를 기다릴 방법이 없다. 모델은 다음 셀에서 `process-poll` 해야 한다. 한 셀 안 busy-loop는 runtime을 붙잡는다 — `interrupt`가 취소를 보장하지 않으므로 실제 위험이다. bounded `wait`를 열지 말지는 H4 게이트 밖이라 열지 않았다.
 4. **mid-cell streaming 없음.** 출력은 `process-tail`을 부를 때만 보인다.
@@ -260,7 +265,7 @@ Acceptance:
 
 아닌 것: CPython보다 빠름, 92 tests green, snapshot 호환, 모든 library 노출, steering/Emacs 완성.
 
-코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 664 + test 883 + native-image 21 (H4 기준).
+코드량 경보기: 구현 1,000–1,900 + 테스트·설정 800–1,400. 상단을 넘으면 parity/hardening이 stem에 섞였는지 본다. 지금 src 715 + test 997 + native-image 21 (H4 기준).
 
 ---
 

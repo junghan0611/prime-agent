@@ -9,20 +9,24 @@
 (def ^:private eof ::eof)
 
 (defn start
-  []
-  (let [pb (doto (ProcessBuilder. ^java.util.List (sut/command))
-             (.redirectError ProcessBuilder$Redirect/INHERIT))
-        proc (.start pb)
-        q (LinkedBlockingQueue.)
-        stdin (io/writer (.getOutputStream proc) :encoding "UTF-8")]
-    (future
-      (try
-        (with-open [r (io/reader (.getInputStream proc) :encoding "UTF-8")]
-          (doseq [line (line-seq r)]
-            (.put q line)))
-        (finally
-          (.put q eof))))
-    {:proc proc :q q :stdin stdin :raw (atom [])}))
+  ([] (start {}))
+  ([{:keys [env]}]
+   (let [pb (doto (ProcessBuilder. ^java.util.List (sut/command))
+              (.redirectError ProcessBuilder$Redirect/INHERIT))
+         _ (when (seq env)
+             (let [^java.util.Map e (.environment pb)]
+               (doseq [[k v] env] (.put e (str k) (str v)))))
+         proc (.start pb)
+         q (LinkedBlockingQueue.)
+         stdin (io/writer (.getOutputStream proc) :encoding "UTF-8")]
+     (future
+       (try
+         (with-open [r (io/reader (.getInputStream proc) :encoding "UTF-8")]
+           (doseq [line (line-seq r)]
+             (.put q line)))
+         (finally
+           (.put q eof))))
+     {:proc proc :q q :stdin stdin :raw (atom [])})))
 
 (defn read-event
   ([repl] (read-event repl 60))

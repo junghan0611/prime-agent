@@ -49,9 +49,50 @@
           (>= (System/currentTimeMillis) deadline) false
           :else (do (Thread/sleep 25) (recur)))))))
 
+(defn- descendants-of
+  "Wait for the shell to fork: a start that just returned may not have spawned
+  its children yet."
+  [pid expected]
+  (let [deadline (+ (System/currentTimeMillis) 5000)]
+    (loop []
+      (let [ds (descendant-pids pid)]
+        (if (or (>= (count ds) expected) (>= (System/currentTimeMillis) deadline))
+          ds
+          (do (Thread/sleep 25) (recur)))))))
+
+(defn- alive?
+  [pid]
+  (let [ph (handle-of pid)]
+    (boolean (and ph (.isAlive ph)))))
+
+(defn- pgid-of
+  "No ProcessHandle field carries the group, so read it the way the shell does."
+  [pid]
+  (let [p (.start (java.lang.ProcessBuilder.
+                   ^java.util.List ["ps" "-o" "pgid=" "-p" (str pid)]))
+        out (slurp (.getInputStream p))]
+    (.waitFor p 10 TimeUnit/SECONDS)
+    (Long/parseLong (str/trim out))))
+
 (defn- await-runtime-exit
   [repl]
   (.waitFor ^java.lang.Process (:proc repl) 15 TimeUnit/SECONDS))
+
+(defn- which
+  ^String [^String name]
+  (first (keep (fn [^String dir]
+                 (let [f (java.io.File. dir name)]
+                   (when (and (.isFile f) (.canExecute f)) (.getAbsolutePath f))))
+               (str/split (or (System/getenv "PATH") "") #":"))))
+
+(defn- empty-path-dir
+  "A PATH with no setsid (and no bash, so the shell falls back to /bin/sh)."
+  ^String []
+  (let [dir (java.io.File. (str (System/getProperty "java.io.tmpdir"))
+                           (str "rlm-nopath-" (System/nanoTime)))]
+    (.mkdirs dir)
+    (.deleteOnExit dir)
+    (.getAbsolutePath dir)))
 
 (deftest start-poll-tail-follow-one-command
   (h/with-repl
@@ -137,7 +178,7 @@
       (eval-edn repl "k1" "(do (def h (process-start \"sleep 45 & sleep 46 & wait\")) :started)")
       (let [snap (eval-edn repl "k2" "(process-poll h)")
             pid (long (:pid snap))
-            kids (descendant-pids pid)]
+            kids (descendants-of pid 2)]
         (is (= :running (:status snap)))
         (is (= 2 (count kids)) "the shell forks two sleepers")
         (let [after (eval-edn repl "k3" "(process-kill h)")]
@@ -168,13 +209,82 @@
       (h/read-event repl)
       (let [snap (eval-edn repl "e1" "(process-start \"sleep 48 & sleep 49 & wait\")")
             pid (long (:pid snap))
-            kids (descendant-pids pid)]
+            kids (descendants-of pid 2)]
         (is (= 2 (count kids)))
         (.close ^java.io.Writer (:stdin repl))
         (is (true? (await-runtime-exit repl)) "runtime exits on stdin EOF")
         (is (gone? pid))
         (doseq [kid kids]
           (is (gone? kid) (str "descendant " kid " must not survive EOF"))))
+      (finally (h/close! repl)))))
+
+(deftest setsid-makes-the-leader-its-own-process-group
+  ;; The containment claim rests on setsid exec'ing in place, so pin it: if it
+  ;; ever forked instead, :pid would not be the group we signal.
+  (h/with-repl
+    (fn [repl _]
+      (let [snap (eval-edn repl "pg1" "(process-start \"sleep 60 & wait\")")
+            pid (long (:pid snap))]
+        (is (true? (:contained snap)))
+        (is (= pid (pgid-of pid)) "setsid exec'd in place: pgid == leader pid")
+        (let [after (eval-edn repl "pg2" "(process-kill \"p1\")")]
+          (is (= :exited (:status after))))
+        (is (gone? pid))))))
+
+(deftest group-kill-reclaims-a-child-that-outlived-its-leader
+  ;; `cmd & exit 0`: the leader exits at once and the child reparents out of
+  ;; .descendants(). Only the process group still holds it.
+  (h/with-repl
+    (fn [repl _]
+      (eval-edn repl "o1" "(do (def h (process-start \"sleep 301 & echo $!; exit 0\")) :started)")
+      (let [snap (wait-exit repl "(process-poll h)")
+            orphan (Long/parseLong (str/trim (eval-edn repl "o2" "(process-tail h)")))]
+        (is (= :exited (:status snap)))
+        (is (= 0 (:exit-code snap)))
+        (is (true? (:contained snap)))
+        (is (empty? (descendant-pids (long (:pid snap))))
+            "the leader is gone, so the descendants sweep sees nothing")
+        (is (alive? orphan) "the child outlives the leader — that is the whole case")
+        (eval-edn repl "o3" "(process-kill h)")
+        (is (gone? orphan) "group kill must reclaim it")))))
+
+(deftest shutdown-reclaims-a-child-that-outlived-its-leader
+  (let [repl (h/start)]
+    (try
+      (h/read-event repl)
+      (eval-edn repl "os1" "(do (def h (process-start \"sleep 305 & echo $!; exit 0\")) :started)")
+      (let [snap (wait-exit repl "(process-poll h)")
+            orphan (Long/parseLong (str/trim (eval-edn repl "os2" "(process-tail h)")))]
+        (is (true? (:contained snap)))
+        (is (alive? orphan))
+        (h/send! repl {"type" "shutdown" "id" "os3"})
+        (is (true? (await-runtime-exit repl)))
+        (is (gone? orphan) "shutdown must reclaim the whole group, not just the tree"))
+      (finally (h/close! repl)))))
+
+(deftest without-setsid-the-runtime-degrades-not-breaks
+  ;; A host with no setsid keeps working; it just loses group containment and
+  ;; falls back to the descendants sweep. :contained says so out loud.
+  (let [repl (h/start {:env {"PATH" (empty-path-dir)}})]
+    (try
+      (h/read-event repl)
+      (eval-edn repl "ns0" "(do (process-start \"echo no-setsid\") :started)")
+      (let [snap (wait-exit repl "(process-poll \"p1\")")]
+        (is (= :exited (:status snap)))
+        (is (false? (:contained snap)))
+        (is (= "no-setsid" (eval-edn repl "ns1" "(process-tail \"p1\")"))))
+      ;; PATH is empty for this runtime, so the child cannot look up `sleep`.
+      (let [sleep-bin (which "sleep")
+            snap (eval-edn repl "ns2"
+                           (str "(process-start \"" sleep-bin " 62 & " sleep-bin " 63 & wait\")"))
+            pid (long (:pid snap))
+            kids (descendants-of pid 2)]
+        (is (false? (:contained snap)))
+        (is (= 2 (count kids)))
+        (eval-edn repl "ns3" "(process-kill \"p2\")")
+        (is (gone? pid))
+        (doseq [kid kids]
+          (is (gone? kid) "the descendants sweep still reaps a live tree")))
       (finally (h/close! repl)))))
 
 (deftest signalled-runtime-still-cleans-up

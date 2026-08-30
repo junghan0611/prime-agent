@@ -55,7 +55,7 @@ These are not protocol v2 parity.
 1. **output batching** — `*out*`/`*err*` flush as one event at cell end. Cell-id attribution matches the oracle; mid-cell streaming does not (`eval.clj`).
 2. **ename / traceback** — SCI wraps user errors; `ename` is the wrapper class and traceback still carries runtime frames. OPEN (`repl.clj`).
 3. **interrupt** — request is parsed, cancellation is not guaranteed.
-4. **process containment** — `process-*` reaps a tree through `ProcessHandle.descendants()`. There is no process group, no session, and no orphan journal, so a fully detached double-fork survives, and a SIGKILLed runtime cannot clean up at all (`process.clj`).
+4. **process containment** — commands run under `setsid`, so cleanup signals the whole process group and reclaims a child whose leader already exited (`cmd & exit 0`). What is left: a host with no `setsid` (`:contained false` in the snapshot) falls back to the `ProcessHandle.descendants()` sweep alone and loses that child; a process that re-groups itself escapes either way; a SIGKILLed runtime cannot clean up at all. There is no orphan journal (`process.clj`).
 5. **no wait** — `Thread/sleep` is closed, so a cell cannot block on a command. Poll `process-poll` in a later cell; a busy-loop inside one cell holds the runtime and `interrupt` will not free it.
 
 ## `process-*` — H4
@@ -68,14 +68,18 @@ the workspace only ever holds a `:process-id`.
 > (def h (process-start "echo hello-h4; exit 3"))
 > (process-poll h)
 {:process-id "p1", :command "echo hello-h4; exit 3", :pid 1706302, :status :exited,
- :exit-code 3, :killed false, :output-bytes 9, :output-truncated false}
+ :exit-code 3, :killed false, :contained true, :output-bytes 9, :output-truncated false}
 > (process-tail h)
 "hello-h4"
 > (process-kill h)
 ```
 
+Key order is not part of the shape — read by key.
+
 Output is captured head 128 KiB + tail 128 KiB with the middle dropped. The
 child gets pipes, never the protocol descriptors, and stdin is closed. Shutdown,
-stdin EOF, and SIGTERM to the runtime all reap live trees.
+stdin EOF, and SIGTERM to the runtime all reap the whole process group.
+`:contained false` means this host has no `setsid` and cleanup is the weaker
+descendants sweep.
 
 Contract and deviations: `docs/clojure-runtime.md`.

@@ -110,6 +110,12 @@
   (let [f (java.io.File. path)]
     (and (.isFile f) (.canExecute f))))
 
+(defn- on-path
+  ^String [^String name]
+  (first (filter executable?
+                 (map #(str % "/" name)
+                      (str/split (or (System/getenv "PATH") "") #":")))))
+
 (defn- shell-path
   "PRIME_AGENT_BASH_SHELL (absolute) wins, then bash on PATH, then /bin/sh —
   the oracle's _shell() order."
@@ -119,10 +125,35 @@
       (if (.startsWith ^String override "/")
         override
         (throw (IllegalArgumentException. "PRIME_AGENT_BASH_SHELL must be an absolute path")))
-      (or (first (filter executable?
-                         (map #(str % "/bash")
-                              (str/split (or (System/getenv "PATH") "") #":"))))
-          "/bin/sh"))))
+      (or (on-path "bash") "/bin/sh"))))
+
+(defn- setsid-path
+  "util-linux setsid, the only containment we have: the JVM cannot setpgid a
+  child and Java has no killpg. Absent, spawning still works and cleanup falls
+  back to the descendants sweep alone."
+  ^String []
+  (on-path "setsid"))
+
+(defn- signal-group!
+  "Signal whole process groups. This is what reaches a child the leader left
+  behind: `cmd & exit 0` reparents it out of .descendants() but never out of
+  its process group. Java has no killpg, so one short-lived shell signals every
+  group at once. Its streams are discarded, so nothing it prints can reach the
+  protocol writer."
+  [pgids ^String signal]
+  (when (seq pgids)
+    (try
+      (let [script (str "for g in " (str/join " " (map #(str "-" %) pgids))
+                        "; do kill -s " signal " -- \"$g\" 2>/dev/null; done; exit 0")
+            ^java.util.List argv [(shell-path) "-c" script]
+            pb (java.lang.ProcessBuilder. argv)]
+        (.redirectOutput pb java.lang.ProcessBuilder$Redirect/DISCARD)
+        (.redirectError pb java.lang.ProcessBuilder$Redirect/DISCARD)
+        (let [^java.lang.Process p (.start pb)]
+          (try (.close (.getOutputStream p)) (catch Throwable _ nil))
+          (when-not (.waitFor p 2 java.util.concurrent.TimeUnit/SECONDS)
+            (.destroyForcibly p))))
+      (catch Throwable _ nil))))
 
 (defn- settle!
   "Give the pump a bounded moment to finish once the process is gone, so poll
@@ -143,6 +174,9 @@
      :status (if alive :running :exited)
      :exit-code (when-not alive (.exitValue p))
      :killed @(:killed entry)
+     ;; false means this host has no setsid: a backgrounded child that outlives
+     ;; the leader can escape cleanup.
+     :contained (some? (:pgid entry))
      :output-bytes (:total cap)
      :output-truncated (pos? (long (:dropped cap)))}))
 
@@ -187,23 +221,28 @@
         :else (do (Thread/sleep 20) (recur))))))
 
 (defn- terminate!
-  "TERM the tree, then KILL whatever is left. Descendants go first: the leader
-  holds the tree together, and once it dies its children reparent away."
+  "Group TERM, then group KILL. The process group is the primary handle: it
+  still holds a child whose leader already exited, which .descendants() cannot
+  see. The descendants sweep stays as the secondary path — it is all there is
+  when the host has no setsid."
   [entries]
-  (let [trees (mapv (fn [entry] [entry (tree-handles ^java.lang.Process (:proc entry))]) entries)]
+  (let [trees (mapv (fn [entry] [entry (tree-handles ^java.lang.Process (:proc entry))]) entries)
+        pgids (into [] (keep :pgid entries))]
+    (doseq [[entry _] trees]
+      (when (.isAlive ^java.lang.Process (:proc entry))
+        (reset! (:killed entry) true)))
+    (signal-group! pgids "TERM")
     (doseq [[entry hs] trees]
-      (let [^java.lang.Process p (:proc entry)]
-        (when (.isAlive p)
-          (reset! (:killed entry) true))
-        (doseq [^java.lang.ProcessHandle h hs]
-          (try (.destroy h) (catch Throwable _ nil)))
-        (try (.destroy p) (catch Throwable _ nil))))
+      (doseq [^java.lang.ProcessHandle h hs]
+        (try (.destroy h) (catch Throwable _ nil)))
+      (try (.destroy ^java.lang.Process (:proc entry)) (catch Throwable _ nil)))
     (await-dead trees term-grace-ms)
     ;; Re-enumerate once: a descendant spawned while the leader was still alive
     ;; is not in the first snapshot.
     (let [trees (mapv (fn [[entry hs]]
                         [entry (into hs (tree-handles ^java.lang.Process (:proc entry)))])
                       trees)]
+      (signal-group! pgids "KILL")
       (doseq [[entry hs] trees]
         (doseq [^java.lang.ProcessHandle h hs]
           (try (.destroyForcibly h) (catch Throwable _ nil)))
@@ -234,7 +273,12 @@
   "Spawn command under the shell and return its handle snapshot.
 
   The child gets pipes, never our protocol descriptors: stdout and stderr are
-  merged into the bounded capture and stdin is closed so a reader sees EOF."
+  merged into the bounded capture and stdin is closed so a reader sees EOF.
+
+  setsid puts the command in its own session, so the leader pid doubles as the
+  process group id and cleanup can signal the whole group. setsid execs in
+  place here (a Java-spawned child is never already a group leader), which is
+  what keeps pid == pgid; the group-kill test pins that."
   [runtime command]
   (when-not (string? command)
     (throw (IllegalArgumentException. "process-start command must be a string")))
@@ -246,7 +290,11 @@
             (str "process-start refused: " max-live " live processes already; kill one first"))))
   ;; The hint has to sit on a local: on the literal itself the compiler falls
   ;; back to the reflective ctor, which the native image cannot resolve.
-  (let [^java.util.List argv [(shell-path) "-c" command]
+  (let [setsid (setsid-path)
+        shell (shell-path)
+        ^java.util.List argv (if setsid
+                               [setsid shell "-c" command]
+                               [shell "-c" command])
         pb (java.lang.ProcessBuilder. argv)
         ^java.util.Map env (.environment pb)]
     (.directory pb (java.io.File. (str (System/getProperty "user.dir"))))
@@ -265,6 +313,9 @@
                  :capture capture
                  :eof eof
                  :killed (atom false)
+                 ;; setsid exec'd in place, so the leader is its own session and
+                 ;; group leader: pgid == pid. nil means no containment.
+                 :pgid (when setsid (.pid p))
                  :started-ms (System/currentTimeMillis)}]
       (try (.close (.getOutputStream p)) (catch Throwable _ nil))
       (doto (java.lang.Thread. ^Runnable #(pump! (.getInputStream p) capture eof)
