@@ -2,7 +2,7 @@
 
 최종 1번 목표: Clojure/SCI native runtime을 Python kernel의 **실사용 대체물**로 쓴다. 논문/프로젝트가 주장한 평가를 **같은 evaluator · model · budget**에서 실행 가능하게 만든다.
 
-이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H8은 **rollback checkpoint**. CURRENT = H2 leftover receive. 그다음 = H1–H8 재검수. Emmy로 바로 가지 않음.
+이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H8은 **rollback checkpoint**. CURRENT = H1–H8 재검수 (내일). leftover receive 닫힘 `ed702304`. Emmy로 바로 가지 않음.
 
 출처: sol `20260830T103427-f6f942`. README 배지 [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), arXiv [2608.23552](https://arxiv.org/abs/2608.23552). 이 repo에 논문 eval config는 없다 — pin/acquisition은 H7 산출물.
 
@@ -11,7 +11,7 @@
 | 홉 | 무엇 | 어디서 |
 |---|---|---|
 | H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | checkpoint `7d509e75` |
-| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | checkpoint `9d8f69f5`. s6. leftover **receive** 는 H3–H8 위에 남김. 지금 닫는 중 |
+| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | checkpoint `9d8f69f5`. leftover receive `ed702304` 닫힘. 2차 BASELINE Q-R3 PASS |
 | H3 | key-shape 계약 → bounded read / context | checkpoint `f0b5183e` → `10fde370` → `13e88738`. symlink known deviation (blocker 아님) |
 | H4 | process lifecycle | checkpoint `4c42dbb4` → `9229aa77`. SCI에 process 객체 금지. setsid group. leftover: no-setsid / re-group / SIGKILL |
 | H5 | edit / write receipts | checkpoint `2e5753a2`. `spit` 닫힘. write는 symlink 거부. H3 read 편차는 그대로 |

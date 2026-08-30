@@ -162,3 +162,27 @@ Do not use a host-leaked notice as the answer.
 One line: **the surface stands; the loop breaks at receive.**
 
 Related mechanical run: H7 A/B (`evals/h7-functional-ab/RESULTS.md`) — same fan-in harness-gap on the clojure arm; P4 “ok” was a terminal notice.
+
+### 2026-08-30 — second operator run (after H2 leftover un-gate `ed702304`)
+
+Read from session export by Opus `81111c` (coordinator did not re-decode the HTML).
+
+| | |
+|---|---|
+| session | `01a051da-6f86-752b-aedd-da3ec8fea373` |
+| child | `01a051dc-a4ef-733d-89e7-4b8edf722d5c` (`q-r3-child`, `sub-bfa5621b`) |
+| model | `deepseek/deepseek-v4-pro` |
+| cwd | `/home/junghan/test` |
+
+| ID | Verdict | Receipt |
+|---|---|---|
+| Q-R0 | PASS | |
+| Q-R1 | PASS | 14 names, execution |
+| Q-R2 | PASS + NOTE | cwd not repo; recovered to REPL probes |
+| Q-R3 | **PASS receive** | parent conversation got `customType: "agent_message"`, `fromRelationship: "child"`, `message: "ok"`. Counts: `rlm_child_terminal_notice` 0, `completed without sending a reply` 0, `Last assistant text` 0, `agent_observe` 0. Roster `:repliedSinceTask true`. |
+| Q-R4 | PASS | `{:expression "(+ 40 2)", :value 42, :check true}` |
+
+One line: **the surface stands; the loop closes at receive.**
+
+NOTE — (B) child doctrine not isolated this run: parent pasted the exact `host-request` map into the child task. A later run without that form in the task would split (B). Not a close blocker.
+NOTE — envelope copy still reads like a host notice (`Agent-to-agent message received.`). Low-priority render. The payload was quoted from the child message, not from a terminal notice.
