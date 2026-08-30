@@ -3,7 +3,11 @@
 
   (rlm prompt) is synchronous. The return value is an admission/spawn handle,
   not the child's final answer. host_reply bypasses the request FIFO because
-  the awaiting cell *is* the in-flight execute.")
+  the awaiting cell *is* the in-flight execute.
+
+  JSON host replies arrive with string keys. The SCI workspace sees keyword
+  keys so (:status reply) matches (rlm) handles. Wire JSON is unchanged."
+  (:require [clojure.walk :as walk]))
 
 (def closed ::closed)
 
@@ -33,7 +37,7 @@
       (let [reply (deref p)]
         (when (identical? closed reply)
           (throw (RuntimeException. "host connection closed; host_request cannot be answered")))
-        reply)
+        (walk/keywordize-keys reply))
       (finally
         (swap! (:pending-host runtime) dissoc id)))))
 

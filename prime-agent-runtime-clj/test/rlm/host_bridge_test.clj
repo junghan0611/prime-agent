@@ -20,6 +20,28 @@
           (is (= 1 (h/done-count events)))
           (is (= "ok" (get (h/one events "done") "status"))))))))
 
+(deftest host-request-reply-is-keyword-nested-map
+  ;; H2 leftover: string keys made (:status roster) silent nil. Nested fixture.
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" "execute" "id" "kw"
+                     "code" (str "(let [r (host-request {:type \"roster\"})]
+                                     [(:status r)
+                                      (get-in r [:current :name])
+                                      (get-in r [:subagents 0 :status])])")})
+      (let [req (h/wait-event repl "host_request")]
+        (h/send! repl {"type" "host_reply"
+                       "id" (get req "id")
+                       "data" {"status" "ok"
+                               "current" {"name" "root"}
+                               "subagents" [{"status" "completed"}]}})
+        (let [events (h/until-done repl "kw")
+              text (get (h/one events "result") "text")]
+          (is (re-find #"ok" text))
+          (is (re-find #"root" text))
+          (is (re-find #"completed" text))
+          (is (= "ok" (get (h/one events "done") "status"))))))))
+
 (deftest host-reply-unknown-id-dropped
   (h/with-repl
     (fn [repl _]
