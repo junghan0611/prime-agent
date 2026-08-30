@@ -1,0 +1,1 @@
+Spawn one child agent whose entire task is to reply with the single word ok. Bind whatever the spawn returns. Then, without using that binding again, ask the host for its registry of your children and report the child's id and status from the registry.

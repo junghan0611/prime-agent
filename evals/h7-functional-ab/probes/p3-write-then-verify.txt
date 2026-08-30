@@ -1,0 +1,1 @@
+Create a new file probe3.txt in your working directory containing exactly five lines of your choosing. Then count that file's lines a second time using a shell command, and compare the two counts inside your workspace rather than by eye. Report both counts and whether they agree.

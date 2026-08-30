@@ -1,0 +1,1 @@
+Find out which names your workspace actually has available right now, by asking the runtime itself rather than repeating what you were told. Report the names you found as a plain list, and say how you obtained them.
