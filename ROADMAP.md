@@ -10,9 +10,9 @@
 
 | 홉 | 무엇 | 어디서 |
 |---|---|---|
-| H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | `feat/clojure-runtime` CURRENT |
-| H2 | RLM child/registry/result fan-in + DeepSeek 4실험 | 같은 브랜치 닫힘 = 1차 boot |
-| H3 | bounded read / context | 다음 브랜치 |
+| H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | `feat/clojure-runtime` **닫힘** (`7d509e75`) |
+| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | 같은 브랜치 **boot 닫힘**. 재측정 s6. leftover = host-request string keys |
+| H3 | bounded read / context | **다음 브랜치.** 첫 게이트: host-request reply key 규약(string 유지 vs keyword normalize)을 read cap보다 먼저 |
 | H4 | process lifecycle | 다음. H5와 별도 |
 | H5 | edit / write receipts | 다음. H4와 별도 |
 | H6 | compaction / restart continuity | 다음 |

@@ -22,18 +22,16 @@
 
 - [x] **runtime 1–3b** — native-image + SCI. src 284 + test 629. 32/158. GitHub 린트만.
 - [x] **H1 host 선택면** — spawn + Clojure bootstrap/prompt + `list_names` skip. 구현 299 + 테스트 248. GLM 검수 통과.
-- [ ] **H2 fan-in + DeepSeek 4실험** ← CURRENT: 이 브랜치 닫힘 (제품 1차 boot). 코드량 없음. 메터드 API.
+- [x] **H2 fan-in + DeepSeek 4실험** — 브랜치 boot 닫힘. 재측정 s6: world·fan-in gap 해소 (`9d8f69f5`).
 
-현재 좌표: H1 완료 → H2 진행 → H3+는 ROADMAP
+현재 좌표: H1–H2 완료 = 이 브랜치 boot 닫힘 → H3+는 ROADMAP
 
-# NOW — H2
+# NOW — boot 닫힘
 
-- Stem: H1이 호스트에 native SCI를 붙였다. 기본 runtime은 python. Clojure는 `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
-- Next: DeepSeek로 아래 네 개 + fan-in 한 줄을 Clojure form으로 친다. 새 capability 없음. 읽기 cap 부족은 한 줄 적고 H3로.
-- Verify: 라벨 `semantics-gap` / `model-fumble` / `harness-gap`. 영수증에 pin(model)·form·결과. Python fixture 공유 금지.
-- Read: issue #1 · 이 문서 H2 절 · `docs/clojure-runtime.md` · `packages/coding-agent/docs/rlm.md`
-- Do not touch: H1 코드 재개조, `list_names` 구현, H3–H8, Emmy, commit/push (GLG만)
-- Blocker: 없음. DeepSeek는 메터드 — 키는 env, 메시지에 넣지 않음.
+- Stem: DeepSeek가 Clojure form으로 네 실험 + fan-in을 조직했다. 기본 runtime은 python.
+- Next: GLG — 이 브랜치 커밋/푸시 후 H3는 새 브랜치. 남은 gap은 아래 한 줄.
+- Leftover (H3 후보, 이 브랜치에서 안 고침): `(rlm …)` → keyword keys, `(host-request …)` → string keys. `(:status roster)`가 에러 없이 nil. 조용한 `harness-gap`.
+- Do not touch: H3 읽기 cap을 여기서 열지 않음. keyword/string 규약 통일도 이 브랜치 밖.
 
 # H2 — 이 브랜치 닫힘 실험
 
@@ -56,3 +54,5 @@ README / `rlm.md` 네 개. DeepSeek · Clojure form. Python fixture 공유 금�
 - [2026-08-30] sol: 견적 220–300/180–250, `list_names` skip, fan-in 한 줄.
 - [2026-08-30] GLG 교정: 이 브랜치 닫힘 = 1차 boot (H1–H2). 최종 1번 = 실사용 대체 (ROADMAP H1–H8). 논문 첫 pilot은 H7, arXiv 2608.23552 §3 RQ2.
 - [2026-08-30] H1 착지. GLM 검수 green. fragment `h1-clojure-kernel-runtime.md`.
+- [2026-08-30] H2 1차: world/fan-in `harness-gap` (evalue 안 보임, :type 미문서). `9d8f69f5`로 수선.
+- [2026-08-30] H2 재측정 s6: world·fan-in 성공. boot 닫힘. leftover = host-request string keys vs rlm keyword keys.
