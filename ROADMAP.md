@@ -2,7 +2,7 @@
 
 최종 1번 목표: Clojure/SCI native runtime을 Python kernel의 **실사용 대체물**로 쓴다. 논문/프로젝트가 주장한 평가를 **같은 evaluator · model · budget**에서 실행 가능하게 만든다.
 
-이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H8은 **rollback checkpoint**. CURRENT = 레일 끝. 새 브랜치 없음. Emmy는 이 레일 밖.
+이 파일은 제품 8홉. 전부 `feat/clojure-runtime`에서 이어서 간다. 새 브랜치로 자르지 않는다. H1–H8은 **rollback checkpoint**. CURRENT = H2 leftover receive. 그다음 = H1–H8 재검수. Emmy로 바로 가지 않음.
 
 출처: sol `20260830T103427-f6f942`. README 배지 [Verifiers](https://github.com/PrimeIntellect-ai/verifiers), arXiv [2608.23552](https://arxiv.org/abs/2608.23552). 이 repo에 논문 eval config는 없다 — pin/acquisition은 H7 산출물.
 
@@ -11,7 +11,7 @@
 | 홉 | 무엇 | 어디서 |
 |---|---|---|
 | H1 | host 선택 · spawn · prompt · state-op off (`list_names` skip) | checkpoint `7d509e75` |
-| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | checkpoint `9d8f69f5`. s6. leftover는 H3 입구였음 |
+| H2 | RLM child/registry/fan-in + DeepSeek 4실험 | checkpoint `9d8f69f5`. s6. leftover **receive** 는 H3–H8 위에 남김. 지금 닫는 중 |
 | H3 | key-shape 계약 → bounded read / context | checkpoint `f0b5183e` → `10fde370` → `13e88738`. symlink known deviation (blocker 아님) |
 | H4 | process lifecycle | checkpoint `4c42dbb4` → `9229aa77`. SCI에 process 객체 금지. setsid group. leftover: no-setsid / re-group / SIGKILL |
 | H5 | edit / write receipts | checkpoint `2e5753a2`. `spit` 닫힘. write는 symlink 거부. H3 read 편차는 그대로 |
@@ -19,15 +19,18 @@
 | H7 | 기능 A/B (DeepSeek thinking) | checkpoint `b5e9e424`. 8/8 REPL. clojure Python 유출 0. fan-in은 여전히 harness-gap |
 | H8 | default switch + soak | checkpoint `edc3a3e8`. default = clojure, fallback 없음. 테라 native 65/497 PASS. 90%/PMPP는 홉 밖 |
 
-## H8 다음, Emmy 전 — 일상 루프 닫힘
+## H8 다음 순서 — Emmy로 바로 가지 않음
 
-8홉은 “면이 선다”. 그다음 Prime Agent 기본 작업이 **끝까지** 가는지.
-inspect → read → compute → spawn → **receive** → run → edit → verify.
-지금 빈 칸은 **receive (fan-in)**. interrupt는 GLG가 `primeclj`로 밟은 뒤에. wait/snapshot은 아님.
+1. **H2 leftover receive** (지금). 제목에 있던 fan-in. 명분 없으면 나중에 칸을 못 채움.
+2. **H1–H8 재검수** (내일). `docs/BASELINE.md` + 각 홉 leftover. 새 기능 아님.
+3. 그다음 **Emmy / SICM**. 재검수 전에 열지 않음.
+
+일상 루프: inspect → read → compute → spawn → **receive** → run → edit → verify.
+interrupt는 재인터뷰에서 밟은 뒤에. wait/snapshot 아님.
 
 ## 이 브랜치 이후 — 공존언어
 
-**Emmy / SICM probe.** form → symbolic → numeric/render. fan-in(그리고 실사용 interrupt) 뒤에 연다. REPL 언어축과 독립.
+**Emmy / SICM probe.** form → symbolic → numeric/render. **H1–H8 재검수 뒤에** 연다. REPL 언어축과 독립.
 
 ## 더 뒤
 

@@ -1,7 +1,7 @@
 # feat/clojure-runtime — 8홉 레일 닫힘
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = 8홉 레일 끝. 다음 실사용 닫힘 = **fan-in (receive)**. Emmy는 그 뒤. 9번째 제품홉 없음.
+CURRENT = H2 leftover receive. 그다음 = **H1–H8 재검수 (내일)**. Emmy로 바로 가지 않음. 9번째 제품홉 없음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -27,8 +27,11 @@ CURRENT = 8홉 레일 끝. 다음 실사용 닫힘 = **fan-in (receive)**. Emmy�
 - [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497.
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
 - [x] **H8 default switch + soak** — `edc3a3e8`. default = clojure, fallback 없음. 테라 `55b3ea` native 65/497 PASS.
+- [ ] **H2 leftover receive** — **지금.** H2 제목의 fan-in. H8 재오픈 아님.
+- [ ] **H1–H8 재검수** — **내일.** `docs/BASELINE.md` + 홉별 leftover. Emmy 아님.
+- [ ] **Emmy / SICM** — 재검수 다음. 지금 열지 않음.
 
-현재 좌표: **H0–H8 checkpoint.** 일상 RLM 루프에서 빈 칸 = receive.
+현재 좌표: H0–H8 checkpoint → **H2 leftover receive** → 내일 재검수 → (그다음 Emmy).
 
 # NOW — H2 leftover: receive (fan-in)
 
