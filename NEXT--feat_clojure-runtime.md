@@ -118,7 +118,7 @@ grep 함정 둘: `deftest ` 는 require의 `[deftest is]` 를 잡아 **73**으�
 
 ## 환경 사실 — 모르면 첫 시도에서 막힌다
 
-- 실행: **`npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`**, `packages/coding-agent` 에서. **`npm test` 전체 금지** (AGENTS.md:27-28).
+- 실행: **`npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`**, `packages/coding-agent` 에서. **`npm test` 전체 금지** — `AGENTS.md` Hard Rule 9, 원본은 `AGENTS.upstream.md` 의 Commands 절. (줄번호로 인용하지 않는다 — 재작성이 좌표를 끊는다.)
 - 네이티브 바이너리 `prime-agent-runtime-clj/target/rlm-repl` (없으면 `native-image/build.sh`). 게이팅 `it.skipIf(!existsSync(nativeRuntime))`.
 - **CI는 lint 전용** (`clojure-runtime.yml`, GraalVM 없음). flip 결과는 로컬에서만 돈다.
 - **경로:** `agent-session.ts` / `repl-manager.ts` / `runtime.ts` 는 전부 `packages/coding-agent/src/core/` 아래.
