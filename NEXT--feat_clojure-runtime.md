@@ -78,11 +78,11 @@ kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 �
    - **`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 1** — protocol writer `*out*` 오염이 프레임을 찢는다. 계약서가 스스로 **"테스트가 없다"**고 적었다. H1급 프레이밍 회귀인데 261:65 표도 TS 17파일도 못 잡는다.
    - **`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 2** — 테스트 러너가 네임스페이스를 명시 require. **파일만 추가하면 조용히 안 돈다** → runner manifest / run receipt 필수.
    - **H2 formal-receive 행** (새 probe ID 가 필요하면 P5 로 배정 — `PROBE-SHEET.md` 에는 P1–P4 만 있다): Q-R3 의 여섯 PASS 조건 — explicit capability · child identity · notice/transcript/observe 0 · 양 arm 동일 계약 — 을 named test 로 고정한다. **이것은 성능평가가 아니다.**
-   - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py:72-186,208-263`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py:24-26,198-247,413-476`). 따라서 **capability family 아래 contract bundle 단위로** 카드를 만들어 **이슈 #1 댓글로 올려** GLG 가 고르게 한다:
+   - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py`). 따라서 **capability family 아래 contract bundle 단위로** 카드를 만들어 **이슈 #1 댓글로 올려** GLG 가 고르게 한다:
      `Decision ID | Python user-visible job(한 문장) | Python tests/observable contract | Clojure 현재 surface + 실제 unavailable evidence | RLM loop 에서 잃는 것 / 대체 없음 | dependency·security boundary | smallest paired acceptance test | support 구현 범위 | explicit-exclusion meaning + negative test | future 면 reopen trigger | GLG 선택(support/exclude/future) | owner`
      GLG 선택 전에는 status = **`DECISION REQUIRED`**, (D)/PASS/exclusion 어느 것으로도 쓰지 않는다.
-2. **env 이음새 비대칭 기록** — runtime 종류는 팩토리 인자지만 실행파일 주입이 비대칭. python은 `python` 옵션, clojure는 **`PRIME_AGENT_CLOJURE_RUNTIME` env로만** (`src/core/kernel/runtime.ts:66-77`). `describe.each` 가능하되 arm별 주입을 갈라야 한다.
-3. **receive 재판정 기계화** — `src/core/agent-session.ts:10502` 캡처(`parentReplyCountBeforeRun`) → `10514-10518` 비교. notice는 `child._parentReplyCount === parentReplyCountBeforeRun` 일 때만 발화 → Q-R3 재판정은 A/B 재실행 없이 **인터뷰 + 카운트로 $0**.
+2. **env 이음새 비대칭 기록** — runtime 종류는 팩토리 인자지만 실행파일 주입이 비대칭. python은 `python` 옵션, clojure는 **`PRIME_AGENT_CLOJURE_RUNTIME` env로만** (`runtime.ts` 의 `resolveClojureRuntimeExecutable()`). `describe.each` 가능하되 arm별 주입을 갈라야 한다.
+3. **receive 재판정 기계화** — `agent-session.ts` 가 `parentReplyCountBeforeRun` 을 캡처한 뒤 종료 시 비교한다. notice는 `child._parentReplyCount === parentReplyCountBeforeRun` 일 때만 발화 → Q-R3 재판정은 A/B 재실행 없이 **인터뷰 + 카운트로 $0**.
 4. **TS 17파일 뒤집기** — `kernel-agent-message-skill`(7) → `kernel-agent-observe-skill`(2) → `acp-kernel-features`(4).
 
 ## 지도 — 폐기 없음, 1번의 재료
@@ -118,13 +118,13 @@ grep 함정 둘: `deftest ` 는 require의 `[deftest is]` 를 잡아 **73**으�
 
 ## 환경 사실 — 모르면 첫 시도에서 막힌다
 
-- 실행: **`npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`**, `packages/coding-agent` 에서. **`npm test` 전체 금지** — `AGENTS.md` Hard Rule 9, 원본은 `AGENTS.upstream.md` 의 Commands 절. (줄번호로 인용하지 않는다 — 재작성이 좌표를 끊는다.)
-- 네이티브 바이너리 `prime-agent-runtime-clj/target/rlm-repl` (없으면 `native-image/build.sh`). 게이팅 `it.skipIf(!existsSync(nativeRuntime))`.
+- **명령은 `./run.sh help` 가 SSOT 다** — `clj` / `py` (두 팔) · `test <name>` · `test-native` · `lint` · `build`. 문서에 명령 문자열을 적지 않는다. `npm test` 전체 금지는 `AGENTS.md` Hard Rule 9.
+- 네이티브 바이너리 `prime-agent-runtime-clj/target/rlm-repl` (없으면 `./run.sh build`). 게이팅 `it.skipIf(!existsSync(nativeRuntime))`.
 - **CI는 lint 전용** (`clojure-runtime.yml`, GraalVM 없음). flip 결과는 로컬에서만 돈다.
 - **경로:** `agent-session.ts` / `repl-manager.ts` / `runtime.ts` 는 전부 `packages/coding-agent/src/core/` 아래.
-- **shape 함정:** `src/core/kernel/repl-manager.ts:841` `handler({ ...data, cellSourceCode })` — 양 팔 공통의 의도된 provenance 태깅.
+- **shape 함정:** `repl-manager.ts` 의 host-request 디스패치 `handler({ ...data, cellSourceCode })` — 양 팔 공통의 의도된 provenance 태깅.
 - 인프라는 이미 양쪽 다 돈다: `repl-kernel-clojure-runtime` 14 pass 4.3s(네이티브 스폰) · `repl-kernel-execute` 6 pass 2.9s(실 python 커널).
-- `agent_message` 행에서는 네이티브 라이브 프로브가 `list_agents`·`send`·receipt·2회 독립성 **5/6 PASS** 를 보였다 (`src/core/agent-session.ts:9148` *"The host verbs themselves are runtime-neutral."*). **이 관측은 `agent_message` 행에만 적용한다.** 다른 빈 행은 표의 named test 와 실행 결과 전에는 '테스트 부재'도 '능력 부재'도 단정하지 않는다.
+- `agent_message` 행에서는 네이티브 라이브 프로브가 `list_agents`·`send`·receipt·2회 독립성 **5/6 PASS** 를 보였다 (`agent-session.ts` 의 `agentMessageAnnouncedToModel` 게이트 주석 *"The host verbs themselves are runtime-neutral."*). **이 관측은 `agent_message` 행에만 적용한다.** 다른 빈 행은 표의 named test 와 실행 결과 전에는 '테스트 부재'도 '능력 부재'도 단정하지 않는다.
 
 ## 어디에 쓰는가 — **새 문서를 만들지 않는다**
 
@@ -138,7 +138,7 @@ grep 함정 둘: `deftest ` 는 require의 `[deftest is]` 를 잡아 **73**으�
 
 **`git stash` 금지** (타인 변경을 함께 보관한다).
 
-1. **우선 production source 무변경 fault seam** — fixture·env·fake-host 입력으로 깬다: fake runtime 의 bad ready / extra stdout, env 의 bad executable, no-controller, host reply error. H1 에는 이미 bad-ready fake test 가 있다 (`repl-kernel-clojure-runtime.test.ts:122-145`).
+1. **우선 production source 무변경 fault seam** — fixture·env·fake-host 입력으로 깬다: fake runtime 의 bad ready / extra stdout, env 의 bad executable, no-controller, host reply error. H1 에는 이미 bad-ready fake test 가 있다 — `repl-kernel-clojure-runtime` 의 `"rejects a runtime that does not announce the clojure language"`.
 2. **그런 seam 이 없는 행만** isolated temporary worktree 에서 single causal expression 을 뒤집는다. 공유 worktree 는 건드리지 않는다 — pristine HEAD worktree 에 apply → named specific test **Red** → receipt 저장 → worktree 제거.
 
 receipt 10필드: `row / HEAD / mode / fault semantic / patch digest / green command+result / kill command+expected failure / observed decisive line / native-or-fake / cleaned`.

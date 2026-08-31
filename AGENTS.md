@@ -13,6 +13,7 @@
 > H1–H8 은 그 실험이 **말할 자격**을 얻는 이식·비교 레일이다.
 > RLM = Prime Agent 의 **persistent REPL workspace 루프** — 모델이 셀을 실행하고 그 상태가 대화를 가로질러 남는다.
 > 작업은 전부 `feat/clojure-runtime` 에서 이어간다 — **새 브랜치로 자르지 않는다.** H1–H8 은 rollback checkpoint 다.
+> 무엇을 어떻게 돌리는지는 `./run.sh help` — 명령은 문서가 아니라 거기 산다.
 > 지금 위치와 다음 한 걸음은 [NEXT--feat_clojure-runtime.md](./NEXT--feat_clojure-runtime.md),
 > 판은 [issue #1](https://github.com/junghan0611/prime-agent/issues/1).
 
@@ -33,11 +34,11 @@
 ## Architecture — 이 포크가 건드리는 곳
 
 - **커널 런타임이 둘이다.** `python`(상류 CPython/IPython)과 `clojure`(GraalVM native-image 위 SCI). 선택은 `PRIME_AGENT_KERNEL_RUNTIME`, **기본값은 `clojure`**(H8, `edc3a3e8`). **fallback 하지 않는다** — 바이너리가 없으면 teaching error 로 뜬다.
-- **`prime-agent-runtime-clj/`** — Clojure workspace. `rlm-repl` 네이티브 바이너리, verb 는 `host-request`/`rlm`/`rlm-children`/`rlm-delete-child`/`read-text`/`write-text`/`edit-text`/`process-{start,poll,tail,kill,list}` (`prime-agent-runtime-clj/src/rlm/eval.clj:31-43`). SCI 샌드박스라 `spit`/`slurp`/interop 은 닫혀 있다.
+- **`prime-agent-runtime-clj/`** — Clojure workspace. `rlm-repl` 네이티브 바이너리, verb 는 `host-request`/`rlm`/`rlm-children`/`rlm-delete-child`/`read-text`/`write-text`/`edit-text`/`process-{start,poll,tail,kill,list}` (`rlm.eval` 의 `sci/init` 바인딩 맵). SCI 샌드박스라 `spit`/`slurp`/interop 은 닫혀 있다.
 - **`prime-agent-runtime/`** — Python workspace. **oracle 이다.** 이 포크에서 지우거나 개명하지 않는다.
-- **호스트(`packages/coding-agent`)는 런타임 중립을 지향한다.** `agent_message` 경로에서는 host verb 가 런타임과 무관하다고 코드가 명시한다 (`src/core/agent-session.ts:9148`). **다른 verb 로 일반화하지 않는다** — 표의 named test 와 실행 결과가 나오기 전에는 각 행에서 따로 확인한다. 런타임 분기는 필요한 곳에만 두고, Python 분기는 건드리지 않는 것이 기본이다.
-- **실행파일 주입이 비대칭이다.** python 은 `python` **옵션 인자**로 들어가지만, clojure 는 팩토리 인자가 없다 — 오버라이드 경로가 `PRIME_AGENT_CLOJURE_RUNTIME` env 뿐이다 (`src/core/kernel/runtime.ts:64-79`). **env 가 없으면 candidate 경로에서 찾고**, 없으면 빌드 힌트를 담은 teaching error 를 던진다. 테스트를 두 arm 으로 돌릴 때 이 비대칭을 갈라야 한다.
-- **바이너리를 먼저 확보한다.** `prime-agent-runtime-clj/target/rlm-repl` 은 **gitignore 된 빌드 산출물**이다. 없으면 `prime-agent-runtime-clj` 에서 `./native-image/build.sh`, 또는 `PRIME_AGENT_CLOJURE_RUNTIME` 로 경로를 준다. **clean checkout 에서 첫 손이 여기서 막힌다.**
+- **호스트(`packages/coding-agent`)는 런타임 중립을 지향한다.** `agent_message` 경로에서는 host verb 가 런타임과 무관하다고 코드가 명시한다 (`agent-session.ts` 의 `agentMessageAnnouncedToModel` 게이트 주석). **다른 verb 로 일반화하지 않는다** — 표의 named test 와 실행 결과가 나오기 전에는 각 행에서 따로 확인한다. 런타임 분기는 필요한 곳에만 두고, Python 분기는 건드리지 않는 것이 기본이다.
+- **실행파일 주입이 비대칭이다.** python 은 `python` **옵션 인자**로 들어가지만, clojure 는 팩토리 인자가 없다 — 오버라이드 경로가 `PRIME_AGENT_CLOJURE_RUNTIME` env 뿐이다 (`runtime.ts` 의 `resolveClojureRuntimeExecutable()`). **env 가 없으면 candidate 경로에서 찾고**, 없으면 빌드 힌트를 담은 teaching error 를 던진다. 테스트를 두 arm 으로 돌릴 때 이 비대칭을 갈라야 한다.
+- **바이너리를 먼저 확보한다.** `prime-agent-runtime-clj/target/rlm-repl` 은 **gitignore 된 빌드 산출물**이다. 없으면 `./run.sh build`, 또는 `PRIME_AGENT_CLOJURE_RUNTIME` 로 경로를 준다. **clean checkout 에서 첫 손이 여기서 막힌다.**
 - **현재 CI 는 clojure 축에서 lint 전용이다** (`.github/workflows/clojure-runtime.yml` — GitHub 에 GraalVM 이 없다). native receipt 가 필요한 변경은 로컬 native SUT 로 남기며, TS 는 바이너리 없이도 초록이어야 한다. **CI 가정을 바꾸기 전에는 workflow 를 다시 측정한다.**
 
 ## Hard Rules
@@ -51,10 +52,10 @@
    재현 가능한 평가의 `evals/<name>/` probe·runner·analyzer 와 그 commit-pinned 결과는 **실행 artifact 이지 금지 대상이 아니다.** 다만 새 진행표·결정·영수증 문서로 자라지 않으며, 진행 상태와 결정은 이슈 #1 에 남긴다.
    이슈 댓글의 authorship 표기, temp body-file, preview 규칙은 `AGENTS.upstream.md` 의 GitHub Workflow 를 따른다.
 6. **영수증 없는 문장은 사실이 아니라 가설이다.** **세션·이슈·형제 handoff 를 건너는** 사실 문장에 증거 상태를 단다 (자기 턴 안의 작업 메모는 해당 없음): 여기서 측정함 / `file:line` 에서 읽음 / 외부 산출물에서 읽음(경로) / 상속했고 미확인(출처). 호스트 로컬 경로의 영수증은 건너가지 못한다 — 결정적 줄을 건너가는 산출물에 붙여 넣는다.
-   **이 리포의 문서를 가리킬 때는 줄번호가 아니라 제목·규칙 이름으로 앵커한다** — 재작성이 좌표를 끊는다 (2026-08-31 에 실제로 끊겼다). 소스 코드는 줄번호로 가리키되, 그 줄이 움직였는지 인용 전에 다시 잰다.
+   **줄번호로 가리키지 않는다 — 문서든 소스든.** 문서는 제목·규칙 이름으로, 소스는 **심볼 이름**(함수·상수·테스트 이름)으로 앵커한다. 줄번호는 다음 커밋에 낡고 인용한 쪽은 그것을 모른다 (2026-08-31 에 실제로 끊겼다). 같은 이유로 **명령 문자열도 문서에 적지 않는다** — `./run.sh` 가 SSOT 다.
 7. **주장을 은퇴시키지 사람을 은퇴시키지 않는다.** 영수증 없는 주장의 답은 "틀렸다"가 아니라 "영수증이 없어서 내가 쟀다"이다.
 8. **`git stash` 를 쓰지 않는다.** 여러 형제가 같은 트리에서 일한다 — stash 는 남의 변경까지 함께 보관한다. 격리가 필요하면 임시 worktree 를 쓰고 지운다.
-9. **테스트는 GLG 가 지시할 때만, 특정 파일만.** `npm test` 전체는 금지다 (`AGENTS.upstream.md` 의 Commands 절). 형식: `packages/coding-agent` 에서 `npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`. native SUT 는 `prime-agent-runtime-clj` 에서 `clojure -M:test`. 코드 변경 뒤 `npm run check` 의무도 upstream 을 따른다.
+9. **테스트는 GLG 가 지시할 때만, 특정 파일만.** `npm test` 전체는 금지다 (`AGENTS.upstream.md` 의 Commands 절). **어떻게 돌리는지는 `./run.sh help` 가 SSOT 다** — `test` / `test-native` / `lint` / `check`. 코드 변경 뒤 `npm run check` 의무도 upstream 을 따른다.
 10. **에이전트는 요청된 활성 commit workflow 안에서만 커밋을 실행할 수 있다.** push 시점과 실행은 **GLG 의 현재 세션 지시**가 있어야 한다. 커밋 요청이 푸시를 함의하지 않는다.
 11. **Do not touch:** Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy. 열려면 GLG 승인이 먼저다.
 
@@ -63,14 +64,14 @@
 | 축 | 무엇을 비교 | 비용 | 잡는 것 |
 |---|---|---|---|
 | **무료 로컬 vitest** | 두 arm 의 기계 계약 | 0 | 프로토콜 게이트, 부트스트랩, 레이스·와치독·abort 타이밍, 상태기계, 회귀 |
-| **native SUT** (`prime-agent-runtime-clj` 에서 `clojure -M:test`) | clojure 동작 vs 적어둔 스펙 | 0 | verb 단위 회귀 |
+| **native SUT** (`./run.sh test-native`) | clojure 동작 vs 적어둔 스펙 | 0 | verb 단위 회귀 |
 | **kill receipt** | 변경 있음 vs 없음 | 0 | **"이 테스트가 실제로 무는가"** |
 | **양-arm 평가** (`evals/`) | 모델 행동 전체 | $ | 프롬프트가 실제로 가르치는가, Python 유출, notice 를 답으로 착각하는 부류 |
 | **운영자 인터뷰** (`BASELINE.md`) | 루프 전체, 사람이 판정 | $ + 사람 턴 | 단위테스트가 액자에 안 넣은 파손 |
 
 **무료 축과 유료 축은 겹치지 않는다.** 무료 축은 기계 계약, 유료 축은 모델 행동이다. 그래서 무료 축이 늘었다고 유료 축을 줄이지 않는다.
 
-`clojure -M:test` 와 `:test-native` 는 둘 다 native SUT 다 (`prime-agent-runtime-clj/test/rlm/sut.clj`). **JVM SUT 는 없다** — 경위는 `docs/clojure-runtime.md`.
+`deps.edn` 의 `:test` 와 `:test-native` 는 둘 다 native SUT 다 (`prime-agent-runtime-clj/test/rlm/sut.clj`). **JVM SUT 는 없다** — 경위는 `docs/clojure-runtime.md`.
 
 ### 이미 알려진 함정
 
@@ -78,12 +79,13 @@
 - naive `it(` 는 `it.skipIf(` 를 놓치거나 `toEmit(` 를 잡는다. `^\s*it(\.skipIf)?\(` 를 쓴다.
 - **테스트 러너가 네임스페이스를 명시 require 한다** (`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 2). 파일만 추가하면 **조용히 안 돈다.** 새 테스트에는 manifest / run receipt 가 따라야 한다.
 - **protocol writer 에 `*out*` 을 쓰면 프레임이 찢어진다** (`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 1). 디버그 `println` 하나로 깨지는데 **계약서 스스로 "테스트가 없다"고 적어두었다.**
-- `handler({ ...data, cellSourceCode })` (`src/core/kernel/repl-manager.ts:841`) 는 **양 팔 공통의 의도된 provenance 태깅**이다. 이음새로 오해하지 않는다.
+- `handler({ ...data, cellSourceCode })` (`repl-manager.ts` 의 host-request 디스패치) 는 **양 팔 공통의 의도된 provenance 태깅**이다. 이음새로 오해하지 않는다.
 
 ## Repository Map — 이 포크가 더한 것
 
 | 경로 | 무엇 |
 |---|---|
+| `run.sh` | **하나의 진입점** — 두 팔 띄우기(`clj`/`py`)와 재는 법(`test`/`test-native`/`lint`/`build`/`check`). 명령 문자열의 SSOT |
 | `prime-agent-runtime-clj/` | Clojure/SCI workspace + native-image 빌드 + native SUT |
 | `prime-agent-runtime/` | Python workspace — **oracle**, 유지 |
 | `packages/coding-agent/src/core/kernel/runtime.ts` | 런타임 선택과 실행파일 해석 |
