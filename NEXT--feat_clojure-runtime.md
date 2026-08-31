@@ -1,7 +1,7 @@
 # feat/clojure-runtime — 8홉 레일 닫힘
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-08-31, 이슈 #1). 착수 1 = `docs/rlm-reaudit/H1.md` 에 H1.1–H1.4 를 채운다. **H1 이 닫히기 전에는 TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
+CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-08-31, 이슈 #1). 착수 1 = **이슈 #1 에 H1 댓글**로 H1.1–H1.4 를 채운다. **H1 이 닫히기 전에는 TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -49,7 +49,7 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 - `261:65` 는 **경보**지 판단 근거가 아니다. 근거는 contract row 수.
 - (D)를 계약서에 적는 것은 **scope 선언**일 뿐 PASS 칸이 아니다.
 - TS 17파일 뒤집기는 **4번**이지 1번이 아니다.
-- H7의 `$0.00576` 은 다음 평가의 **비용 상한**으로만 쓴다. H7의 기능·성능 **결과**는 receive 수선 전 commit 이므로 수선 후 성능 기준선으로 재사용하지 않는다.
+- H7의 기능·성능 **결과**는 receive 수선 전 commit 이므로 수선 후 성능 기준선으로 재사용하지 않는다. **비용 상한을 스스로 정하지 않는다** — 아래 「비용」 참조.
 - JVM SUT 문구 정정 — 고칠 살아있는 문서 없음.
 
 ## 표의 형태 — 한 행
@@ -65,7 +65,7 @@ kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 �
 
 ## 착수 순서
 
-1. **Python 계약 → Clojure 대응표 — hop 단위, evidence-first.** 파일 순서도 261:65 전수도 아니다. 한 세션의 단위는 **한 홉의 atomic observable contract row 묶음**이고, 첫 세션은 **H1만** 연다:
+1. **Python 계약 → Clojure 대응표 — hop 단위, evidence-first. 산출은 이슈 #1 의 H1 댓글.** 파일 순서도 261:65 전수도 아니다. 한 세션의 단위는 **한 홉의 atomic observable contract row 묶음**이고, 첫 세션은 **H1만** 연다:
    - **H1.1** default=clojure + explicit python
    - **H1.2** native ready language/protocol gate
    - **H1.3** clojure bootstrap / public bindings / state-op-off
@@ -78,7 +78,7 @@ kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 �
    - **`docs/clojure-runtime.md:336`** — protocol writer `*out*` 오염이 프레임을 찢는다. 계약서가 스스로 **"테스트가 없다"**고 적었다. H1급 프레이밍 회귀인데 261:65 표도 TS 17파일도 못 잡는다.
    - **`docs/clojure-runtime.md:337`** — 테스트 러너가 네임스페이스를 명시 require. **파일만 추가하면 조용히 안 돈다** → runner manifest / run receipt 필수.
    - **H2 formal-receive 행** (새 probe ID 가 필요하면 P5 로 배정 — `PROBE-SHEET.md` 에는 P1–P4 만 있다): Q-R3 의 여섯 PASS 조건 — explicit capability · child identity · notice/transcript/observe 0 · 양 arm 동일 계약 — 을 named test 로 고정한다. **이것은 성능평가가 아니다.**
-   - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py:72-186,208-263`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py:24-26,198-247,413-476`). 따라서 **capability family 아래 contract bundle 단위로** `DECISIONS.md` 에 카드를 만들어 GLG 가 고르게 한다:
+   - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py:72-186,208-263`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py:24-26,198-247,413-476`). 따라서 **capability family 아래 contract bundle 단위로** 카드를 만들어 **이슈 #1 댓글로 올려** GLG 가 고르게 한다:
      `Decision ID | Python user-visible job(한 문장) | Python tests/observable contract | Clojure 현재 surface + 실제 unavailable evidence | RLM loop 에서 잃는 것 / 대체 없음 | dependency·security boundary | smallest paired acceptance test | support 구현 범위 | explicit-exclusion meaning + negative test | future 면 reopen trigger | GLG 선택(support/exclude/future) | owner`
      GLG 선택 전에는 status = **`DECISION REQUIRED`**, (D)/PASS/exclusion 어느 것으로도 쓰지 않는다.
 2. **env 이음새 비대칭 기록** — runtime 종류는 팩토리 인자지만 실행파일 주입이 비대칭. python은 `python` 옵션, clojure는 **`PRIME_AGENT_CLOJURE_RUNTIME` env로만** (`src/core/kernel/runtime.ts:66-77`). `describe.each` 가능하되 arm별 주입을 갈라야 한다.
@@ -126,16 +126,13 @@ grep 함정 둘: `deftest ` 는 require의 `[deftest is]` 를 잡아 **73**으�
 - 인프라는 이미 양쪽 다 돈다: `repl-kernel-clojure-runtime` 14 pass 4.3s(네이티브 스폰) · `repl-kernel-execute` 6 pass 2.9s(실 python 커널).
 - `agent_message` 행에서는 네이티브 라이브 프로브가 `list_agents`·`send`·receipt·2회 독립성 **5/6 PASS** 를 보였다 (`src/core/agent-session.ts:9148` *"The host verbs themselves are runtime-neutral."*). **이 관측은 `agent_message` 행에만 적용한다.** 다른 빈 행은 표의 named test 와 실행 결과 전에는 '테스트 부재'도 '능력 부재'도 단정하지 않는다.
 
-## 산출물 위치 — 실무자가 이어서 채워도 머지 충돌이 없게
+## 어디에 쓰는가 — **새 문서를 만들지 않는다**
 
-NEXT 는 좌표와 다음 명령만, 이슈는 재개장 금지와 GLG 결정만. **검증 SSOT 는 별도 문서다.**
+- **NEXT** = 할 것과 좌표만.
+- **GitHub 이슈 #1** = 표·영수증·결정을 **공개로 진행한다.** 홉 하나가 댓글 하나. 그래야 서로 봐주면서 돕는다.
+- **`docs/` 아래 새 문서를 만들지 않는다.** docs 아래 문서는 deprecated 되기 쉽다 (그래서 `BASELINE.md` 는 루트로 올라왔다). 리포에 문서를 늘리지 않는다.
 
-```
-docs/rlm-reaudit/README.md      schema · row-ID 규칙 · status 정의 · receipt 형식   (코디만)
-docs/rlm-reaudit/H1.md … H8.md  해당 hop 의 행 + decisive receipt line             (실무자 1인 1파일)
-docs/rlm-reaudit/DECISIONS.md   (D) decision card 만                                (GLG·코디만)
-```
-공유 STATUS 파일은 만들지 않는다. 실무자는 **자기 `Hn.md` 하나와 해당 named test 만** 만진다.
+실무자는 자기 홉의 **이슈 댓글 하나**와 해당 named test 만 만진다. 머지 충돌이 없고, 진행이 공개된다.
 
 ## kill receipt — 값싸게, 반복 가능하게
 
@@ -155,8 +152,16 @@ supported 계약이 전부 (1) 양 arm 또는 **선언된 one-arm oracle**, (2) 
 
 ## 다음 (재감사 뒤) — 성능평가는 기준선을 새로 잡는다
 
-측정: **`b5e9e424`(H7) 는 `ed702304`(receive) 의 조상**(`git merge-base --is-ancestor` 확인). H7 A/B는 **receive 수선 전 코드**에서 돌았고 `evals/h7-functional-ab/RESULTS.md:138-140` 이 clj arm `agent_message` 부재를 기록한다. 이후 PASS는 `docs/BASELINE.md:182` 사람 인터뷰 1회뿐.
-→ 저비용 **양-arm 성능평가**를 수선 후 코드 기준으로 새로. 상한은 H7 급(8런 $0.00576)을 넘지 않는다. 그 뒤가 Emmy.
+측정: **`b5e9e424`(H7) 는 `ed702304`(receive) 의 조상**(`git merge-base --is-ancestor` 확인). H7 A/B는 **receive 수선 전 코드**에서 돌았고 `evals/h7-functional-ab/RESULTS.md:138-140` 이 clj arm `agent_message` 부재를 기록한다. 이후 PASS는 `BASELINE.md:182` 사람 인터뷰 1회뿐 (루트로 이동됨).
+→ **양-arm 성능평가**를 수선 후 코드 기준으로 새로 잡는다. 그 뒤가 Emmy.
+
+### 비용 — 스스로 상한을 정하지 않는다 (GLG)
+
+> "숫자 정하지 마라. 나한테 알려주면 내가 돈 있으면 지원할 테니까. **돈 때문에 못 하면 안 돼.** 빌려서라도 지원한다."
+
+- 비용이 드는 작업이면 **먼저 GLG에게 예상 비용을 알리고 상의한다.** 에이전트가 임의로 범위를 줄이지 않는다.
+- DeepSeek 는 API 여유가 있다 — **v4 pro / flash 둘 다 쓸 만하다.** 평가 arm 선택 시 첫 후보.
+- H7 의 `$0.00576` 은 **참고 실적**이지 상한이 아니다.
 
 ## 누적 leftover (blocker 아님, 표로 흡수)
 

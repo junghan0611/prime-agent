@@ -22,7 +22,7 @@
 ## H8 다음 순서 — Emmy로 바로 가지 않음
 
 1. **H2 leftover receive** (지금). 제목에 있던 fan-in. 명분 없으면 나중에 칸을 못 채움.
-2. **H1–H8 재검수** (내일). `docs/BASELINE.md` + 각 홉 leftover. 새 기능 아님.
+2. **H1–H8 재검수** (내일). `BASELINE.md` + 각 홉 leftover. 새 기능 아님.
 3. 그다음 **Emmy / SICM**. 재검수 전에 열지 않음.
 
 일상 루프: inspect → read → compute → spawn → **receive** → run → edit → verify.
