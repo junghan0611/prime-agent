@@ -36,8 +36,9 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 # NOW — H1–H8 재감사 = **커버리지 대응 + kill receipt**, 둘 다
 
 좌표: 이슈 [#1 comment](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5475775026) (2026-08-31).
-4인의 읽기 전용 입력을 반영했다 (Sonnet `ecd946` 측량 · glm-5.3 `75ccad` 2회 · Fable(bbot) oracle 검독 · terra `842aef` 방법론).
-**표 작성 · specific-test 실행 · kill receipt 는 아직 시작하지 않았다.**
+6인의 읽기 전용 입력을 반영했다 (Sonnet `ecd946` 측량 · glm-5.3 `75ccad` 2회 · Fable(bbot) oracle 검독 · terra `842aef` 방법론 · Opus `10ada8` 첫독자 · terra `651b4c` run.sh 검수).
+**표는 아직 0행이다.** 2026-08-31 은 문서 레일만 돌았다 — 커밋 10개 전부 문서·스크립트, production source 0줄.
+**다음 세션의 첫 손은 이슈 #1 의 H1 댓글이고, 그 전에 다른 커밋을 열지 않는다.**
 
 ## 왜 지금 커버리지인가 (GLG)
 
@@ -54,10 +55,12 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 
 ## 표의 형태 — 한 행
 
-`hop / Python 계약(oracle) / Clojure 대응 또는 선언된 divergence / named test / 실행 영수증 / **kill receipt** / native SUT 필요 / status`
+`hop / Python 계약(oracle) / Clojure 대응 또는 선언된 divergence / HEAD + named test + **그 행의 assertion·receipt fragment** / 실행 영수증 / **kill receipt** / native SUT 필요 / status`
 
 - **커버리지 열** = Python이 지키던 계약이 Clojure에 대응되는가
 - **kill receipt 열** = 그 계약을 고의로 깨면 그 테스트가 죽는가
+- **심볼 이름은 찾아가는 주소일 뿐 행의 정밀도가 아니다** (terra `651b4c`). `parentReplyCountBeforeRun` 같은 이름 하나는 캡처·비교·notice 부재의 *관계*를 지시하지 못한다. 행에는 반드시 assertion 또는 receipt fragment 를 함께 적는다.
+- **status 어휘:** kill receipt 가 붙기 전의 초록은 `PASS` 가 아니라 **`green/no-kill`** 이다.
 
 kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 되돌려 4건 중 2건이 실패함을 이미 확인했다. 표의 **상시 열로 승격**하는 것.
 
@@ -148,6 +151,7 @@ receipt 10필드: `row / HEAD / mode / fault semantic / patch digest / green com
 
 supported 계약이 전부 (1) 양 arm 또는 **선언된 one-arm oracle**, (2) named test 실제 PASS, (3) **kill receipt**, (4) native SUT 필요 행은 native 실행 영수증, (5) known deviation은 intentional FAIL/NO-CREDIT + owner 를 가질 때. runner manifest 로 "조용히 안 도는 파일" 없음을 함께 증명한다.
 
+**`green/no-kill` 도 미완료다** — 초록 하나로 PASS 칸을 만들지 않는다.
 **`DECISION REQUIRED` 는 미완료다. exclusion 은 negative-contract 가 PASS 여도 supported coverage PASS 가 아니다.** (이 문장이 없으면 '명시적 unavailable' 이 다시 coverage PASS 로 세어진다.)
 
 ## 다음 (재감사 뒤) — 성능평가는 기준선을 새로 잡는다
@@ -187,5 +191,14 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
   사실 오류 4건(env 로만 / 9148 스코프 / verb 누락 / clj 탭). 수선 `acdd0f92` → `0a60913f`.
   줄번호로 문서를 가리키는 것을 금지하고 남은 인용 7개를 앵커로 바꿨다. 이슈 #1 **본문**에
   낡음 배너 (CURRENT 는 스레드가 SSOT, `docs/BASELINE.md` → 루트).
+- [2026-08-31] `run.sh` 신설 + 좌표 인용 폐지 `c30f1514`. 문서·소스의 줄번호 인용 11개를 심볼
+  이름으로 교체(`resolveClojureRuntimeExecutable`, `agentMessageAnnouncedToModel`,
+  `parentReplyCountBeforeRun`, `sci/init` 바인딩 맵, bad-ready 테스트 이름). 명령 문자열은
+  `./run.sh` 로 이사 — `clj`/`py`(두 팔) · `build` · `test` · `test-native` · `lint` · `check`.
+- [2026-08-31] terra `651b4c` 검수 → **실물 결함 1건.** `run.sh` 주석이 "체크아웃마다 따로"라 적었는데
+  소켓 경로에 체크아웃 식별자가 없어 같은 UID 의 모든 worktree 가 `clj.sock`/`py.sock` 을 공유했다
+  (`main.ts` 는 `--daemon-socket` 을 그대로 쓴다). BASELINE 인터뷰가 이 wrapper 로 도니 양-arm
+  영수증의 격리가 조용히 깨질 자리였다. 수정 `0101191e` — 경로에 checkout 해시, 띄울 때 소켓 경로
+  출력, `py` arm 에서 clojure env 제거. **`bash -n` 은 의미 오류를 잡지 못한다.**
 - [2026-08-31] 좌표 확정 — 재감사 = 커버리지 대응 + kill receipt, 둘 다. 4인 검수 통과.
   261:65 경보로 강등. `clojure-runtime.md` 「코드를 읽어야만 알던 것」 1·2 행 추가. 이슈 #1 좌표 댓글.
