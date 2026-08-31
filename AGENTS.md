@@ -3,7 +3,9 @@
 > **이것은 fork 다.** 상류는 [PrimeIntellect-ai/prime-agent](https://github.com/PrimeIntellect-ai/prime-agent).
 > 상류 유지보수 규칙은 [AGENTS.upstream.md](./AGENTS.upstream.md) 에 그대로 보존돼 있고 **여전히 유효하다** —
 > 코드 품질, 커밋 규율, provider 추가 절차, daemon 프로토콜 규칙은 거기가 SSOT 다.
-> 이 문서는 그 위에 **이 포크가 무엇을 하려는지**를 얹는다. 둘이 충돌하면 이 문서가 이긴다.
+> 이 문서는 그 위에 **이 포크가 무엇을 하려는지**를 얹는다.
+> 이 문서는 **명시적으로 이름 붙인 fork-specific divergence 에서만** 상류를 우선한다.
+> 그 밖의 코드 품질, 커밋·릴리즈, provider, daemon protocol, 병렬 git 규칙은 `AGENTS.upstream.md` 가 SSOT 다.
 
 > **방향.** 이 포크는 Prime Agent 의 persistent RLM workspace 를 Clojure/SCI 로 **실제로 선택·실행 가능한 팔**로 만들어,
 > Python 과 같은 일을 **어디까지 할 수 있고 어디서 달라지는지를 측정하는 실험**이다.
@@ -23,6 +25,7 @@
 - **최종 성공은 GLG 가 workspace form 을 읽고 다음 설계를 판단할 수 있는가**다. **현재 단계의 통과 조건은** Python 계약 커버리지를 Clojure 에서 테스트로 대응해 **그 말을 할 자격을 얻는 것**이고, 그다음 양-arm 평가는 모델 행동을 재는 **별도 증거**다. 테스트 개수나 속도 하나만으로 성공을 선언하지 않는다.
 - **새 capability 는 게이트를 통과한 뒤에만.** 얼개가 있다고 기능을 늘리지 않는다.
 - **Python oracle 을 지운다는 선택지는 없다.** 두 팔이 같이 있어야 비교가 성립한다.
+- **실패는 결론이 아니라 분류할 관측이다.** Clojure arm 의 FAIL 은 `semantics-gap` / `model-fumble` / `harness-gap` 중 **영수증이 지지하는 것**으로만 기록한다. prose-only 통과나 Python fallback 은 Lisp 성공이 아니다.
 - **이 포크는 한 citizen 내부 computation 실험이다.** Entwurf 의 address·delivery·receipt 를 바꾸지 않고, **형제 사이 메시지를 실행 가능한 form 으로 승격하지 않는다.** coordination 과 computation 의 경계는 [entwurf#88](https://github.com/junghan0611/entwurf/issues/88) 의 전제이며, Emmy/steering 은 이 레일의 측정 뒤 **별도 GLG 게이트**다.
 
 판단할 때 묻는다:
@@ -39,21 +42,24 @@
 - **`prime-agent-runtime/`** — Python workspace. **oracle 이다.** 이 포크에서 지우거나 개명하지 않는다.
 - **호스트(`packages/coding-agent`)는 런타임 중립을 지향한다.** host verb 자체는 런타임과 무관하다 (`src/core/agent-session.ts:9148`). 런타임 분기는 필요한 곳에만 두고, Python 분기는 건드리지 않는 것이 기본이다.
 - **실행파일 주입이 비대칭이다.** python 은 `python` 옵션으로, clojure 는 `PRIME_AGENT_CLOJURE_RUNTIME` env 로만 들어간다 (`src/core/kernel/runtime.ts:66-77`). 테스트를 두 arm 으로 돌릴 때 이 비대칭을 갈라야 한다.
-- **CI 는 clojure 축에서 lint 전용이다** (`clojure-runtime.yml` — GitHub 에 GraalVM 이 없다). 네이티브 영수증은 로컬에서만 난다. 그래서 TS 는 바이너리 없이도 초록이어야 한다.
+- **현재 CI 는 clojure 축에서 lint 전용이다** (`clojure-runtime.yml` — GitHub 에 GraalVM 이 없다). native receipt 가 필요한 변경은 로컬 native SUT 로 남기며, TS 는 바이너리 없이도 초록이어야 한다. **CI 가정을 바꾸기 전에는 workflow 를 다시 측정한다.**
 
 ## Hard Rules
 
 1. **재감사는 커버리지 대응과 kill receipt 둘 다다.** 양자택일이 아니다. "이건 감사지 재검수가 아닌데" 하고 이 논쟁을 다시 열면 **둘 다 놓친다.** 판정은 이슈 #1 에 박혀 있다.
-2. **행의 단위는 하나의 observable scenario 다.** 파일도, grep 개수도, test 함수도 아니다. 한 Python 파일은 여러 행을 낼 수 있다. 하나의 named test 가 여러 행을 덮을 때는 각 행이 그 테스트의 **서로 다른 assertion 또는 receipt fragment** 를 가리켜야 한다. **하나의 green 결과를 여러 계약의 PASS 로 재사용하지 않는다.**
+   **H2 formal receive** 는 Q-R3 의 explicit capability · child identity · notice/transcript/observe 0 · 양 arm 동일 계약을 고정하는 **무료 정확성 행**이며, 다음 유료 양-arm 평가는 **별도**다.
+2. **행의 단위는 하나의 observable scenario 다.** 파일도, grep 개수도, test 함수도 아니다. 한 Python 파일은 여러 행을 낼 수 있다. 하나의 named test 가 여러 행을 덮을 때는 각 행이 그 테스트의 **서로 다른 assertion 또는 receipt fragment** 를 가리켜야 한다. **하나의 green 결과를 근거 없이 여러 계약의 PASS 로 재사용하지 않는다.**
 3. **테스트 개수의 비(比)는 경보이지 근거가 아니다.** pytest 와 deftest 는 분할·parameterization·assert 밀도가 다르다. 근거는 contract row 다.
 4. **"없다고 적는 것"은 커버리지가 아니다.** 제품 구멍을 계약서에 선언하는 것은 거짓 parity 를 막는 scope 선언일 뿐 PASS 칸을 만들지 못한다. `DECISION REQUIRED` 는 미완료이고, explicit exclusion 은 negative-contract 가 PASS 여도 supported coverage PASS 가 아니다.
-5. **비용 상한을 에이전트가 정하지 않는다.** 비용이 드는 작업이면 **예상치를 먼저 알리고 GLG 가 정한다.** 돈을 이유로 범위를 줄이지 않는다. DeepSeek 는 여유가 있다 (v4 pro / flash 둘 다).
+5. **비용 상한을 에이전트가 정하지 않는다.** 비용이 드는 작업은 **목적 · model · arm · run 수와 예상 비용을 먼저 GLG 에게 알린다.** 돈을 이유로 범위를 줄이지 않는다. 비용·provider 의 **현재 승인 상태는 이슈 스레드나 GLG 의 현재 지시에서만 읽고, 이 문서에 고정하지 않는다.**
 6. **문서를 늘리지 않는다.** 진행·표·영수증·결정은 **이슈에 공개로** 쌓는다. 그래야 서로 봐주면서 돕는다. `docs/` 아래 새 문서는 deprecated 되기 쉬우니 만들지 않는다 — 그래서 `BASELINE.md` 는 루트에 있다.
-7. **영수증 없는 문장은 사실이 아니라 가설이다.** 세션을 건너는 모든 사실 문장에 증거 상태를 단다: 여기서 측정함 / `file:line` 에서 읽음 / 외부 산출물에서 읽음(경로) / 상속했고 미확인(출처). 호스트 로컬 경로의 영수증은 건너가지 못한다 — 결정적 줄을 건너가는 산출물에 붙여 넣는다.
+   재현 가능한 평가의 `evals/<name>/` probe·runner·analyzer 와 그 commit-pinned 결과는 **실행 artifact 이지 금지 대상이 아니다.** 다만 새 진행표·결정·영수증 문서로 자라지 않으며, 진행 상태와 결정은 이슈 #1 에 남긴다.
+   이슈 댓글의 authorship 표기, temp body-file, preview 규칙은 `AGENTS.upstream.md` 의 GitHub Workflow 를 따른다.
+7. **영수증 없는 문장은 사실이 아니라 가설이다.** **세션·이슈·형제 handoff 를 건너는** 사실 문장에 증거 상태를 단다 (자기 턴 안의 작업 메모는 해당 없음): 여기서 측정함 / `file:line` 에서 읽음 / 외부 산출물에서 읽음(경로) / 상속했고 미확인(출처). 호스트 로컬 경로의 영수증은 건너가지 못한다 — 결정적 줄을 건너가는 산출물에 붙여 넣는다.
 8. **주장을 은퇴시키지 사람을 은퇴시키지 않는다.** 영수증 없는 주장의 답은 "틀렸다"가 아니라 "영수증이 없어서 내가 쟀다"이다.
 9. **`git stash` 를 쓰지 않는다.** 여러 형제가 같은 트리에서 일한다 — stash 는 남의 변경까지 함께 보관한다. 격리가 필요하면 임시 worktree 를 쓰고 지운다.
-10. **`npm test` 전체를 돌리지 않는다.** 특정 파일만: `npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`, 패키지 루트에서. (상류 규칙 유지)
-11. **커밋은 에이전트가, 푸시는 GLG 가 정한다.** 커밋 요청이 푸시를 함의하지 않는다.
+10. **`npm test` 전체를 돌리지 않는다.** 특정 파일만: `npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`, 패키지 루트에서. 테스트 실행의 **승인 범위**와 코드 변경 뒤 **`npm run check` 의무**는 `AGENTS.upstream.md` 를 따른다.
+11. **에이전트는 요청된 활성 commit workflow 안에서만 커밋을 실행할 수 있다.** push 시점과 실행은 **GLG 의 현재 세션 지시**가 있어야 한다. 커밋 요청이 푸시를 함의하지 않는다.
 12. **Do not touch:** Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy. 열려면 GLG 승인이 먼저다.
 
 ## 검증 축 — 무엇이 무엇을 잡는가
@@ -68,7 +74,7 @@
 
 **무료 축과 유료 축은 겹치지 않는다.** 무료 축은 기계 계약, 유료 축은 모델 행동이다. 그래서 무료 축이 늘었다고 유료 축을 줄이지 않는다.
 
-`clojure -M:test` 와 `:test-native` 는 둘 다 native SUT 다 (`prime-agent-runtime-clj/test/rlm/sut.clj`). **JVM SUT 는 없다** — `56631f36` 이 의도적으로 지웠고 이유는 `docs/clojure-runtime.md:136`.
+`clojure -M:test` 와 `:test-native` 는 둘 다 native SUT 다 (`prime-agent-runtime-clj/test/rlm/sut.clj`). **JVM SUT 는 없다** — 경위는 `docs/clojure-runtime.md`.
 
 ### 이미 알려진 함정
 
@@ -113,7 +119,7 @@
 ## Next and References
 
 - [NEXT--feat_clojure-runtime.md](./NEXT--feat_clojure-runtime.md) — 지금 좌표와 다음 한 걸음. 브랜치 작업은 일회용 `NEXT--<branch>.md`.
-- [issue #1](https://github.com/junghan0611/prime-agent/issues/1) — **판.** 표·영수증·결정이 여기 공개로 쌓인다. 홉 하나가 댓글 하나.
+- [issue #1](https://github.com/junghan0611/prime-agent/issues/1) — **판.** 표·영수증·결정 카드가 공개로 쌓인다. 홉 하나가 댓글 하나. **현재 첫 산출은 H1 댓글**(H1.1 default · H1.2 ready gate · H1.3 bootstrap/state-op-off · H1.4 framing)이며, NEXT 의 현재 행을 먼저 읽는다.
 - [ROADMAP.md](./ROADMAP.md) — 제품 홉 H1–H8 과 그다음(Emmy/SICM).
 - [BASELINE.md](./BASELINE.md) — 운영자 인터뷰 프로토콜과 기록된 런.
 - [docs/clojure-runtime.md](./docs/clojure-runtime.md) — Clojure 런타임 계약서. 알려진 편차와 "코드를 읽어야만 알던 것".
