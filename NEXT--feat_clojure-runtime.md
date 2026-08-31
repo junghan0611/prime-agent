@@ -1,7 +1,7 @@
 # feat/clojure-runtime — 8홉 레일 닫힘
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = **H1–H8 재검수 — 테스트로 비교 검출** (방향 확정 2026-08-31, 이슈 #1). H2 leftover receive 닫힘 (`ed702304`). Emmy로 바로 가지 않음.
+CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-08-31, 이슈 #1). 착수 1 = `docs/rlm-reaudit/H1.md` 에 H1.1–H1.4 를 채운다. **H1 이 닫히기 전에는 TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -33,28 +33,77 @@ CURRENT = **H1–H8 재검수 — 테스트로 비교 검출** (방향 확정 20
 
 현재 좌표: H0–H8 checkpoint · leftover receive 닫힘 → **H1–H8 재검수 (방법 확정, 착수 1번부터)** → (그다음 Emmy).
 
-# NOW — H1–H8 재검수: **테스트로 비교 검출**
+# NOW — H1–H8 재감사 = **커버리지 대응 + kill receipt**, 둘 다
 
-새 기능 없음. Emmy 없음. 코드 품질 리뷰 아님. 질문은 하나 — **각 홉이 조용히 깨졌을 때 무엇이 잡아내는가.** 산출물은 의견이 아니라 커버리지 표.
+좌표: 이슈 [#1 comment](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5475775026) (2026-08-31).
+4인의 읽기 전용 입력을 반영했다 (Sonnet `ecd946` 측량 · glm-5.3 `75ccad` 2회 · Fable(bbot) oracle 검독 · terra `842aef` 방법론).
+**표 작성 · specific-test 실행 · kill receipt 는 아직 시작하지 않았다.**
 
-방향 확정: 이슈 [#1 comment](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5475204988) (2026-08-31, Opus 코디 + Sonnet 측량 + zai/glm-5.3 2회 검수, 전부 읽기전용).
+## 왜 지금 커버리지인가 (GLG)
 
-## 계량법 — 셋을 병기한다
+어제는 Lisp 이식을 뚫는 게 먼저라 커버리지를 미뤘다. JVM 버리고 GraalVM/SCI로 간 결정이 더 중요했고, 뚫렸다 — DeepSeek 인터뷰에서 RLM이 실제로 뭔가 되고 "그냥 pi면 안 되는데"가 보인다. **오늘은 Python이 지키던 구조·행동 커버리지를 Clojure에서 실제 테스트로 대응시킨다.** 그 다음이 저비용 양-arm 성능평가, 그 위가 Emmy. **커버리지는 절차가 아니라 GLG가 단단하게 말할 수 있는 근거다.**
+
+## ⚠ 다시 열지 말 것
+
+- **"재감사냐 커버리지냐"는 양자택일이 아니다.** 같은 표의 다른 열. 이 논쟁을 다시 열면 **둘 다 놓친다.**
+- `261:65` 는 **경보**지 판단 근거가 아니다. 근거는 contract row 수.
+- (D)를 계약서에 적는 것은 **scope 선언**일 뿐 PASS 칸이 아니다.
+- TS 17파일 뒤집기는 **4번**이지 1번이 아니다.
+- H7의 `$0.00576` 은 다음 평가의 **비용 상한**으로만 쓴다. H7의 기능·성능 **결과**는 receive 수선 전 commit 이므로 수선 후 성능 기준선으로 재사용하지 않는다.
+- JVM SUT 문구 정정 — 고칠 살아있는 문서 없음.
+
+## 표의 형태 — 한 행
+
+`hop / Python 계약(oracle) / Clojure 대응 또는 선언된 divergence / named test / 실행 영수증 / **kill receipt** / native SUT 필요 / status`
+
+- **커버리지 열** = Python이 지키던 계약이 Clojure에 대응되는가
+- **kill receipt 열** = 그 계약을 고의로 깨면 그 테스트가 죽는가
+
+kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 되돌려 4건 중 2건이 실패함을 이미 확인했다. 표의 **상시 열로 승격**하는 것.
+
+**행의 단위는 파일·grep 개수·test 함수가 아니라 하나의 observable scenario 다.** 한 Python 파일은 여러 행을 낼 수 있고, 한 named test 도 여러 행의 영수증이 될 수 없다. source 는 계약과 test 위치를 찾을 때만 읽고 **품질 평가는 하지 않는다.**
+
+## 착수 순서
+
+1. **Python 계약 → Clojure 대응표 — hop 단위, evidence-first.** 파일 순서도 261:65 전수도 아니다. 한 세션의 단위는 **한 홉의 atomic observable contract row 묶음**이고, 첫 세션은 **H1만** 연다:
+   - **H1.1** default=clojure + explicit python
+   - **H1.2** native ready language/protocol gate
+   - **H1.3** clojure bootstrap / public bindings / state-op-off
+   - **H1.4** native JSONL stdout framing ← **이미 '테스트 없음'이 확인된 첫 빈 행** (`docs/clojure-runtime.md:336`)
+
+   각 행의 작성 순서: (a) Python oracle/acceptance 를 한 문장으로 고정 → (b) 대응 Clojure observable 또는 divergence → (c) 현재 named test 를 **역방향으로** 붙임 → (d) specific test Green receipt / SUT 표기 → (e) kill mode 결정 → (f) 비어 있으면 **그제서야** (c)/(D) 분류.
+   H1 다음 H2(formal-receive 포함), 그다음 H3…H8. TS 17파일은 H1–H8 표에서 안 잡힌 Python-host row 만 남은 뒤 4번으로 연다.
+
+   반드시 행으로 포함할 것:
+   - **`docs/clojure-runtime.md:336`** — protocol writer `*out*` 오염이 프레임을 찢는다. 계약서가 스스로 **"테스트가 없다"**고 적었다. H1급 프레이밍 회귀인데 261:65 표도 TS 17파일도 못 잡는다.
+   - **`docs/clojure-runtime.md:337`** — 테스트 러너가 네임스페이스를 명시 require. **파일만 추가하면 조용히 안 돈다** → runner manifest / run receipt 필수.
+   - **H2 formal-receive 행** (새 probe ID 가 필요하면 P5 로 배정 — `PROBE-SHEET.md` 에는 P1–P4 만 있다): Q-R3 의 여섯 PASS 조건 — explicit capability · child identity · notice/transcript/observe 0 · 양 arm 동일 계약 — 을 named test 로 고정한다. **이것은 성능평가가 아니다.**
+   - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py:72-186,208-263`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py:24-26,198-247,413-476`). 따라서 **capability family 아래 contract bundle 단위로** `DECISIONS.md` 에 카드를 만들어 GLG 가 고르게 한다:
+     `Decision ID | Python user-visible job(한 문장) | Python tests/observable contract | Clojure 현재 surface + 실제 unavailable evidence | RLM loop 에서 잃는 것 / 대체 없음 | dependency·security boundary | smallest paired acceptance test | support 구현 범위 | explicit-exclusion meaning + negative test | future 면 reopen trigger | GLG 선택(support/exclude/future) | owner`
+     GLG 선택 전에는 status = **`DECISION REQUIRED`**, (D)/PASS/exclusion 어느 것으로도 쓰지 않는다.
+2. **env 이음새 비대칭 기록** — runtime 종류는 팩토리 인자지만 실행파일 주입이 비대칭. python은 `python` 옵션, clojure는 **`PRIME_AGENT_CLOJURE_RUNTIME` env로만** (`src/core/kernel/runtime.ts:66-77`). `describe.each` 가능하되 arm별 주입을 갈라야 한다.
+3. **receive 재판정 기계화** — `src/core/agent-session.ts:10502` 캡처(`parentReplyCountBeforeRun`) → `10514-10518` 비교. notice는 `child._parentReplyCount === parentReplyCountBeforeRun` 일 때만 발화 → Q-R3 재판정은 A/B 재실행 없이 **인터뷰 + 카운트로 $0**.
+4. **TS 17파일 뒤집기** — `kernel-agent-message-skill`(7) → `kernel-agent-observe-skill`(2) → `acp-kernel-features`(4).
+
+## 지도 — 폐기 없음, 1번의 재료
 
 | 축 | python | clojure |
 |---|---|---|
-| **런타임 층** (진짜 분모) | **261** pytest | **65** deftest |
-| TS 호스트 pin | occurrence **79** / python-경유 it **~105** | 대칭 it **14** |
+| 런타임 층 (**경보용**) | 261 pytest | 65 deftest |
+| TS 호스트 pin | occurrence 79 / 20파일 / it ~105 | 대칭 it 14 / **순수 비대칭 17파일** |
 
 ```bash
 grep -c 'def test_' prime-agent-runtime/test/*.py                        # 261
 grep -h '^(deftest' prime-agent-runtime-clj/test/rlm/*_test.clj | wc -l  # 65  ← 앵커 필수
 grep -ro 'runtime: *"python"\|kernelRuntime: *"python"' packages/coding-agent/test/ | wc -l  # 79 occurrences
 grep -rl 'runtime: *"python"\|kernelRuntime: *"python"' packages/coding-agent/test/ | wc -l  # 20 files
-grep -rl 'kernelRuntime: *"clojure"\|runtime: *"clojure"' packages/coding-agent/test/       # 4 → 20-3=17 순수 비대칭
+grep -rl 'kernelRuntime: *"clojure"\|runtime: *"clojure"' packages/coding-agent/test/       # 4 → 20-3=17
 grep -cE '^\s*it(\.skipIf)?\(' packages/coding-agent/test/repl-kernel-clojure-runtime.test.ts # 14
 ```
-`grep -c 'deftest '` 는 require의 `[deftest is]` 를 잡아 73으로 부풀린다. `it(` 정적 카운트는 `it.skipIf(` 를 놓쳐 13으로 샌다(실제 14). **표는 it 단위로 센다. 79는 occurrence 메트릭으로만.**
+grep 함정 둘: `deftest ` 는 require의 `[deftest is]` 를 잡아 **73**으로 부풀고, naive `it(` 는 `it.skipIf(` 를 놓쳐 13 또는 `toEmit(` 를 잡아 17로 샌다.
+
+**최대 구멍:** `test_mcp`+`test_mcp_base` **49 ↔ 0** — clj src 0파일, `docs/clojure-runtime.md` 0건. **제외 선언조차 없이 없다.** `test_harness` 35 ↔ 0 동일. `test_winjob` 22 는 정당한 (a).
+**거의 1:1:** `test_subagent_registry` 10 ↔ `host_bridge` 10.
 
 ## 분류 4분기 — 정적 징후로 가른다
 
@@ -64,41 +113,52 @@ grep -cE '^\s*it(\.skipIf)?\(' packages/coding-agent/test/repl-kernel-clojure-ru
 - **(D)** 기능 자체 없음(제품 구멍) — clj src에 개념 부재
 
 **판정법:** `expect` 대상이 `buildX()` 반환값이면 정적, `manager.execute(...)` 반환값이면 라이브.
-파일 단위 3분법은 큰 파일에서 깨진다 — `acp-kernel-features`·`kernel-goal-skill`·`kernel-rlm-heartbeat-skill` 은 한 파일에 (a)/(b) 혼재. 확정된 오분류 2건: `attach-image` (b)→**(D)**, `ipython-provisioner` (a)→**(b)**.
-
-## 착수 순서 — TS 뒤집기가 첫 수가 아니다
-
-1. **런타임 층 261:65 대응표** + **(D) 목록을 `docs/clojure-runtime.md` 에 선언.** 최대 구멍: **`test_mcp`+`test_mcp_base` 49 ↔ 0** (clj src 0파일, 계약서 0건 — 제외 선언조차 없음). `test_harness` 35↔0 동일. `test_winjob` 22 는 정당 (a).
-2. **env 이음새 비대칭 기록** — runtime *종류*는 팩토리 인자지만 실행파일 주입이 비대칭. python은 `python` 옵션, clojure는 **`PRIME_AGENT_CLOJURE_RUNTIME` env로만** (`src/core/kernel/runtime.ts:66-77`). `describe.each` 가능하되 arm별 주입을 갈라야 한다.
-3. **receive 재판정 기계화** — `src/core/agent-session.ts:10502` 캡처(`parentReplyCountBeforeRun`) → `10514-10518` 비교. `child._parentReplyCount === parentReplyCountBeforeRun` 일 때만 notice 발화 → Q-R3 재판정은 A/B 재실행이 아니라 **인터뷰 + 카운트로 $0**.
-4. **TS 17파일 뒤집기** (20 중 3개는 이미 clojure 형제 단언 보유): `kernel-agent-message-skill`(7) → `kernel-agent-observe-skill`(2) → `acp-kernel-features`(4).
+파일 단위 3분법은 큰 파일에서 깨진다 — `acp-kernel-features`·`kernel-goal-skill`·`kernel-rlm-heartbeat-skill` 은 한 파일에 (a)/(b) 혼재. 확정 오분류 2건: `attach-image` (b)→**(D)**, `ipython-provisioner` (a)→**(b)**.
+커버리지 축((a)(b)(c)(D))과 원인 축(`harness-gap`/`surface-seam`/`semantics-gap`/`model-fumble`)은 상보. FAIL에 원인 태그를 함께 단다.
 
 ## 환경 사실 — 모르면 첫 시도에서 막힌다
 
-- 실행은 **`npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`**, `packages/coding-agent` 에서. **`npm test` 전체 금지** (AGENTS.md:27-28).
-- 네이티브 바이너리 `prime-agent-runtime-clj/target/rlm-repl` (없으면 `native-image/build.sh`). 게이팅은 `it.skipIf(!existsSync(nativeRuntime))` 패턴.
-- **CI는 lint 전용** (`clojure-runtime.yml` — GraalVM 없음). flip 결과는 로컬에서만 돈다.
-- **경로 주의:** `agent-session.ts` / `repl-manager.ts` / `runtime.ts` 는 전부 **`packages/coding-agent/src/core/`** 아래다.
-- **shape 함정:** `src/core/kernel/repl-manager.ts:841` `handler({ ...data, cellSourceCode })` — 양 팔 공통의 의도된 provenance 태깅. clojure 단언에 반영해야 python 파일과 대칭이 된다.
+- 실행: **`npx tsx ../../node_modules/vitest/dist/cli.js --run test/<file>.test.ts`**, `packages/coding-agent` 에서. **`npm test` 전체 금지** (AGENTS.md:27-28).
+- 네이티브 바이너리 `prime-agent-runtime-clj/target/rlm-repl` (없으면 `native-image/build.sh`). 게이팅 `it.skipIf(!existsSync(nativeRuntime))`.
+- **CI는 lint 전용** (`clojure-runtime.yml`, GraalVM 없음). flip 결과는 로컬에서만 돈다.
+- **경로:** `agent-session.ts` / `repl-manager.ts` / `runtime.ts` 는 전부 `packages/coding-agent/src/core/` 아래.
+- **shape 함정:** `src/core/kernel/repl-manager.ts:841` `handler({ ...data, cellSourceCode })` — 양 팔 공통의 의도된 provenance 태깅.
+- 인프라는 이미 양쪽 다 돈다: `repl-kernel-clojure-runtime` 14 pass 4.3s(네이티브 스폰) · `repl-kernel-execute` 6 pass 2.9s(실 python 커널).
+- `agent_message` 행에서는 네이티브 라이브 프로브가 `list_agents`·`send`·receipt·2회 독립성 **5/6 PASS** 를 보였다 (`src/core/agent-session.ts:9148` *"The host verbs themselves are runtime-neutral."*). **이 관측은 `agent_message` 행에만 적용한다.** 다른 빈 행은 표의 named test 와 실행 결과 전에는 '테스트 부재'도 '능력 부재'도 단정하지 않는다.
 
-## 오늘 실증된 것 (능력 부재가 아니라 테스트 부재)
+## 산출물 위치 — 실무자가 이어서 채워도 머지 충돌이 없게
 
-네이티브 바이너리 라이브 프로브: `list_agents` roster 횡단 · `send` round-trip · receipt 회귀 · 2회 독립성 **5/6 pass**. 소스가 명문화 — `src/core/agent-session.ts:9148` *"The host verbs themselves are runtime-neutral."*
-인프라 영수증: `repl-kernel-clojure-runtime` 14 pass 4.3s(네이티브 스폰, 외부의존 없음) · `repl-kernel-execute` 6 pass 2.9s(실 python 커널). **양쪽 다 이미 돈다.**
-라이브 검증은 0이 아니라 **1** — `test/repl-kernel-clojure-runtime.test.ts:341` "drives a host request through the native runtime".
+NEXT 는 좌표와 다음 명령만, 이슈는 재개장 금지와 GLG 결정만. **검증 SSOT 는 별도 문서다.**
 
-## 범위 — 선언은 안에, 구현은 밖
+```
+docs/rlm-reaudit/README.md      schema · row-ID 규칙 · status 정의 · receipt 형식   (코디만)
+docs/rlm-reaudit/H1.md … H8.md  해당 hop 의 행 + decisive receipt line             (실무자 1인 1파일)
+docs/rlm-reaudit/DECISIONS.md   (D) decision card 만                                (GLG·코디만)
+```
+공유 STATUS 파일은 만들지 않는다. 실무자는 **자기 `Hn.md` 하나와 해당 named test 만** 만진다.
 
-(D) 제품 구멍은 **이름붙은 목록 + 계약서 선언**까지만. 구현은 별도 홉(ROADMAP: "재검수는 새 기능 아님"). 커버리지는 무료 vitest 축이, 가능성은 유료 A/B 축이 증명한다 — 두 축은 겹치지 않으므로 A/B를 줄이지 않는다.
+## kill receipt — 값싸게, 반복 가능하게
 
-**완료 조건:** 17파일이 it 단위로 (a)/(b)/(c)/(D) 표의 행이 되고, (c) 중 FAIL한 것이 "채울 빈 곳"으로 이름을 얻는다.
-(a)(b)(c)(D)는 **커버리지 축**, `harness-gap`/`surface-seam`/`semantics-gap`/`model-fumble` 은 **원인 축** — 상보. FAIL에 원인 태그를 함께 달면 표 한 장에서 entwurf#88 연구질문이 읽힌다.
+**`git stash` 금지** (타인 변경을 함께 보관한다).
 
-## 폐기된 항목
+1. **우선 production source 무변경 fault seam** — fixture·env·fake-host 입력으로 깬다: fake runtime 의 bad ready / extra stdout, env 의 bad executable, no-controller, host reply error. H1 에는 이미 bad-ready fake test 가 있다 (`repl-kernel-clojure-runtime.test.ts:122-145`).
+2. **그런 seam 이 없는 행만** isolated temporary worktree 에서 single causal expression 을 뒤집는다. 공유 worktree 는 건드리지 않는다 — pristine HEAD worktree 에 apply → named specific test **Red** → receipt 저장 → worktree 제거.
 
-- ~~ROADMAP "native/JVM SUT rails" 문구 정정~~ — 살아있는 문서에 그 문구가 없다(grep 0건). 커밋 `311643a6` 제목일 뿐이고 `56631f36` 이 의도적으로 지웠으며 이유는 `docs/clojure-runtime.md:136`. **체크리스트에서 삭제.**
+receipt 10필드: `row / HEAD / mode / fault semantic / patch digest / green command+result / kill command+expected failure / observed decisive line / native-or-fake / cleaned`.
+**negative-contract test**(unsupported 가 정직하게 실패하는가)는 kill receipt 와 **별개로** 적는다. H2 의 "게이트 되돌리기 → 4 중 2 fail"(`ed702304`)이 이 형식의 선례다.
 
-## 누적 leftover (blocker 아님, 위 표로 흡수)
+## 완료 조건
+
+supported 계약이 전부 (1) 양 arm 또는 **선언된 one-arm oracle**, (2) named test 실제 PASS, (3) **kill receipt**, (4) native SUT 필요 행은 native 실행 영수증, (5) known deviation은 intentional FAIL/NO-CREDIT + owner 를 가질 때. runner manifest 로 "조용히 안 도는 파일" 없음을 함께 증명한다.
+
+**`DECISION REQUIRED` 는 미완료다. exclusion 은 negative-contract 가 PASS 여도 supported coverage PASS 가 아니다.** (이 문장이 없으면 '명시적 unavailable' 이 다시 coverage PASS 로 세어진다.)
+
+## 다음 (재감사 뒤) — 성능평가는 기준선을 새로 잡는다
+
+측정: **`b5e9e424`(H7) 는 `ed702304`(receive) 의 조상**(`git merge-base --is-ancestor` 확인). H7 A/B는 **receive 수선 전 코드**에서 돌았고 `evals/h7-functional-ab/RESULTS.md:138-140` 이 clj arm `agent_message` 부재를 기록한다. 이후 PASS는 `docs/BASELINE.md:182` 사람 인터뷰 1회뿐.
+→ 저비용 **양-arm 성능평가**를 수선 후 코드 기준으로 새로. 상한은 H7 급(8런 $0.00576)을 넘지 않는다. 그 뒤가 Emmy.
+
+## 누적 leftover (blocker 아님, 표로 흡수)
 
 H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event 없음/delete·rename·mkdir 없음 · H6 busy-kernel 대화상자 Python 어휘 · H7 `process-tail`·`Integer/parseInt` 문구 · spawn handle `name` vs registry `session_name` · child doctrine (B) 미분리 · 봉투 문구 · SCI 닫힌 이름.
 
@@ -117,3 +177,5 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
   P4 에서 `(rlm-children)` 이 live 로 동작 — H6 이 만든 dashed key 가 트레이스에 보인다.
 - [2026-08-31] 재검수 방향 확정 — 테스트 비교 검출. 분모 정정 261:65. mcp 49↔0 발견.
   이슈 #1 댓글. 측량 Sonnet `ecd946`, 검수 zai/glm-5.3 `75ccad` 2회.
+- [2026-08-31] 좌표 확정 — 재감사 = 커버리지 대응 + kill receipt, 둘 다. 4인 검수 통과.
+  261:65 경보로 강등. `clojure-runtime.md:336-337` 행 추가. 이슈 #1 좌표 댓글.
