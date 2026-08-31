@@ -69,14 +69,14 @@ kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 �
    - **H1.1** default=clojure + explicit python
    - **H1.2** native ready language/protocol gate
    - **H1.3** clojure bootstrap / public bindings / state-op-off
-   - **H1.4** native JSONL stdout framing ← **이미 '테스트 없음'이 확인된 첫 빈 행** (`docs/clojure-runtime.md:336`)
+   - **H1.4** native JSONL stdout framing ← **이미 '테스트 없음'이 확인된 첫 빈 행** (`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 1)
 
    각 행의 작성 순서: (a) Python oracle/acceptance 를 한 문장으로 고정 → (b) 대응 Clojure observable 또는 divergence → (c) 현재 named test 를 **역방향으로** 붙임 → (d) specific test Green receipt / SUT 표기 → (e) kill mode 결정 → (f) 비어 있으면 **그제서야** (c)/(D) 분류.
    H1 다음 H2(formal-receive 포함), 그다음 H3…H8. TS 17파일은 H1–H8 표에서 안 잡힌 Python-host row 만 남은 뒤 4번으로 연다.
 
    반드시 행으로 포함할 것:
-   - **`docs/clojure-runtime.md:336`** — protocol writer `*out*` 오염이 프레임을 찢는다. 계약서가 스스로 **"테스트가 없다"**고 적었다. H1급 프레이밍 회귀인데 261:65 표도 TS 17파일도 못 잡는다.
-   - **`docs/clojure-runtime.md:337`** — 테스트 러너가 네임스페이스를 명시 require. **파일만 추가하면 조용히 안 돈다** → runner manifest / run receipt 필수.
+   - **`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 1** — protocol writer `*out*` 오염이 프레임을 찢는다. 계약서가 스스로 **"테스트가 없다"**고 적었다. H1급 프레이밍 회귀인데 261:65 표도 TS 17파일도 못 잡는다.
+   - **`docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 2** — 테스트 러너가 네임스페이스를 명시 require. **파일만 추가하면 조용히 안 돈다** → runner manifest / run receipt 필수.
    - **H2 formal-receive 행** (새 probe ID 가 필요하면 P5 로 배정 — `PROBE-SHEET.md` 에는 P1–P4 만 있다): Q-R3 의 여섯 PASS 조건 — explicit capability · child identity · notice/transcript/observe 0 · 양 arm 동일 계약 — 을 named test 로 고정한다. **이것은 성능평가가 아니다.**
    - **(D) 항목별 결정** — `49`/`35` 라는 수는 **결정 정보가 아니다.** MCP 에는 auth credential resolution · host refresh · tool list/call · structured/error result 가 섞여 있고 (`prime-agent-runtime/test/test_mcp_base.py:72-186,208-263`), harness 에는 persistent local/global state · memory/skill CRUD · Python reference enforcement · external-write reload 가 섞여 있다 (`test_harness.py:24-26,198-247,413-476`). 따라서 **capability family 아래 contract bundle 단위로** 카드를 만들어 **이슈 #1 댓글로 올려** GLG 가 고르게 한다:
      `Decision ID | Python user-visible job(한 문장) | Python tests/observable contract | Clojure 현재 surface + 실제 unavailable evidence | RLM loop 에서 잃는 것 / 대체 없음 | dependency·security boundary | smallest paired acceptance test | support 구현 범위 | explicit-exclusion meaning + negative test | future 면 reopen trigger | GLG 선택(support/exclude/future) | owner`
@@ -152,7 +152,7 @@ supported 계약이 전부 (1) 양 arm 또는 **선언된 one-arm oracle**, (2) 
 
 ## 다음 (재감사 뒤) — 성능평가는 기준선을 새로 잡는다
 
-측정: **`b5e9e424`(H7) 는 `ed702304`(receive) 의 조상**(`git merge-base --is-ancestor` 확인). H7 A/B는 **receive 수선 전 코드**에서 돌았고 `evals/h7-functional-ab/RESULTS.md:138-140` 이 clj arm `agent_message` 부재를 기록한다. 이후 PASS는 `BASELINE.md:182` 사람 인터뷰 1회뿐 (루트로 이동됨).
+측정: **`b5e9e424`(H7) 는 `ed702304`(receive) 의 조상**(`git merge-base --is-ancestor` 확인). H7 A/B는 **receive 수선 전 코드**에서 돌았고 `evals/h7-functional-ab/RESULTS.md` 의 `harness-gap` 항목이 clj arm `agent_message` 부재를 기록한다. 이후 PASS는 `BASELINE.md` 의 Q-R3 행 (사람 인터뷰 1회) 뿐 — 루트로 이동됐다.
 → **양-arm 성능평가**를 수선 후 코드 기준으로 새로 잡는다. 그 뒤가 Emmy.
 
 ### 비용 — 스스로 상한을 정하지 않는다 (GLG)
@@ -183,4 +183,4 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 - [2026-08-31] 재검수 방향 확정 — 테스트 비교 검출. 분모 정정 261:65. mcp 49↔0 발견.
   이슈 #1 댓글. 측량 Sonnet `ecd946`, 검수 zai/glm-5.3 `75ccad` 2회.
 - [2026-08-31] 좌표 확정 — 재감사 = 커버리지 대응 + kill receipt, 둘 다. 4인 검수 통과.
-  261:65 경보로 강등. `clojure-runtime.md:336-337` 행 추가. 이슈 #1 좌표 댓글.
+  261:65 경보로 강등. `clojure-runtime.md` 「코드를 읽어야만 알던 것」 1·2 행 추가. 이슈 #1 좌표 댓글.
