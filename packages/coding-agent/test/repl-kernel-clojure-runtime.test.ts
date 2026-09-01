@@ -156,9 +156,28 @@ describe("clojure kernel runtime", () => {
 			const requests = journal().flatMap((entry) => (entry.request ? [entry.request] : []));
 			const executed = requests.filter((r) => r.type === "execute").map((r) => String(r.code));
 			expect(executed).toEqual([buildClojureBootstrapCode()]);
-			expect(executed[0]).toMatch(/\(fn\? rlm\)/);
-			expect(executed[0]).toMatch(/\(fn\? process-start\)/);
-			expect(executed[0]).toMatch(/\(fn\? write-text\)/);
+			// The line above compares the wire against the very function that
+			// produced it, so it cannot fail: rot on both sides moves together.
+			// The row claims twelve slots, so twelve are named here, independently
+			// of what buildClojureBootstrapCode happens to emit today.
+			const workspaceVerbs = [
+				"host-request",
+				"rlm",
+				"rlm-children",
+				"rlm-delete-child",
+				"read-text",
+				"write-text",
+				"edit-text",
+				"process-start",
+				"process-poll",
+				"process-tail",
+				"process-kill",
+				"process-list",
+			];
+			for (const verb of workspaceVerbs) {
+				expect(executed[0]).toContain(`(fn? ${verb})`);
+			}
+			expect(executed[0].match(/\(fn\? [^)]+\)/g) ?? []).toHaveLength(workspaceVerbs.length);
 			expect(executed[0]).not.toMatch(/\bimport\b|\basync def\b|\bawait\b|print\(/);
 			expect(requests.map((r) => String(r.type))).toEqual(["execute"]);
 		} finally {
