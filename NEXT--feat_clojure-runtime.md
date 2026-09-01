@@ -51,8 +51,9 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 *"내가 바라보는 rlm 에이전트는 mcp 안 써. 인터넷 검색도 안 써. 스킬도 전통적인 방식으로 없어도 돼.
 lisp 으로 agent-server 로 내 하네스를 eval 하는 것 제외하면 그냥 모델 그 자체로 어떠한 외부 자극 없이
 어느 정도 단절된 터널에서 쭉 나아가게 할 거야."*
-→ 분모 **120 → 72** (MCP 48 out). 홉 9개 → **4개**. **HTTP 클라이언트·인증 계약 분기 blocker 후보가 통째로 사라졌다.**
-좌표: [#2 재범위 댓글](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5492713076).
+→ 분모 **120 → 70** (out 50). 홉 9개 → **4개**. **HTTP 클라이언트·인증 계약 분기 blocker 후보가 통째로 사라졌다.**
+좌표: [#2 재범위 댓글](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5492713076) →
+**[정정 댓글](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5494490894) 이 최신이다** (`D-SKILL-SURFACE` 2 를 H12 → out 으로 옮겨 72→70 · 48→50).
 정정 둘: `find_models` 는 웹검색이 아니라 **자식 스폰용 모델 조회**이고, `harness.py` 는 전통적 스킬 계층이 아니라
 **에이전트 자기 노트장**이다 — 둘 다 터널 안쪽이다.
 
@@ -75,18 +76,19 @@ interrupt 가 아니라 **watchdog 의 프로세스 exit** 으로 푼다(그 테
 2. **Defect 3 — H10 ↔ `BASELINE.md` 충돌.** H10(harness state)이 parity-target 이 되는 순간
    세션 넘는 global 항목은 **기능**인데, `BASELINE.md` Q-R0 은 "이전 세션 기억 없음"을 지시하고
    FAIL 기준에 "claims memory of another session" 을 둔다. **BASELINE 개정 vs 인터뷰별 격리 global store.**
-3. **홉 배치 확정** — H9 셀취소 21 · H10 harness 33 · H11 프로세스회수 11 · H12 표면 7 (`emit` + `find-models`).
+3. **홉 배치 확정** — H9 셀취소 21 · H10 harness 33 · H11 프로세스회수 11 · H12 표면 **5** (`emit` 3 + `find-models` 2).
 
 ### 조정 부채 — 결정과 무관하게 닫아야 한다 (Defect 1)
 
 **「분모 72」는 이슈 댓글에만 있고 게이트에는 없다.** 2026-09-01 22:00 재측정:
 `registry.tsv`/`manifest.tsv` 에 `out-of-scope` **0 hit** · D-* 카드 14장 전부 `DECISION REQUIRED` ·
 `check.py` 의 `chosen = {support, exclude, future}` 는 새 어휘를 모름 · 게이트 **exit 1**.
+**게이트에 리터럴 숫자를 박지 마라** — registry 에서 세어 인쇄한다. 오늘 72→70 정정이 필요해진 것이 정확히 그 사고다.
 집행할 것: ⓐ 카드 status 를 `parity-target(H<n>)` / `out-of-scope(GLG,2026-09-01)` 로 재작성하되
 **GLG 결정 영수증 URL 을 앵커로 달 것**(에이전트 편집만으로 도달 가능한 status 가 되지 않게)
 ⓑ `check.py` 의 `chosen` 확장 ⓒ **게이트 이원화** — 재감사 닫힘 / parity 기준점 도달은 다른 선이다
 (*"terminal 은 회계가 끝났다는 뜻이지 Python 대체 기준을 충족했다는 뜻은 아니다"* — GLG)
-ⓓ 분모 261 과 D=120 은 **불변**, 48 은 지우지 말고 `out-of-scope(GLG,…): 48` 로 **매번 함께 인쇄**.
+ⓓ 분모 261 과 D=120 은 **불변**, out 50 은 지우지 말고 `out-of-scope(GLG,…)` 행으로 **매번 함께 인쇄**.
 **숨기지 않는 제외만 제외다.**
 
 ### 감수·검수가 남긴 살아 있는 결함 둘 (H10 이 흡수한다)
