@@ -44,12 +44,14 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 ## 지금 사실 (2026-09-01, oracle, HEAD `50b53f94` · 워킹트리는 미커밋 변경 있음)
 
 ```
-verdicts:    D=120  a=91  b=3  c=7  row=40
-(a) anchors:  40 of 91 -- 38 via PASS (H1.3b), 2 via green/no-kill (H1.3c)
-row status:  참조된 행 39 전부 green/no-kill. empty 0
-dead triggers: 5 of 14 cards
-semantic:    stratified sample n=55 -- 4 terminal misclassifications (7.3%), all 4 fixed
-OPEN DEBT -- 7 (c) entries owe a row, 14 cards await a GLG choice
+denominator: 261 oracle tests (unittest, AST-extracted)
+verdicts:    D=120  a=91  b=4  c=9  row=37
+host_skip:   6 tests carry a runtime skipTest guard (a contract this host may never watch Python keep)
+(a) anchors:  40 of 91 (a) entries name a row that shows the exclusion is enforced -- 38 via PASS (H1.3b), 2 via green/no-kill (H1.3c)
+row status:  36 of 36 referenced rows are not PASS -- H1.10=green/no-kill, H1.11=green/no-kill, H1.12=green/no-kill, H1.13=green/no-kill, H1.14=green/no-kill, H1.15=green/no-kill, H1.16=green/no-kill, H1.17=green/no-kill, H1.18=green/no-kill, H1.19=green/no-kill, H1.20=green/no-kill, H1.4a=green/no-kill, H1.5a=green/no-kill, H1.5b=green/no-kill, H1.6=green/no-kill, H1.7a=green/no-kill, H1.7b=green/no-kill, H1.7c=green/no-kill, H1.9=green/no-kill, H2.1=green/no-kill, H4.10=green/no-kill, H4.1a=green/no-kill, H4.2=green/no-kill, H4.3=green/no-kill, H4.4=green/no-kill, H4.5=green/no-kill, H4.6=green/no-kill, H4.7=green/no-kill, H4.8=green/no-kill, H4.9=green/no-kill, H6.1=green/no-kill, H6.2=green/no-kill, H6.3=green/no-kill, H6.4=green/no-kill, H6.5=green/no-kill, H6.6=green/no-kill
+dead triggers: 5 of 14 cards carry a reopen trigger that cannot fire -- D-HARNESS-CRUD, D-HARNESS-SCOPE, D-HARNESS-EXTERNAL, D-ORPHAN-JOURNAL, D-OWNER-WATCHDOG
+semantic:    stratified sample n=55 (sol, 2026-09-01) -- 4 terminal misclassifications found (7.3%), all 4 fixed. This gate checks structure, not meaning; the sample implies more remain.
+OPEN DEBT -- 9 (c) entries owe a row, 14 cards await a GLG choice:
 exit=1
 ```
 
@@ -95,19 +97,21 @@ exit=1
 | assertion 총수 변동 "메커니즘 미상" | **폴링 루프다.** `process-test/wait-exit` 가 `eval-edn` 을 최대 200회 부르고 그 안에 `is` 가 하나 있다. 폴 횟수 = 단언 수. **헌장의 `doseq` 정적 분석은 틀린 자리를 봤다** |
 | "`^def test_` 로 앵커하면 된다" | python 은 전부 클래스 메서드라 그 앵커가 **0** 을 준다. clj 함정은 부풀리고 python 함정은 비운다. **정본은 AST** |
 
-## 남은 부채 7건 — **네 갈래로 처분이 끝났다** (전량은 `manifest.tsv`)
+## 남은 부채 9건 — **다섯 갈래로 처분이 끝났다** (전량은 `manifest.tsv`)
 
-`c` 40 → 17 → **7**. 남은 것은 「아직 안 했다」가 아니라 **「왜 못 닫는지가 확정된 것」**이다.
+`c` 40 → 17 → 7 → **9**. **숫자가 도로 올랐고 그게 맞다** — 2차 검수가 "대응"이라 적힌 넷을 되짚어 셋을 편차·약화로 돌려놓았다. **`c` 를 낮추는 것은 목표가 아니었다.**
 
 | 처분 | 항목 | 뜻 |
 |---|---|---|
-| **탈것 재현 불가 + 포인터** | `test_large_buffer_write_survives_short_pipe_writes` → `H1.23` · `test_slow_pump_does_not_lose_foreground_output` → `H4.11` | 오라클은 **탈것이 곧 계약**이다(짧은 파이프 쓰기 / 지연된 독자). 인접 행이 **더 약한 도달 가능한 관측**을 물고, 오라클 칸은 **덮이지 않은 채** 남는다 |
-| **소스 편집 필요 = Pass C** | `test_pump_paused_between_read_and_commit_does_not_lose_output` · `test_closed_stdio_cell_still_completes_and_serves_next` | green 테스트로 못 태운다. **킬의 영역이지 커버리지의 영역이 아니다** |
-| **OPEN by contract** | `test_traceback_clean_with_source_line` | 계약서가 `error` 이벤트를 OPEN 으로 열어뒀다. **재면 닫히는 게 아니라 정해야 닫힌다.** 그리고 추상이 아니다 — `H1.22` 의 `with-out-str` 실패가 `rlm.eval$eval_cell`·`rlm.repl$serve` 를 포함한 **23프레임을 모델에게 돌려준다**(측정됨) |
-| **선언된 편차 (NO-CREDIT)** | `test_running_reflects_group_liveness` | `docs/clojure-runtime.md` 「Process lifecycle — H4 / 알려진 편차」에 **사실 진술로** 선언. 이 팔의 `:status` 는 그룹이 아니라 **리더**를 보고한다. **선언은 커버리지가 아니다**(Hard Rule 3). owner 미배정 |
-| **탈것 없음, 무포인터** | `test_delivered_status_wins_when_shell_dies_during_drain` | status-pipe 경합 탈것이 없고 **그 부재를 무는 행도 없다** → `b` 가 아니라 부채 |
+| **탈것 재현 불가 + 포인터** | `large_buffer_write…`→`H1.23` · `slow_pump…`→`H4.11` · `exception_with_broken_str…`→`H1.21` | 오라클은 **탈것이나 보고 모양이 곧 계약**이다. 인접 행이 도달 가능한 더 약한 관측을 물고, **오라클 칸은 덮이지 않은 채** 남는다 |
+| **선언된 편차 (NO-CREDIT)** | `running_reflects_group_liveness` · `requires_a_default_session_name` · `rebound_stdout_without_flush…` | 대응이 아니라 **반대 결과**다. 셋 다 `docs/clojure-runtime.md` 「알려진 편차」에 **사실 진술로** 선언. **선언은 커버리지가 아니다**(Hard Rule 3) |
+| **seam 이 먼저 필요** | `pump_paused_between_read_and_commit…` | 이전에 「Pass C 킬」로 적었던 것은 **오류였다** — 킬은 **이미 선 green 이 무는지**를 증명한다. 여기엔 green 이 없다. **pause seam/픽스처가 먼저** |
+| **OPEN by contract** | `traceback_clean_with_source_line` | 계약서가 `error` 를 OPEN 으로 열어뒀다. **재면 닫히는 게 아니라 정해야 닫힌다.** 추상 아님 — `H1.22` 의 실패가 `rlm.eval$eval_cell`·`rlm.repl$serve` 포함 **23프레임**을 모델에게 돌려준다(측정됨) |
+| **탈것 없음, 무포인터** | `delivered_status_wins_when_shell_dies_during_drain` | 탈것도 없고 **그 부재를 무는 행도 없다** → `b` 가 아니라 부채 |
 
-**정리된 leftover:** NEXT 가 들고 있던 「H4 (c) SIGKILL orphan」은 **`H4.8`·`H4.9` 로 좌표를 얻고 닫혔다** — TERM 무시 리더와 TERM 무시 자손 둘 다 KILL 로 승격됨이 초록이다.
+**정리된 leftover:** 「H4 (c) SIGKILL orphan」은 **`H4.8`·`H4.9`** 로 좌표를 얻고 닫혔다.
+
+**아직 green 이 없는 표면 하나:** `rlm-process-cleanup` 훅의 tear surface. `rlm.repl/serve` 가 done 을 쓰기 **전에** `kill-all!` 을 부르므로 정상 shutdown 경로에서 훅은 일하지 않는다 — **훅을 지워도 `H1.4b` 는 초록이다.** 비정상 종료 경로로만 닿는다.
 
 ## 왜 지금 커버리지인가 (GLG)
 
