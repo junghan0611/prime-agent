@@ -133,6 +133,72 @@
       (let [events (h/execute repl "d4" "(+ 1 1)")]
         (is (= "2" (result-text events)))))))
 
+(deftest a-failed-child-is-listed-not-filtered
+  ;; The oracle pins that a subagent whose run ended in error still appears in
+  ;; the registry (test_subagent_registry.py::RlmSubagentRegistryTest::
+  ;; test_lists_failed_subagents_from_host, subagents[0].status == "error").
+  ;; Every other clj fixture here carries "status" "running", so nothing said
+  ;; whether this arm lists a failed child or quietly drops it. It lists it:
+  ;; rlm.core/rlm-children is a dash-keys passthrough with no status filter.
+  (h/with-repl
+    (fn [repl _]
+      (let [{:keys [events]} (answered repl "lf" "(rlm-children)"
+                                       {"status" "ok"
+                                        "subagents" [(assoc registry-entry
+                                                            "rlm_child_id" "c-failed"
+                                                            "session_id" nil
+                                                            "status" "error")]})
+            children (edn/read-string (result-text events))
+            child (first children)]
+        (is (= 1 (count children)) "a failed child is not filtered out of the registry")
+        (is (= "error" (:status child)))
+        (is (= "c-failed" (:rlm-child-id child)))
+        (is (nil? (:session-id child)))
+        (is (= "ok" (get (h/one events "done") "status")))))))
+
+(deftest spawn-forwards-the-orchestrator-kwargs-to-the-host
+  ;; The oracle pins that a chosen name and model reach the host
+  ;; (test_subagent_registry.py::...::test_forwards_orchestrator_chosen_name_and_model_to_host).
+  ;; rlm.core/rlm passes its kwargs map through as :kwargs, but until now the
+  ;; only clj assertion on a spawn frame was its :prompt.
+  (h/with-repl
+    (fn [repl _]
+      (let [spawn (answered repl "kw1"
+                            "(rlm \"child task\" {:model \"deepseek/deepseek-v4-pro\" :name \"api-reviewer\"})"
+                            {"status" "ok" "rlm_child_id" "c9" "name" "api-reviewer"
+                             "session_dir" "/tmp/c9" "model" "deepseek/deepseek-v4-pro"})
+            req (:request spawn)
+            handle (edn/read-string (result-text (:events spawn)))]
+        (is (= "rlm.run" (get req "type")))
+        (is (= "child task" (get req "prompt")))
+        (is (= {"model" "deepseek/deepseek-v4-pro" "name" "api-reviewer"} (get req "kwargs"))
+            "the orchestrator's choices ride the frame, not just the prompt")
+        (is (= "api-reviewer" (:name handle)))
+        (is (= "deepseek/deepseek-v4-pro" (:model handle))))
+      (testing "an omitted kwargs map is an empty map, never a missing key"
+        (let [spawn (answered repl "kw2" "(rlm \"bare\")"
+                              {"status" "ok" "rlm_child_id" "c10" "name" "n"
+                               "session_dir" "/tmp/c10" "model" "m"})]
+          (is (= {} (get (:request spawn) "kwargs"))))))))
+
+(deftest registry-entries-pass-through-without-a-minted-default
+  ;; Divergence made observable rather than assumed. The oracle's RLMSubagent is
+  ;; a typed record that REQUIRES session_name and mints a default
+  ;; (test_subagent_registry.py::...::test_requires_a_default_session_name).
+  ;; This arm has no such record: rlm-children hands the workspace what the host
+  ;; sent. A missing key stays missing -- it is neither invented nor an error.
+  (h/with-repl
+    (fn [repl _]
+      (let [{:keys [events]} (answered repl "nm" "(rlm-children)"
+                                       {"status" "ok"
+                                        "subagents" [(dissoc registry-entry "session_name")]})
+            child (first (edn/read-string (result-text events)))]
+        (is (= "ok" (get (h/one events "done") "status"))
+            "a missing session_name is not an error on this arm")
+        (is (nil? (:session-name child))
+            "and no default is minted -- the workspace sees the host's own shape")
+        (is (= "c1" (:rlm-child-id child)) "the rest of the entry is untouched")))))
+
 ;; ---------------------------------------------------------------------------
 ;; compaction — the process is untouched, so the recovery forms must evaluate
 
