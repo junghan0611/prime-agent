@@ -39,6 +39,44 @@
        (do (swap! (:raw repl) conj line)
            (json/read-str line))))))
 
+(defn drain!
+  "Read every remaining protocol line until the runtime closes its stream,
+  recording each one on :raw. Returns the events that parsed; a line that does
+  not parse is still recorded, because naming it is first-torn-line's job."
+  ([repl] (drain! repl 30))
+  ([repl timeout-s]
+   (loop [events []]
+     (let [line (.poll ^LinkedBlockingQueue (:q repl) timeout-s TimeUnit/SECONDS)]
+       (cond
+         (nil? line) (throw (ex-info "timed out draining the protocol stream" {}))
+         (= eof line) events
+         :else
+         (do (swap! (:raw repl) conj line)
+             (recur (if-let [e (try (json/read-str line) (catch Exception _ nil))]
+                      (conj events e)
+                      events))))))))
+
+(defn raw-lines
+  "Every protocol line read so far, exactly as the runtime wrote it."
+  [repl]
+  @(:raw repl))
+
+(defn first-torn-line
+  "[index line] of the first protocol line that is not one complete JSON
+  object, or nil when the stream is whole.
+
+  Reads the recorded lines instead of the parsed events on purpose. read-event
+  conj's a line onto :raw and only THEN parses it, so a torn frame kills the
+  read with a vague parse exception before any assertion can name it. The
+  framing check has to run after the fact, against the raw record, so that a
+  regression reports which line stopped being JSON."
+  [repl]
+  (->> (raw-lines repl)
+       (map-indexed vector)
+       (remove (fn [[_ line]]
+                 (try (map? (json/read-str line)) (catch Exception _ false))))
+       first))
+
 (defn send!
   [repl request]
   (doto ^java.io.Writer (:stdin repl)

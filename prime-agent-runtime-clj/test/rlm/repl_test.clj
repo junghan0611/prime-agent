@@ -157,3 +157,34 @@
         (let [events (h/until-done repl "busy")]
           (is (= 1 (h/done-count events)))
           (is (= "ok" (get (h/one events "done") "status"))))))))
+
+;; H1.6 — a non-string interrupt id is a protocol error and the runtime keeps
+;; serving. The oracle asserts the identical message
+;; (test_repl.py::ReplTest::test_interrupt_with_non_string_id_is_protocol_error,
+;; assertIn "interrupt request id must be a string"), and rlm.repl/handle-line
+;; emits that string literally -- validation ported to the character, test not.
+;;
+;; SCOPE: this row is only about a MALFORMED id. What the runtime does with a
+;; WELL-FORMED interrupt (today: nothing, silently) is a different contract --
+;; D-INTERRUPT and row H1.8 own it. Two contracts live on the same symbol; they
+;; are not the same row.
+(deftest interrupt-with-non-string-id-is-a-protocol-error
+  (h/with-repl
+    (fn [repl _]
+      ;; Sent before the execute rather than mid-cell: handle-line answers the
+      ;; interrupt on the reader thread the moment it arrives, so the ordering
+      ;; is deterministic here and racy if we straddle a cell.
+      (h/send! repl {"type" "interrupt" "id" 123})
+      (let [events (h/execute repl "i1" "(+ 1 1)")
+            errs (filterv #(= "error" (get % "event")) events)]
+        (is (= 1 (count errs)))
+        (is (= "ProtocolError" (get (first errs) "ename")))
+        (is (= "interrupt request id must be a string" (get (first errs) "evalue")))
+        (is (nil? (get (first errs) "id")) "a protocol error is not attributed to a cell")
+        ;; The malformed control frame must not disturb the request it arrived beside.
+        (is (= "2" (get (h/one events "result") "text")))
+        (is (= "ok" (get (h/one events "done") "status"))))
+      (let [events (h/execute repl "i2" "(+ 2 2)")]
+        (is (= "4" (get (h/one events "result") "text")))
+        (is (empty? (filterv #(= "error" (get % "event")) events))
+            "the error was consumed once, not latched")))))

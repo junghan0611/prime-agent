@@ -332,3 +332,42 @@
             (is (= "error" (get (h/one events "done") "status")) code))))
       (let [events (h/execute repl "r8" "(+ 40 2)")]
         (is (= "42" (result-text events)))))))
+
+;; H4.1 — a relative PRIME_AGENT_BASH_SHELL override is refused. rlm.process/shell-path
+;; documents itself as "the oracle's _shell() order", and the oracle pins the same
+;; contract (test_bash.py::BashTest::test_relative_bash_shell_override_rejected,
+;; ValueError on PRIME_AGENT_BASH_SHELL="bash"). Implemented on both arms, tested on
+;; one until now.
+;;
+;; kill mode: mode-1 (env). This row needs no source edit to break -- start the
+;; runtime with an absolute override that is not executable, or drop the leading
+;; "/" check, and the fault rides the existing :env seam. Cheap for Pass C.
+(deftest a-relative-bash-shell-override-is-refused
+  (let [repl (h/start {:env {"PRIME_AGENT_BASH_SHELL" "bash"}})]
+    (try
+      (h/read-event repl)
+      (let [events (h/execute repl "rs1" "(process-start \"echo should-not-run\")")
+            err (h/one events "error")]
+        (is (some? err) "a relative shell override must fail the cell, not silently pick a shell")
+        (is (h/error-shape? err))
+        (is (re-find #"PRIME_AGENT_BASH_SHELL must be an absolute path"
+                     (str (get err "evalue"))))
+        (is (= "error" (get (h/one events "done") "status"))))
+      ;; The refusal is per-call, not a poisoned runtime: the workspace still serves.
+      (let [events (h/execute repl "rs2" "(+ 3 4)")]
+        (is (= "7" (get (h/one events "result") "text")))
+        (is (= "ok" (get (h/one events "done") "status"))))
+      (finally (h/close! repl)))))
+
+(deftest an-absolute-bash-shell-override-is-honoured
+  ;; The other half of the same seam: absoluteness is the gate, not the name.
+  ;; Without this, "refuses relative" could pass by refusing every override.
+  (let [repl (h/start {:env {"PRIME_AGENT_BASH_SHELL" (which "sh")}})]
+    (try
+      (h/read-event repl)
+      (eval-edn repl "as1" "(do (process-start \"echo absolute-ok\") :started)")
+      (let [snap (wait-exit repl "(process-poll \"p1\")")]
+        (is (= :exited (:status snap)))
+        (is (zero? (:exit-code snap))))
+      (is (= "absolute-ok" (eval-edn repl "as2" "(process-tail \"p1\")")))
+      (finally (h/close! repl)))))
