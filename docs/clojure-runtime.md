@@ -97,7 +97,7 @@ prime-agent-runtime-clj/
 |---|---|
 | `execute` | persistent SCI context에서 forms를 순서대로 평가 |
 | `host_reply` | FIFO를 우회해 같은 id의 pending host request를 resolve |
-| `interrupt` | 파싱한다. 취소를 보장하지 않는다 |
+| `interrupt` | 파싱한다. **취소하지 않고, 취소할 일이 있으면 소리내어 거절한다** (아래 「알려진 편차」 3) |
 | `shutdown` | pending bridge를 실패시키고 process 종료 |
 
 `list_names`, `snapshot`, `restore`는 없다. Host 실험에서는 snapshot을 끈다.
@@ -346,7 +346,7 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
 
 ---
 
-## 알려진 편차 — 그 밖의 둘
+## 알려진 편차 — 그 밖의 셋
 
 **둘 다 사실 진술이다. 옳고 그름은 여기서 정하지 않는다. intentional NO-CREDIT** — 적어두는 것은 supported coverage 를 만들지 않는다 (`AGENTS.md` Hard Rule 3). owner 미배정.
 
@@ -362,6 +362,20 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
    (`test_subagent_registry.py::RlmSubagentRegistryTest::test_requires_a_default_session_name`). 여기서는 `rlm-children` 이
    host 가 보낸 모양을 그대로 넘겨 그 키가 없으면 `nil` 이 되고 에러가 아니다
    (`rlm.continuity-test/registry-entries-pass-through-without-a-minted-default`). 타입 있는 record 가 없다는 구조 차이다.
+
+3. **셀 취소가 없고, 그 사실을 프레임으로 말한다.** oracle 은 `interrupt` 를 실제 취소로 전달한다
+   (`rlm/repl.py::_request_interrupt` → `signal.pthread_kill` / task cancel). 여기에는 취소 경로가 **아예 없다** —
+   셀은 serve 루프에서 돌고, SCI 는 평가 중 `Thread.interrupt` 를 확인하지 않는다. 그래서 취소해야 할 일을 지목한
+   well-formed `interrupt` 는 `ename` = `InterruptNotSupported`, `id` = `nil` 인 `error` 프레임으로 **거절**하고
+   셀은 계속 돈다 (`rlm.repl-test/a-well-formed-interrupt-for-live-work-is-refused-out-loud`).
+   취소할 일이 없는 `interrupt` — 모르는 id, 끝난 id, in-flight 가 없는 id 없는 요청 — 은 oracle 과 같이 조용히 버린다
+   (`rlm.repl-test/an-interrupt-with-nothing-to-cancel-stays-silent-like-the-oracle`).
+   **`id` 가 `nil` 인 것은 선택이다**: `repl-manager.ts::handleEvent` 는 문자열 id 의 `error` 를 활성 execution 에 붙여
+   `status` 를 error 로 만드는데, 그 셀이 바로 아직 돌고 있는 셀이다.
+   측정 (2026-09-01, GraalVM CE 25.0.2 native image, sci 0.9.44): tight loop `(loop [] (recur))` 는 `Thread.interrupt`
+   를 **관찰하지 못하고**(인터럽트 플래그만 서고 루프는 계속), blocking point — `Thread/sleep`, promise `deref` —
+   에서는 `InterruptedException` 으로 관찰한다. sci 0.9.44 소스에 `interrupt` 문자열은 0 회다.
+   그러므로 H9(셀 취소)는 `Thread.interrupt` 만으로 서지 않는다. **어느 설계로 세울지는 미결이다.**
 
 ## 코드를 읽어야만 알던 것
 

@@ -45,6 +45,44 @@
                         :evalue message
                         :traceback []}))
 
+(def interrupt-unsupported-ename "InterruptNotSupported")
+
+(defn- interrupt-would-cancel?
+  "True when this interrupt names work the oracle would have delivered or
+  parked. Oracle twin: rlm/repl.py::_request_interrupt takes the running or
+  finishing request when the id is nil or matches, parks a targeted id that is
+  still in _inflight, parks an untargeted one while anything is inflight, and
+  DROPS interrupts for unknown or finished requests. Only that last case is
+  silence the oracle also keeps."
+  [runtime id]
+  (let [inflight @(:inflight runtime)]
+    (if (nil? id)
+      (boolean (seq inflight))
+      (contains? inflight id))))
+
+(defn- interrupt-unsupported
+  "Refuse the interrupt out loud. This runtime has no cancellation path at all:
+  the evaluating thread runs the cell on the serve loop, and SCI does not check
+  Thread.interrupt while it evaluates, so a tight loop would never observe one
+  (measured on the native image, 2026-09-01). Dropping the frame silently would
+  read to the caller as the oracle's 'unknown or finished request'.
+
+  The frame carries id nil on purpose. repl-manager.ts::handleEvent routes an
+  error whose id is a string onto the ACTIVE execution and marks it errored --
+  that cell is precisely the one still running, so attributing this frame to it
+  would report a live cell as failed. id nil keeps it on the same
+  kernel-diagnostic channel a protocol error uses."
+  [runtime id]
+  (send-event! runtime
+               {:event "error"
+                :id nil
+                :ename interrupt-unsupported-ename
+                :evalue (str "cell cancellation is not supported by the clojure runtime: "
+                             "the interrupt for "
+                             (if (nil? id) "the in-flight cell" (pr-str id))
+                             " was not delivered and that cell keeps running")
+                :traceback []}))
+
 (defn- error-event
   [cell-id ^Throwable e]
   ;; OPEN: ename is SCI's wrapper class and traceback carries runtime frames; not oracle-shaped yet.
@@ -79,8 +117,18 @@
           queue (:queue runtime)]
       (cond
         (= "interrupt" rtype)
-        (when (and (contains? req "id") (not (string? (get req "id"))))
-          (protocol-error runtime "interrupt request id must be a string"))
+        (let [id (get req "id")]
+          (cond
+            (and (contains? req "id") (not (string? id)))
+            (protocol-error runtime "interrupt request id must be a string")
+
+            ;; Negative contract, not cancellation: saying no is what this
+            ;; branch promises. Implementing cancellation is H9 and needs a
+            ;; different design -- see interrupt-unsupported.
+            (interrupt-would-cancel? runtime id)
+            (interrupt-unsupported runtime id)
+
+            :else nil))
 
         (= "host_reply" rtype)
         (let [id (get req "id")
