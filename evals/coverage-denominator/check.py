@@ -131,8 +131,24 @@ def main():
     referenced = sorted({m["target"] for m in manifest if m["verdict"] == "row"})
     unfinished = [(r, row_status.get(r, "?")) for r in referenced if row_status.get(r) != "PASS"]
     if unfinished:
-        print(f"row status:  {len(unfinished)} of {len(referenced)} referenced rows are not PASS -- "
+        print(f"row status:  {len(unfinished)} of {len(referenced)} REFERENCED rows are not PASS -- "
               + ", ".join(f"{r}={s}" for r, s in unfinished))
+
+    # Referenced rows are not all the rows.  Read literally, "36 of 36" is a
+    # statement about the 36 rows some oracle test terminates at -- and stays
+    # silent about the rest, which include the original H1 rows and every
+    # weakened or declared-divergence row.  If the referenced set all went PASS
+    # this line is the only thing standing between that and "everything is
+    # done".  Unreferenced is legitimate (a row can come from the contract doc
+    # instead of an oracle test); unexamined is not.
+    all_rows = [r for r in registry if r["kind"] == "row"]
+    unref = [r for r in all_rows if r["id"] not in set(referenced)]
+    if unref:
+        by = {}
+        for r in unref:
+            by.setdefault(r["status"], []).append(r["id"])
+        print(f"unreferenced: {len(unref)} of {len(all_rows)} rows have no manifest entry terminating at them -- "
+              + "; ".join(f"{st}: {' '.join(sorted(ids))}" for st, ids in sorted(by.items())))
 
     # A `future` recommendation is only honest if its reopen trigger can fire.
     # An observation-trigger needs a named observer; without one it never fires

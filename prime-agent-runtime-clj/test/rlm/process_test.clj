@@ -85,6 +85,20 @@
                    (when (and (.isFile f) (.canExecute f)) (.getAbsolutePath f))))
                (str/split (or (System/getenv "PATH") "") #":"))))
 
+(defn- marking-shell
+  "An absolute shell that announces itself and then behaves like /bin/sh.
+
+  The point is identity, not behaviour: without a shell that says which binary
+  ran, \"an absolute override is honoured\" is also green under a runtime that
+  ignores the override entirely and picks bash off PATH."
+  ^String []
+  (let [f (java.io.File. (str (System/getProperty "java.io.tmpdir"))
+                         (str "rlm-shell-" (System/nanoTime) ".sh"))]
+    (spit f "#!/bin/sh\necho rlm-override-shell-ran\nexec /bin/sh \"$@\"\n")
+    (.setExecutable f true)
+    (.deleteOnExit f)
+    (.getAbsolutePath f)))
+
 (defn- empty-path-dir
   "A PATH with no setsid (and no bash, so the shell falls back to /bin/sh)."
   ^String []
@@ -362,14 +376,23 @@
 (deftest an-absolute-bash-shell-override-is-honoured
   ;; The other half of the same seam: absoluteness is the gate, not the name.
   ;; Without this, "refuses relative" could pass by refusing every override.
-  (let [repl (h/start {:env {"PRIME_AGENT_BASH_SHELL" (which "sh")}})]
+  ;;
+  ;; Strengthened after review: an earlier version pointed the override at
+  ;; (which "sh") and asserted only that `echo` worked, which is also green
+  ;; under a runtime that ignores the override and picks bash off PATH. The
+  ;; shell now announces itself, so the row asserts WHICH executable ran.
+  (let [shell (marking-shell)
+        repl (h/start {:env {"PRIME_AGENT_BASH_SHELL" shell}})]
     (try
       (h/read-event repl)
       (eval-edn repl "as1" "(do (process-start \"echo absolute-ok\") :started)")
       (let [snap (wait-exit repl "(process-poll \"p1\")")]
         (is (= :exited (:status snap)))
         (is (zero? (:exit-code snap))))
-      (is (= "absolute-ok" (eval-edn repl "as2" "(process-tail \"p1\")")))
+      (let [out (eval-edn repl "as2" "(process-tail \"p1\")")]
+        (is (re-find #"rlm-override-shell-ran" out)
+            "the override is the executable that ran, not merely an accepted string")
+        (is (re-find #"absolute-ok" out)))
       (finally (h/close! repl)))))
 
 ;; H4 escalation. rlm.process/terminate! signals the group TERM, waits
