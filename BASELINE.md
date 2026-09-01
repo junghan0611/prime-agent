@@ -18,7 +18,36 @@ loop**.
 primeclj
 ```
 
-Fresh session. cwd may be anywhere; `read-text` is rooted at that cwd.
+### Baseline isolation
+
+A fresh BASELINE interview is an isolated fixture, not merely a new chat or
+session id. Before each run, the launcher must allocate:
+
+- a new, empty session-local continual-harness store;
+- a new, empty global continual-harness store used by no other run; and
+- separate local and global stores for the Python and Clojure arms.
+
+The launch receipt must identify the arm and both store paths. If either store
+existed before the run, is shared with another run, or cannot be shown to have
+started empty, the run is not an isolated BASELINE receipt and Q-R0's
+prior-session-memory verdict is invalid.
+
+This fixture rule does not declare cross-session global harness state
+unsupported. Global persistence is tested separately by an H10 acceptance
+scenario that deliberately shares one dedicated global store across fresh
+sessions. Do not use that persistence scenario as a Q-R0 interview.
+
+**Implementation status (measured at `c81daf2f`).** The launcher splits the
+daemon socket and kernel runtime per arm but not the agent dir, and
+`getGlobalHarnessStateDir` resolves under `getAgentDir()` with no per-run
+override at its `agent-session.ts` call sites. This records the measured state
+of that commit, not a permanent limitation. A later run becomes eligible only
+when its launch receipt identifies distinct, empty local and global stores as
+required above; the change that provides that receipt must update this status
+in the same patch.
+
+Fresh session, with the isolated empty harness stores above. cwd may be
+anywhere; `read-text` is rooted at that cwd.
 Paste one round per user message. Korean and English ask the same thing.
 
 Loop under test:
@@ -138,6 +167,25 @@ Do not use a host-leaked notice as the answer.
 ### Q-R4
 - **PASS** — A workspace value: `write-text`/`read-text` receipt, or a process result map, shown from execution.
 - **FAIL** — Claims a result without a cell.
+
+### Recovery outcomes — not scored by Q-R0–Q-R4
+
+The core interview does not request cancellation or a destructive busy-loop.
+If a recovery event occurs, record it separately; do not collapse these
+outcomes into one FAIL:
+
+- **H9 cancelled / state preserved** — routine blocking work is cancelled, the
+  same kernel continues serving, and a value bound before the cancelled cell is
+  still present.
+- **H11 recovered / state lost** — the runtime process is reclaimed after a
+  catastrophic non-cooperative cell and service returns through process-level
+  recovery, but the prior workspace value is absent. This is H11 recovery
+  evidence and a declared state-loss divergence, not an H9 PASS.
+- **STUCK** — neither the cell nor the runtime is reclaimed within the probe's
+  stated deadline.
+
+A future operator recovery probe must have its own stable id and fixture. Until
+then, an incidental recovery event is a NOTE, not a new BASELINE verdict.
 
 ## HISTORY
 

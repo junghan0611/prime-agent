@@ -147,6 +147,41 @@ def main():
                 f"out-of-scope card {r['id']} carries kill_bucket={r['kill_bucket']!r} "
                 "-- nothing was built, so there is nothing a mutant could break"
             )
+    # A hop's card is a bag until the ledger says what is inside it.  D-INTERRUPT
+    # was summarised as "branch (5) covers 17/21" -- and 17 was the size of a
+    # DIFFERENT subset than the one that branch's mechanism explains, with the
+    # gap never named.  Nothing in the data could contradict the sentence,
+    # because the data had no split.  Bundles are that split: which tests the
+    # proposed mechanism names, and which are a reinterpretation it does not
+    # supply.  The vocabulary is closed -- a typo would mint a fifth bundle in
+    # silence and the sum would stop meaning anything.
+    BUNDLES = {"thread-interrupt", "parking", "process-ownership", "not-interrupt"}
+    card_bundles = {}
+    for m in manifest:
+        b = m.get("bundle", "-")
+        if m["verdict"] != "D":
+            if b != "-":
+                hard.append(
+                    f"{m['test_id']} carries bundle {b!r} on a ({m['verdict']}) verdict "
+                    "-- a bundle names what a capability card holds, so only D entries take one"
+                )
+            continue
+        if b != "-" and b not in BUNDLES:
+            hard.append(
+                f"{m['test_id']} carries an unknown bundle {b!r}; allowed: {', '.join(sorted(BUNDLES))}"
+            )
+        card_bundles.setdefault(m["target"], []).append(b)
+    # All or none, per card.  A half-bundled card is exactly the state that let
+    # 17/21 stand: the placed tests look accounted for and the unplaced ones are
+    # spoken for by a summary nobody can check.
+    for card, bs in sorted(card_bundles.items()):
+        named = [b for b in bs if b != "-"]
+        if named and len(named) != len(bs):
+            hard.append(
+                f"card {card} is partially bundled: {len(named)} of {len(bs)} D entries carry a bundle "
+                "-- a partial split lets a summary speak for the tests nobody placed"
+            )
+
     negative_rows = {r["id"] for r in registry if r["kind"] == "row" and r["status"] == "negative-contract"}
     for m in manifest:
         if m["verdict"] == "row" and m["target"] in negative_rows:
@@ -313,6 +348,16 @@ def main():
         f"parity:      denominator {parity_tests} = D {total_D} minus {out_label} {out_tests} "
         "-- the exclusion is printed with it, never behind it"
     )
+    # What a hop actually holds, printed instead of asserted.  The mechanism a
+    # branch proposes covers some of these bundles and not others; the ledger
+    # shows the split so nobody has to trust a ratio in a comment.
+    for card, bs in sorted(card_bundles.items()):
+        named = [b for b in bs if b != "-"]
+        if not named:
+            continue
+        split = collections.Counter(named)
+        print(f"bundles:     {card} {len(bs)} -- "
+              + " · ".join(f"{k} {v}" for k, v in sorted(split.items())))
     print(f"host_skip:   {len(skips)} tests carry a runtime skipTest guard (a contract this host may never watch Python keep)")
 
     # Report-only, and deliberately so: this gate answers "is everything
