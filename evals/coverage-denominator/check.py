@@ -101,31 +101,67 @@ def main():
         if not m["evidence"].strip() or m["evidence"] == "-":
             hard.append(f"no evidence recorded: {test_id}")
 
-    # Every row that still owes a kill sits in exactly one bucket: A (a
-    # source-grounded expression with a predictable closure), B (an expression
-    # that exists but whose kill is near-tautological, so it earns killed/weak
-    # and never PASS), or C (no valid mutant).  Counting these by hand drifted
-    # -- a row fell out of the partition and two were counted twice -- so the
-    # partition is data now and the gate refuses a set that does not add up.
+    # Every row that still owes a kill sits in exactly one bucket, and the
+    # bucket is a STABLE classification -- it stays after a kill lands.  An
+    # earlier version failed a non-green row that carried a bucket, which meant
+    # the bucket had to be erased at exactly the moment a kill arrived, and the
+    # `killed/weak` rule evaporated with it.  Checking the current state is not
+    # checking the transition.
+    #
+    #   A  strong kill available        -> green/no-kill | PASS
+    #   B  weak kill only               -> green/no-kill | killed/weak   (never PASS)
+    #   C  no valid mutant              -> green/no-valid-mutant
+    #
+    # C is not "not done yet".  An equivalent mutant is a documented limit of
+    # the method, which is why it has its own status word rather than sharing
+    # one with rows still waiting for work.
+    ALLOWED = {
+        "A": {"green/no-kill", "PASS"},
+        "B": {"green/no-kill", "killed/weak"},
+        "C": {"green/no-valid-mutant"},
+    }
+    OWING = {"green/no-kill", "green/no-valid-mutant"}
     buckets = {"A": [], "B": [], "C": []}
-    owing = [r for r in registry if r["kind"] == "row" and r["status"] == "green/no-kill"]
-    for r in owing:
-        b = r.get("kill_bucket", "-")
-        if b in buckets:
-            buckets[b].append(r["id"])
-        else:
-            hard.append(f"row {r['id']} owes a kill but sits in no bucket (kill_bucket={b!r})")
+    owing = [r for r in registry if r["kind"] == "row" and r["status"] in OWING]
     for r in registry:
-        if r["kind"] == "row" and r["status"] != "green/no-kill" and r.get("kill_bucket", "-") != "-":
-            hard.append(f"row {r['id']} is {r['status']} and owes no kill, but carries kill_bucket={r['kill_bucket']!r}")
+        if r["kind"] != "row":
+            continue
+        b = r.get("kill_bucket", "-")
+        if r["status"] in OWING and b not in ALLOWED:
+            hard.append(f"row {r['id']} owes a kill but sits in no bucket (kill_bucket={b!r})")
+        elif b in ALLOWED:
+            buckets[b].append(r["id"])
+            if r["status"] not in ALLOWED[b]:
+                hard.append(
+                    f"row {r['id']} is bucket {b} but status {r['status']!r}; "
+                    f"allowed: {', '.join(sorted(ALLOWED[b]))}"
+                    + (" -- a weak kill never earns PASS" if b == "B" else "")
+                )
     total = sum(len(v) for v in buckets.values())
     if total != len(owing):
         hard.append(f"kill buckets do not partition the rows that owe one: {total} bucketed, {len(owing)} owing")
+
+    # Duplicated ids let one row sit in two buckets while the totals still add
+    # up -- the exact double-count a hand tally produced before this was data.
+    seen = {}
+    for r in registry:
+        key = (r["kind"], r["id"])
+        seen[key] = seen.get(key, 0) + 1
+    for (kind, rid), n in sorted(seen.items()):
+        if n > 1:
+            hard.append(f"duplicate {kind} id in registry.tsv: {rid} appears {n} times")
+
     if owing:
         print(f"kill buckets: {len(owing)} rows owe a kill -- A(strong)={len(buckets['A'])} "
-              f"B(weak, earns killed/weak not PASS)={len(buckets['B'])} C(no valid mutant)={len(buckets['C'])}")
+              f"B(weak, earns killed/weak not PASS)={len(buckets['B'])} "
+              f"C(equivalent mutant, documented limit)={len(buckets['C'])}")
         print(f"              B: {' '.join(sorted(buckets['B']))}")
         print(f"              C: {' '.join(sorted(buckets['C']))}")
+    # Deleting an unreferenced row shrinks owing and the bucket total together,
+    # so the partition check stays happy.  Printing the census makes that show
+    # up in a diff; a real completeness receipt is still an open proposal.
+    print(f"registry:     {sum(1 for r in registry if r['kind'] == 'row')} rows, "
+          f"{sum(1 for r in registry if r['kind'] == 'card')} cards")
 
     debt_c = [m["test_id"] for m in manifest if m["verdict"] == "c"]
     debt_card = sorted({m["target"] for m in manifest if m["verdict"] == "D" and m["target"] in undecided})
