@@ -101,6 +101,32 @@ def main():
         if not m["evidence"].strip() or m["evidence"] == "-":
             hard.append(f"no evidence recorded: {test_id}")
 
+    # Every row that still owes a kill sits in exactly one bucket: A (a
+    # source-grounded expression with a predictable closure), B (an expression
+    # that exists but whose kill is near-tautological, so it earns killed/weak
+    # and never PASS), or C (no valid mutant).  Counting these by hand drifted
+    # -- a row fell out of the partition and two were counted twice -- so the
+    # partition is data now and the gate refuses a set that does not add up.
+    buckets = {"A": [], "B": [], "C": []}
+    owing = [r for r in registry if r["kind"] == "row" and r["status"] == "green/no-kill"]
+    for r in owing:
+        b = r.get("kill_bucket", "-")
+        if b in buckets:
+            buckets[b].append(r["id"])
+        else:
+            hard.append(f"row {r['id']} owes a kill but sits in no bucket (kill_bucket={b!r})")
+    for r in registry:
+        if r["kind"] == "row" and r["status"] != "green/no-kill" and r.get("kill_bucket", "-") != "-":
+            hard.append(f"row {r['id']} is {r['status']} and owes no kill, but carries kill_bucket={r['kill_bucket']!r}")
+    total = sum(len(v) for v in buckets.values())
+    if total != len(owing):
+        hard.append(f"kill buckets do not partition the rows that owe one: {total} bucketed, {len(owing)} owing")
+    if owing:
+        print(f"kill buckets: {len(owing)} rows owe a kill -- A(strong)={len(buckets['A'])} "
+              f"B(weak, earns killed/weak not PASS)={len(buckets['B'])} C(no valid mutant)={len(buckets['C'])}")
+        print(f"              B: {' '.join(sorted(buckets['B']))}")
+        print(f"              C: {' '.join(sorted(buckets['C']))}")
+
     debt_c = [m["test_id"] for m in manifest if m["verdict"] == "c"]
     debt_card = sorted({m["target"] for m in manifest if m["verdict"] == "D" and m["target"] in undecided})
     skips = extract.host_skips()
@@ -146,11 +172,6 @@ def main():
     # otherwise the kill column launders a false PASS the same way the coverage
     # column would have.  Whether `killed/weak` counts as closed is J1's
     # question and GLG's to answer; the gate only refuses to launder it.
-    weak = [r for r in registry if r["kind"] == "row" and "WEAK-KILL CANDIDATE" in r.get("one_line", "")]
-    if weak:
-        print(f"weak kills:   {len(weak)} rows are flagged weak-kill candidates -- a kill here would earn "
-              f"killed/weak, not PASS: " + " ".join(sorted(r["id"] for r in weak)))
-
     all_rows = [r for r in registry if r["kind"] == "row"]
     unref = [r for r in all_rows if r["id"] not in set(referenced)]
     if unref:
