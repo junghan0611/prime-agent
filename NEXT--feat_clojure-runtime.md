@@ -25,7 +25,7 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 - [x] **H1 host** — checkpoint `7d509e75`. 기본 python. `PRIME_AGENT_KERNEL_RUNTIME=clojure`.
 - [x] **H2 DeepSeek 4실험 + fan-in** — checkpoint. 수선 `9d8f69f5`. 재측정 s6. **branch close 아님.**
 - [x] **H3 bounded read / context** — `f0b5183e` → `10fde370` → `13e88738`. keywordize + `(read-text)`.
-- [x] **H4 process lifecycle** — `4c42dbb4` → `9229aa77`. id registry + setsid group. native 48/313.
+- [x] **H4 process lifecycle** — `4c42dbb4` → `9229aa77`. id registry + setsid group. native 48/313. leftover 「SIGKILL orphan」은 `H4.8`/`H4.9` 로 닫힘.
 - [x] **H5 edit / write receipts** — `2e5753a2`. write-text / edit-text. native 57/443. GLM `abff01` PASS.
 - [x] **H6 compaction / restart continuity** — `2ea1b170`. registry 회수 verb + runtime별 통지. native 65/497.
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
@@ -44,18 +44,18 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 ## 지금 사실 (2026-09-01, oracle, HEAD `50b53f94` · 워킹트리는 미커밋 변경 있음)
 
 ```
-verdicts:    D=120  a=91  b=3  c=17  row=30
+verdicts:    D=120  a=91  b=3  c=7  row=40
 (a) anchors:  40 of 91 -- 38 via PASS (H1.3b), 2 via green/no-kill (H1.3c)
-row status:  참조된 행 전부 green/no-kill. empty 0
+row status:  참조된 행 39 전부 green/no-kill. empty 0
 dead triggers: 5 of 14 cards
 semantic:    stratified sample n=55 -- 4 terminal misclassifications (7.3%), all 4 fixed
-OPEN DEBT -- 17 (c) entries owe a row, 14 cards await a GLG choice
+OPEN DEBT -- 7 (c) entries owe a row, 14 cards await a GLG choice
 exit=1
 ```
 
-- **clj:** `./run.sh test-native` → **`71 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 채우고 71). `./run.sh lint` 0/0.
+- **clj:** `./run.sh test-native` → **`83 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 71 → 부채 정리 83). `./run.sh lint` 0/0.
 - **python oracle:** 전체 실행 6회 중 **5회 green**. 1회 `test_bash.BashTest.test_term_ignoring_child_is_escalated` 실패(journal record `active == true`), 단독 재실행 3/3 green. **full-suite 재현성 간헐 실패이며 원인 미확정.**
-- **production source 0줄.** 바뀐 것은 `prime-agent-runtime-clj/test/` 넷과 `docs/clojure-runtime.md`(stale 배너) 하나, 그리고 새 artifact `evals/coverage-denominator/`.
+- **production source 0줄.** 바뀐 것은 `prime-agent-runtime-clj/test/` 다섯과 `docs/clojure-runtime.md`(stale 배너 + H4 알려진 편차) 하나, 그리고 artifact `evals/coverage-denominator/`.
 - **인용 규칙:** `71 tests / 0 failures` 만 안정 수로 쓴다. assertion 총수는 영수증에 적되 **비교 근거로 쓰지 않는다** — 흔들리는 메커니즘이 밝혀져 있다(아래 은퇴 목록).
 
 ## 읽을 곳 (순서대로)
@@ -68,7 +68,7 @@ exit=1
 ## 다음 한 걸음 — 우선순위
 
 1. **Pass B 결정 반영** ← GLG 대기. 결정 8개 + J1. **에이전트가 고르지 않는다.**
-2. **부채 17 의 테스트 작성** — 전부 새 clj 테스트가 필요하다. **어느 것부터인지가 곧 우선순위 결정**이라 지시가 필요하다. 재빌드 0(테스트는 `test/` 아래, `rlm.sut/assert-native-ready!` 는 `src/**` 만 본다).
+2. **부채 7 은 처분이 끝났다** — 위 표 참조. 둘은 Pass C 킬에서, 하나는 결정에서, 하나는 선언으로 닫히고, 셋은 탈것이 없어 남는다. **새 green 테스트로 더 줄일 자리는 없다.**
 3. **Pass C 킬 집행** — 배치 규율은 헌장에. `H4.1` 은 `mode-1 (env)` 로 표기돼 있어 native 재빌드 예산이 그만큼 준다. clj mode-2 는 배치, TS mode-2 는 공짜.
 4. **`H1.8`** — `D-INTERRUPT` 결정에 매여 **일부러 비워둔다.** 지금 채우면 GLG 선택지를 코드로 닫는다.
 5. **`--table`** (registry → Pass B 표 생성) — **보류.** 손 계산 표면을 없애는 값은 인정되나 계측 확장이다.
@@ -95,11 +95,19 @@ exit=1
 | assertion 총수 변동 "메커니즘 미상" | **폴링 루프다.** `process-test/wait-exit` 가 `eval-edn` 을 최대 200회 부르고 그 안에 `is` 가 하나 있다. 폴 횟수 = 단언 수. **헌장의 `doseq` 정적 분석은 틀린 자리를 봤다** |
 | "`^def test_` 로 앵커하면 된다" | python 은 전부 클래스 메서드라 그 앵커가 **0** 을 준다. clj 함정은 부풀리고 python 함정은 비운다. **정본은 AST** |
 
-## 남은 부채의 성질 (17건, 전량은 `manifest.tsv`)
+## 남은 부채 7건 — **네 갈래로 처분이 끝났다** (전량은 `manifest.tsv`)
 
-- 대부분은 **"clj 가 아마 그럴 것"과 "clj 가 그렇다고 단언되어 있다"의 차이**다. 그 문장이 승격 판정의 기준이었다.
-- **`test_traceback_clean_with_source_line` 은 종류가 다르다** — 계약서가 `error` 이벤트를 **OPEN** 으로 열어뒀다. **재면 닫히는 게 아니라 정해야 닫힌다.** 측정하러 턴 쓰지 마라.
-- **`test_running_reflects_group_liveness` 는 부재가 아니라 편차다** — 오라클은 그룹 생존을 `running` 으로 보고하고 이 팔은 **리더 스코프**로 보고한다(양쪽 named test 로 확인). 등급 **Defect**, 지금 레인 열지 않음. 결정 7 카드에 사실로 실려 있다.
+`c` 40 → 17 → **7**. 남은 것은 「아직 안 했다」가 아니라 **「왜 못 닫는지가 확정된 것」**이다.
+
+| 처분 | 항목 | 뜻 |
+|---|---|---|
+| **탈것 재현 불가 + 포인터** | `test_large_buffer_write_survives_short_pipe_writes` → `H1.23` · `test_slow_pump_does_not_lose_foreground_output` → `H4.11` | 오라클은 **탈것이 곧 계약**이다(짧은 파이프 쓰기 / 지연된 독자). 인접 행이 **더 약한 도달 가능한 관측**을 물고, 오라클 칸은 **덮이지 않은 채** 남는다 |
+| **소스 편집 필요 = Pass C** | `test_pump_paused_between_read_and_commit_does_not_lose_output` · `test_closed_stdio_cell_still_completes_and_serves_next` | green 테스트로 못 태운다. **킬의 영역이지 커버리지의 영역이 아니다** |
+| **OPEN by contract** | `test_traceback_clean_with_source_line` | 계약서가 `error` 이벤트를 OPEN 으로 열어뒀다. **재면 닫히는 게 아니라 정해야 닫힌다.** 그리고 추상이 아니다 — `H1.22` 의 `with-out-str` 실패가 `rlm.eval$eval_cell`·`rlm.repl$serve` 를 포함한 **23프레임을 모델에게 돌려준다**(측정됨) |
+| **선언된 편차 (NO-CREDIT)** | `test_running_reflects_group_liveness` | `docs/clojure-runtime.md` 「Process lifecycle — H4 / 알려진 편차」에 **사실 진술로** 선언. 이 팔의 `:status` 는 그룹이 아니라 **리더**를 보고한다. **선언은 커버리지가 아니다**(Hard Rule 3). owner 미배정 |
+| **탈것 없음, 무포인터** | `test_delivered_status_wins_when_shell_dies_during_drain` | status-pipe 경합 탈것이 없고 **그 부재를 무는 행도 없다** → `b` 가 아니라 부채 |
+
+**정리된 leftover:** NEXT 가 들고 있던 「H4 (c) SIGKILL orphan」은 **`H4.8`·`H4.9` 로 좌표를 얻고 닫혔다** — TERM 무시 리더와 TERM 무시 자손 둘 다 KILL 로 승격됨이 초록이다.
 
 ## 왜 지금 커버리지인가 (GLG)
 
@@ -242,6 +250,12 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 
 # RECENT
 
+- [2026-09-01] **부채 정리 끝.** `c` 40 → 17 → **7**, `test-native` **65 → 83 / 0 failures**.
+  남은 7은 네 갈래로 처분 확정(탈것 재현 불가 2 · Pass C 킬 2 · OPEN by contract 1 · 선언된 편차 1 · 무포인터 1).
+  실측 발견 둘: **`with-out-str` 가 네이티브에서 죽는다**(core 매크로가 `(java.io.StringWriter.)` 로 확장 —
+  계약서 「코드를 읽어야만 알던 것」 8 이 모델이 닿는 자리에서 실현), 그리고 그 에러가 **호스트 스택 23프레임을
+  모델에게 돌려준다** — `error` OPEN 이 추상이 아니라는 살아 있는 영수증.
+  `H4` 알려진 편차 선언: `:status` 는 그룹이 아니라 리더를 보고한다.
 - [2026-09-01] **Pass A 끝.** production 이틀 0줄 → **`71 tests / 0 failures`**. 빈 행 4 → **0**.
   분모가 열거의 산물에서 **실행의 산물**이 됐다(AST 261 = 오라클 런타임 수집 261, 이 HEAD 에서 처음 돌렸다).
   `evals/coverage-denominator/` 신설 — 게이트가 미매핑·stale·풀리지 않는 id 에 **시끄럽게 실패**하고,
