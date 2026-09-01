@@ -41,39 +41,70 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 
 좌표: 이슈 [#1](https://github.com/junghan0611/prime-agent/issues/1) 스레드. **본문과 어긋나면 스레드가 이긴다.**
 
-## 지금 사실 (2026-09-01, oracle, HEAD `50b53f94` · 워킹트리는 미커밋 변경 있음)
+## 지금 사실 (2026-09-01, oracle, HEAD `85cc3903` · 워킹트리 clean)
 
 ```
+kill buckets: 45 rows owe a kill -- A(strong)=29 B(weak, earns killed/weak not PASS)=3 C(equivalent mutant, documented limit)=13
+              B: H1.9 H4.11 H6.6
+              C: H1.10 H1.13 H1.14b H1.18 H1.23 H1.4b H1.5a H1.7a H1.7b H1.7c H4.3 H4.4 H4.5
+registry:     52 rows, 15 cards
 denominator: 261 oracle tests (unittest, AST-extracted)
 verdicts:    D=120  a=91  b=4  c=9  row=37
 host_skip:   6 tests carry a runtime skipTest guard (a contract this host may never watch Python keep)
 (a) anchors:  40 of 91 (a) entries name a row that shows the exclusion is enforced -- 38 via PASS (H1.3b), 2 via green/no-kill (H1.3c)
-row status:  36 of 36 referenced rows are not PASS -- H1.10=green/no-kill, H1.11=green/no-kill, H1.12=green/no-kill, H1.13=green/no-kill, H1.14=green/no-kill, H1.15=green/no-kill, H1.16=green/no-kill, H1.17=green/no-kill, H1.18=green/no-kill, H1.19=green/no-kill, H1.20=green/no-kill, H1.4a=green/no-kill, H1.5a=green/no-kill, H1.5b=green/no-kill, H1.6=green/no-kill, H1.7a=green/no-kill, H1.7b=green/no-kill, H1.7c=green/no-kill, H1.9=green/no-kill, H2.1=green/no-kill, H4.10=green/no-kill, H4.1a=green/no-kill, H4.2=green/no-kill, H4.3=green/no-kill, H4.4=green/no-kill, H4.5=green/no-kill, H4.6=green/no-kill, H4.7=green/no-kill, H4.8=green/no-kill, H4.9=green/no-kill, H6.1=green/no-kill, H6.2=green/no-kill, H6.3=green/no-kill, H6.4=green/no-kill, H6.5=green/no-kill, H6.6=green/no-kill
+row status:  36 of 36 REFERENCED rows are not PASS -- H1.10=green/no-valid-mutant, H1.11=green/no-kill, H1.12=green/no-kill, H1.13=green/no-valid-mutant, H1.14a=green/no-kill, H1.15=green/no-kill, H1.16=green/no-kill, H1.17=green/no-kill, H1.18=green/no-valid-mutant, H1.19=green/no-kill, H1.20=green/no-kill, H1.4a=green/no-kill, H1.5a=green/no-valid-mutant, H1.5b=green/no-kill, H1.6=green/no-kill, H1.7a=green/no-valid-mutant, H1.7b=green/no-valid-mutant, H1.7c=green/no-valid-mutant, H1.9=green/no-kill, H2.1=green/no-kill, H4.10=green/no-kill, H4.1a=green/no-kill, H4.2=green/no-kill, H4.3=green/no-valid-mutant, H4.4=green/no-valid-mutant, H4.5=green/no-valid-mutant, H4.6=green/no-kill, H4.7=green/no-kill, H4.8=green/no-kill, H4.9=green/no-kill, H6.1=green/no-kill, H6.2=green/no-kill, H6.3=green/no-kill, H6.4=green/no-kill, H6.5=green/no-kill, H6.6=green/no-kill
+unreferenced: 16 of 52 rows have no manifest entry terminating at them -- PASS: H1.1a H1.2 H1.3b; declared-divergence: H1.22 H4.D1 H6.7; empty: H1.8; green/no-kill: H1.1b H1.21 H1.3a H1.3c H4.11 H4.1b; green/no-valid-mutant: H1.14b H1.23 H1.4b
 dead triggers: 5 of 14 cards carry a reopen trigger that cannot fire -- D-HARNESS-CRUD, D-HARNESS-SCOPE, D-HARNESS-EXTERNAL, D-ORPHAN-JOURNAL, D-OWNER-WATCHDOG
 semantic:    stratified sample n=55 (sol, 2026-09-01) -- 4 terminal misclassifications found (7.3%), all 4 fixed. This gate checks structure, not meaning; the sample implies more remain.
 OPEN DEBT -- 9 (c) entries owe a row, 14 cards await a GLG choice:
 exit=1
 ```
 
-- **clj:** `./run.sh test-native` → **`83 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 71 → 부채 정리 83). `./run.sh lint` 0/0.
+- **clj:** `./run.sh test-native` → **`83 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 71 → 부채 정리 83). `./run.sh test repl-kernel-clojure-runtime` **14 passed**. `./run.sh lint` 0/0.
 - **python oracle:** 전체 실행 6회 중 **5회 green**. 1회 `test_bash.BashTest.test_term_ignoring_child_is_escalated` 실패(journal record `active == true`), 단독 재실행 3/3 green. **full-suite 재현성 간헐 실패이며 원인 미확정.**
 - **production source 0줄.** 바뀐 것은 `prime-agent-runtime-clj/test/` 다섯과 `docs/clojure-runtime.md`(stale 배너 + H4 알려진 편차) 하나, 그리고 artifact `evals/coverage-denominator/`.
 - **인용 규칙:** `71 tests / 0 failures` 만 안정 수로 쓴다. assertion 총수는 영수증에 적되 **비교 근거로 쓰지 않는다** — 흔들리는 메커니즘이 밝혀져 있다(아래 은퇴 목록).
 
+## 다음 세션 첫 손 — **뒤로 1–2발자국 재검증** (GLG 지정)
+
+> **"다음 텀은 우리 한 것에서 뒤로 1–2 발자국만 돌아가서부터 검증하고 다음 진행."** (GLG)
+
+습관 문구가 아니라 목록이다. **무엇을 돌리고 무엇이 보이면 통과인지**가 각 항목에 있다.
+
+**① 게이트가 자기 주장을 무는가 — 이게 첫 손이다.** 이것이 안 물면 그 아래 전부가 근거를 잃는다.
+- `evals/coverage-denominator/run.sh check` → **exit 1**, `kill buckets … A(strong)=29 B(…)=3 C(…)=13`, 합 **45**
+- **오늘 만든 킬 영수증 5건을 다시 재현한다.** 임시 사본에서 registry 를 흔들어 각각 **exit 2** 인지 확인: 킬을 빚는데 통에 없는 행 · `PASS` 인데 통을 든 행 · **B 행을 `PASS` 로**(→ `a weak kill never earns PASS`) · 같은 row id 중복 · 통 합 불일치
+
+**② 분모가 여전히 서 있는가**
+- `run.sh extract` → **261**
+- 오라클: `prime-agent-runtime/` 에서 `uv run --frozen python -m unittest discover -s test` → `Ran 261 tests`.
+  **간헐 실패 1건(`test_bash.BashTest::test_term_ignoring_child_is_escalated`)은 알려진 것이다** — 6회 중 1회, 원인 미확정. 놀라지 마라
+- 숫자는 **손으로 세지 말고** `run.sh table verdicts` 로 렌더한다
+
+**③ green 수선 3건이 아직 계약을 무는가**
+- `H4.1b` marker(`rlm-override-shell-ran`) · `H1.3a` 12슬롯 + `toHaveLength` · `H1.7a` fault 제외
+- `./run.sh test-native` **83 / 0 failures** · `./run.sh test repl-kernel-clojure-runtime` **14 passed**
+
+**④ A 통 표본 재검 — A 29 중 2~3개를 골라 다시 물어라: 「이 초록이 더 약한 구현으로도 초록인가.」**
+
+> **오늘 A 안에서 C 가 세 번 나왔다**(`H4.4` · `H1.4b` · `H1.5a`). **다음 사람은 A 통을 신뢰하지 말고 표본으로 다시 물어라.**
+
 ## 읽을 곳 (순서대로)
 
-1. **Pass B 결정 시트** — [comment 5490271142](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5490271142). GLG 가 볼 것은 이것 하나다.
-2. **Pass A 헌장** — [comment 5489607349](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489607349). 레인 설계와 은퇴한 주장들.
-3. **분모 artifact** — `evals/coverage-denominator/`. `run.sh check` 가 게이트, `manifest.tsv` 가 261행 전수, `registry.tsv` 가 행·카드 원장. **산문을 믿지 말고 돌려봐라.**
-4. 카드 14장 — [9장](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489867845) · [5장+재분류](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489938033) · [D-INTERRUPT](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489802290).
+1. **[이슈 #2](https://github.com/junghan0611/prime-agent/issues/2)** — **GLG 의 자리.** 결정 10건(카드 8 + J1 terminal-set + `H1.7b`/`H1.7c`). 이슈 #1 은 흐르는 판이라 결정이 스레드에 묻혀서 갈랐다.
+2. **Pass B 결정 시트** — [comment 5490271142](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5490271142).
+3. **Pass C 종결 문서** — [comment 5491766546](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5491766546). 실행계획이면서 동시에 **안 태울 때의 종결 문서**다.
+4. **Pass A 헌장** — [comment 5489607349](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489607349).
+5. **artifact** — `evals/coverage-denominator/`. `run.sh check` 게이트 · `run.sh table` 표 렌더 · `manifest.tsv` 261행 전수 · `registry.tsv` 행·카드 원장(`kill_bucket` 포함). **산문을 믿지 말고 돌려봐라.**
+6. 카드 14장 — [9장](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489867845) · [5장+재분류](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489938033) · [D-INTERRUPT](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489802290).
 
 ## 다음 한 걸음 — 우선순위
 
-1. **Pass B 결정 반영** ← GLG 대기. 결정 8개 + J1. **에이전트가 고르지 않는다.**
-2. **부채 7 은 처분이 끝났다** — 위 표 참조. 둘은 Pass C 킬에서, 하나는 결정에서, 하나는 선언으로 닫히고, 셋은 탈것이 없어 남는다. **새 green 테스트로 더 줄일 자리는 없다.**
-3. **Pass C 킬 집행** — 배치 규율은 헌장에. `H4.1` 은 `mode-1 (env)` 로 표기돼 있어 native 재빌드 예산이 그만큼 준다. clj mode-2 는 배치, TS mode-2 는 공짜.
-4. **`H1.8`** — `D-INTERRUPT` 결정에 매여 **일부러 비워둔다.** 지금 채우면 GLG 선택지를 코드로 닫는다.
-5. **`--table`** (registry → Pass B 표 생성) — **보류.** 손 계산 표면을 없애는 값은 인정되나 계측 확장이다.
+1. **GLG 결정 10건** ← 이슈 #2. **에이전트가 고르지 않는다.**
+2. **태우기로 나오면** — A 29 집행 → 킬 영수증(10필드 + **예상 폐쇄 vs 실제 Red 대조**) → **닫힘 HEAD 재인증 스윕 1회** → 재감사 닫힘.
+3. **안 태우기로 나오면** — Pass C 종결 문서가 그대로 답이다. `green/no-kill` 32행을 "이 팔에서 킬이 왜 비싼가"와 함께 정직하게 닫는다.
+4. **부채 9** — 처분 확정. **새 green 테스트로 더 줄일 자리는 없다.**
+5. **`H1.8`** — `D-INTERRUPT` 결정에 매여 **일부러 비워둔다.**
 
 ## 살아 있는 금지
 
@@ -81,14 +112,37 @@ exit=1
 - **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용.
 - **`git stash` 금지** — 여러 형제가 같은 트리에 있다. 격리는 임시 worktree.
 - **새 카드·새 계측 동결.** manifest 전수 재검증 금지.
-- **`PASS` 로 올리지 않는다** — 킬이 붙기 전 초록은 `green/no-kill` 이다.
+- **`PASS` 는 강한 킬 뒤에만.** 약한 킬은 `killed/weak` 이고 **게이트가 B→`PASS` 를 하드 실패로 막는다.**
+- **v5 계획 문서를 쓰지 않는다.** 다음 산출은 **킬 영수증이거나 C 통 종결 문서**다.
 - **원천(오라클 테스트 또는 계약서 문장) 없는 원리 행 신설은 `H1.8` 에서 캡한다.**
 - **비용 상한을 스스로 정하지 않는다.**
+
+## 오늘 얻은 규칙 — **다시 유도하면 하루가 또 간다**
+
+| # | 규칙 |
+|---|---|
+| 1 | **fixture ≠ fault seam.** mode-1 은 **테스트도 소스도 안 고치고** 주입할 때만 |
+| 2 | **레버가 있는 것 ≠ 계약을 무는 것.** mode 분류와 킬 대상 존재는 별개 질문이고 **둘 다 통과해야** 표적이다 |
+| 3 | **킬은 구현을 깨는 것이지 의존물을 갈아끼우는 것이 아니다** |
+| 4 | **fault 는 행 설명이 아니라 소스에서 쓴다.** 그 표현이 없으면 **그 fault 는 존재하지 않는다** |
+| 5 | **합격 모양은 「표적만 Red」가 아니라 「예상 폐쇄만 Red」.** 귀속은 "혼자 Red 인가"가 아니라 **"예측한 대로 Red 인가"** 로 산다 |
+| 6 | **약한 킬은 PASS 를 만들지 않는다** (`killed/weak`) |
+| 7 | **green 강화는 계약이 요구할 때 한다. 킬을 가능하게 하려고 하지 않는다** |
+
+**규칙을 더 만들기 전의 판별식:**
+> **「게이트 검사로 표현 가능한가?」 가능하면 규칙 대신 검사를 만든다.**
+
+이미 셋이 게이트로 갔다(`kill_bucket` partition · 전이 검사 · id 중복). 하루 종일 쓴 손 검사 하나는 그대로다 — **"이 초록이 더 약한 구현으로도 초록인가."**
+
+**표준 용어:** C 통 = **equivalent mutant**(mutation testing 의 알려진 하한) · B 통 = **weak test oracle**(변이가 상태는 바꾸는데 단언이 못 본다).
 
 ## 은퇴한 상속 주장 (전부 실측으로 대체됨)
 
 | 주장 | 실측 |
 |---|---|
+| **mode-1 seam 이 있어 빌드 예산이 준다** | **유효 mode-1 은 0개다.** 후보 5개 전부 fixture 이거나 의존물 교체였다 |
+| **Pass C fault 38개** | **29개.** 소스에 없는 표현을 세고 있었다 |
+| **A28 / B4 / C13** | 표에서 **재현되지 않았다**(네 행이 두 통, 한 행이 무통). 지금은 `kill_bucket` 을 **게이트가 센다** |
 | "261 pytest" | **unittest** 다. CI 가 `unittest discover`, pytest 는 의존성에 없다. 숫자 261 은 생존 |
 | clj verb 13개 | **12개**. `sci/init` 맵 심볼 13 중 `'user` 는 네임스페이스. 런타임에 `user` 에 보이는 이름은 `bind-_` 의 `_` 포함 13 |
 | Windows 36건 | **38건**. `test_windows_*` 접두어가 없는데 본문이 taskkill/job 을 모는 2건이 있다 |
@@ -254,6 +308,12 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 
 # RECENT
 
+- [2026-09-01] **Pass C 계획 종결.** 계획 4회차 + Fable/sol 감사 5회. 결정 숫자 **A29 / B3 / C13 = 45**,
+  이제 `kill_bucket` 열에 있고 **게이트가 partition·전이·중복을 하드 실패로 검사**한다 — `killed/weak` 가 처음으로 기계 규칙이 됐다.
+  **유효 mode-1 = 0**(후보 5개 전부 fixture 이거나 의존물 교체). **C 13 = equivalent mutant**, 각 행이
+  「그래서 이 초록이 보장하는 것」을 든다 — *"자손이 죽는다. descendants sweep 이 그 일에 필요한지는 모른다."*
+  **A 안에서 C 가 세 번 나왔다**(`H4.4`·`H1.4b`·`H1.5a`) — 다음 사람은 A 를 표본으로 다시 물어야 한다.
+  `run.sh table` 로 손 세기 표면 제거. GLG 결정 자리는 [이슈 #2](https://github.com/junghan0611/prime-agent/issues/2).
 - [2026-09-01] **부채 정리 끝.** `c` 40 → 17 → **7**, `test-native` **65 → 83 / 0 failures**.
   남은 7은 네 갈래로 처분 확정(탈것 재현 불가 2 · Pass C 킬 2 · OPEN by contract 1 · 선언된 편차 1 · 무포인터 1).
   실측 발견 둘: **`with-out-str` 가 네이티브에서 죽는다**(core 매크로가 `(java.io.StringWriter.)` 로 확장 —
