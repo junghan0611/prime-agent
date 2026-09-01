@@ -181,7 +181,7 @@ Python oracle 은 프로세스 그룹 구성원이 하나라도 살아 있으면
 그룹 생존은 `:contained` 와 `process-kill` / shutdown 의 회수 경로가 따로 다룬다.
 
 **intentional NO-CREDIT.** 이 편차를 적어두는 것은 supported coverage 를 만들지 않는다 (`AGENTS.md` Hard Rule 3).
-owner: 미배정. 고칠지 선언으로 둘지는 이슈 #1 의 결정 7(커널 사후 자식 회수) 옆에 있다.
+owner: 미배정. 고칠지 선언으로 둘지는 아직 정해지지 않았다. 이슈 #1 의 결정 7(커널 사후 자식 회수)과 **주제가 인접할 뿐 종속은 아니다** — 결정 7 이 어느 쪽으로 나든 이 편차는 따로 판단해야 한다.
 
 snapshot은 plain data만 담는다:
 
@@ -345,6 +345,23 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
   `PRIME_AGENT_CLOJURE_RUNTIME` 없이 candidate 경로로 바이너리를 찾았다.
 
 ---
+
+## 알려진 편차 — 그 밖의 둘
+
+**둘 다 사실 진술이다. 옳고 그름은 여기서 정하지 않는다. intentional NO-CREDIT** — 적어두는 것은 supported coverage 를 만들지 않는다 (`AGENTS.md` Hard Rule 3). owner 미배정.
+
+1. **셀은 자기 출력을 다른 곳으로 돌릴 수 없다.** oracle 은 stdout 을 다시 묶은 셀이 `done` 을 `ok` 로 마친다
+   (`test_repl.py::ReplTest::test_rebound_stdout_without_flush_still_completes`). 여기서는 같은 동작이 셀을 실패시킨다 —
+   `with-out-str` 가 `(java.io.StringWriter.)` 로 확장되고 native image 에 그 ctor 가 없다
+   (`No matching ctor found for class java.io.StringWriter`). **겉보기에 interop 이 아닌 core 매크로**라는 점이 이 편차의 요점이고,
+   위 「코드를 읽어야만 알던 것」 **8** 이 사용자가 닿는 자리에서 실현된 형태다.
+   확인된 것은 실패가 그 셀에 머물고 protocol stream 에 아무것도 새지 않으며 다음 셀이 정상이라는 것뿐이다
+   (`rlm.repl-test/a-cell-cannot-redirect-its-own-output-and-says-so`). **에러 메시지가 teaching error 여야 하는지는 미결이다.**
+
+2. **registry entry 의 `session_name` 을 요구하지 않는다.** oracle 의 `RLMSubagent` 는 그 키가 없는 항목을 거부한다
+   (`test_subagent_registry.py::RlmSubagentRegistryTest::test_requires_a_default_session_name`). 여기서는 `rlm-children` 이
+   host 가 보낸 모양을 그대로 넘겨 그 키가 없으면 `nil` 이 되고 에러가 아니다
+   (`rlm.continuity-test/registry-entries-pass-through-without-a-minted-default`). 타입 있는 record 가 없다는 구조 차이다.
 
 ## 코드를 읽어야만 알던 것
 

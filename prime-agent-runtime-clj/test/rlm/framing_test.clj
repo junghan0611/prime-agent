@@ -79,11 +79,18 @@
                       ;; process-start brings pump! alive on a raw Thread --
                       ;; the surface the rebinding does not reach.
                       (h/execute repl "f2" "(do (def h (process-start \"echo pumped; exit 0\")) :started)")
-                      (loop [i 0]
-                        (let [tail (get (h/one (h/execute repl (str "f3-" i) "(process-tail h)") "result") "text")]
-                          (when (and (not (re-find #"pumped" (str tail))) (< i 200))
-                            (Thread/sleep 50)
-                            (recur (inc i)))))
+                      ;; The pump observation is an ASSERTION, not a wait. Without
+                      ;; it a runtime whose pump! never commits a byte is still
+                      ;; green here, and the row's whole claim -- that the raw
+                      ;; Thread was alive while these frames were written -- would
+                      ;; be narration.
+                      (let [tail (loop [i 0]
+                                   (let [t (get (h/one (h/execute repl (str "f3-" i) "(process-tail h)") "result") "text")]
+                                     (if (or (re-find #"pumped" (str t)) (>= i 200))
+                                       t
+                                       (do (Thread/sleep 50) (recur (inc i))))))]
+                        (is (re-find #"pumped" (str tail))
+                            "pump! never committed the child's output, so this row proved nothing"))
                       ::completed
                       (catch Exception e e))
             torn (h/first-torn-line repl)]
@@ -99,14 +106,23 @@
                (h/first-torn-line
                 {:raw (atom ["{\"event\":\"ready\"}" "{\"event\":\"stdo"])})))))))
 
-(deftest shutdown-frames-stay-whole-while-the-cleanup-hook-runs
+(deftest shutdown-frames-stay-whole-while-a-live-child-is-reclaimed
+  ;; Narrowed after review. An earlier version of this row claimed the
+  ;; rlm-process-cleanup HOOK was the actor. It is not: rlm.repl/serve calls
+  ;; process/kill-all! before it writes the shutdown done, and the hook's own
+  ;; docstring calls itself "last resort for the abnormal exit path". The hook
+  ;; could be deleted and this test would stay green.
+  ;;
+  ;; So the row says only what the test bites: reclaiming a live child while the
+  ;; runtime writes its last frames does not tear one. The hook's own tear
+  ;; surface (a raw Thread reached only by an abnormal exit) has no green row
+  ;; yet -- see registry H1.4b.
   (let [repl (h/start)]
     (try
       (let [tail (try
                    (is (= "ready" (get (h/read-event repl) "event")))
-                   ;; A live child at shutdown is what makes the
-                   ;; rlm-process-cleanup hook do work while the runtime is
-                   ;; still writing its last frames.
+                   ;; A live child at shutdown is what makes the reclaim path do
+                   ;; work while the runtime is still writing its last frames.
                    (h/execute repl "s1" "(do (process-start \"sleep 47\") :started)")
                    (h/send! repl {"type" "shutdown" "id" "__shutdown__"})
                    ;; Drain to stream close, so the very last frame is included.
@@ -157,8 +173,9 @@
         (is (empty? (filterv #(= "stdout" (get % "event")) events))
             "no leftover output rides into the next cell")))))
 
-;; A megabyte-scale stdout event has to reach the host as ONE complete JSON
-;; line. This is deliberately NOT the oracle contract it sits next to
+;; A 400,001-byte stdout event (400,000 chars plus the newline) has to reach the
+;; host as ONE complete JSON line. The size is the measured scope of this row,
+;; not a claim about "large" in general. This is deliberately NOT the oracle contract it sits next to
 ;; (test_repl.py::ReplTest::test_large_buffer_write_survives_short_pipe_writes):
 ;; there the vehicle IS the contract -- the pipe hands back short writes and the
 ;; writer must loop. Nothing here can make the OS split a write, so this row

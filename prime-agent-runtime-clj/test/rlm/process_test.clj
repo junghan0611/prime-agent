@@ -386,8 +386,12 @@
         (is (= :running (:status snap)))
         (is (alive? pid))
         (let [after (eval-edn repl "e2" "(process-kill \"p1\")")]
-          (is (= :exited (:status after))))
-        (is (gone? pid) "TERM was ignored, so the kill had to escalate")))))
+          (is (= :exited (:status after)))
+          ;; gone? alone is satisfied by any signal that happens to land, so pin
+          ;; the exit that only a forced kill produces: 128 + SIGKILL(9).
+          (is (= 137 (:exit-code after))
+              "TERM was trapped, so only a forced kill can have ended it"))
+        (is (gone? pid))))))
 
 (deftest a-term-ignoring-descendant-is-escalated-to-kill
   ;; Oracle twin: test_bash.py::BashTest::test_term_ignoring_child_is_escalated.
