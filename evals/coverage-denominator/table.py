@@ -30,6 +30,13 @@ def cards(manifest, registry):
         if note.startswith("DEAD"):
             trig = f"**{trig}, DEAD**"
         out.append(f"| `{r['id']}` | {n[r['id']]} | {r['status']} | {trig} |")
+    def split(pred):
+        sel = [r for r in live if pred(r["status"])]
+        return sum(n[r["id"]] for r in sel), len(sel)
+    parity, n_parity = split(lambda s: s.startswith("parity-target("))
+    excluded, n_out = split(lambda s: s.startswith("out-of-scope("))
+    out.append(f"| **parity denominator** | **{parity}** | {n_parity} cards, in scope and unbuilt | |")
+    out.append(f"| **excluded** | **{excluded}** | {n_out} cards, out of scope by GLG | |")
     out.append(f"| **total** | **{sum(n[r['id']] for r in live)}** | {len(live)} cards | |")
     return out
 

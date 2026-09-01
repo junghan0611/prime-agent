@@ -27,13 +27,25 @@ Verdicts, one per oracle test:
         "not applicable".  Hard Rule 3: writing a hole down never makes a PASS.
   D     capability absent in clj; terminates only at a decision card id.
 
+Two gates, not one.  GLG: "terminal 은 회계가 끝났다는 뜻이지 Python 대체
+기준을 충족했다는 뜻은 아니다."  Accounting closure and parity are different
+claims and used to share one exit code, so closing the books read as meeting
+the bar.  They are now separate lines with separate outcomes:
+
+  gate (1)  re-audit closure  -- is every oracle contract accounted for
+  gate (2)  parity baseline   -- is every in-scope capability actually built
+
 Exit codes:
 
-  0  every test terminates at row / a / b / a card GLG has decided
-  1  open debt: `c` entries, or `D` entries pointing at a card GLG has not
+  0  both gates closed
+  1  gate (1) open: `c` entries, or `D` entries pointing at a card GLG has not
      chosen yet.  Never silent, always a number.
-  2  hard failure: an unmapped test, a stale manifest entry, a bad verdict, or
-     an unresolvable row/card id.
+  2  hard failure: an unmapped test, a stale manifest entry, a bad verdict, an
+     unresolvable row/card id, a card status with no decision receipt, or an
+     exclusion that tried to earn coverage.
+  3  gate (1) closed, gate (2) not reached: the books balance and cards still
+     hold in-scope capabilities nobody has built.  This is the state the single
+     exit code could not say.
 
 The stale check is ONE-DIRECTIONAL, on purpose.  manifest -> no such test is a
 hard failure.  registry row -> no manifest entry referencing it is NORMAL: rows
@@ -43,8 +55,10 @@ by reading an oracle test.  H1.4 is exactly that kind of row.  Do not "clean up"
 an unreferenced row.
 """
 
+import collections
 import csv
 import pathlib
+import re
 import sys
 
 import extract
@@ -61,20 +75,99 @@ def read_tsv(name):
 def main():
     manifest = read_tsv("manifest.tsv")
     registry = read_tsv("registry.tsv")
+    hard = []
     rows = {r["id"] for r in registry if r["kind"] == "row"}
     row_status = {r["id"]: r["status"] for r in registry if r["kind"] == "row"}
     cards = {r["id"] for r in registry if r["kind"] == "card"}
     live_cards = [r for r in registry if r["kind"] == "card" and not r["status"].startswith("retired")]
+
     # A card only stops being debt once GLG has CHOSEN. Drafting the card into
     # an issue comment is not the choice: NEXT is explicit that before the
     # choice a card is `DECISION REQUIRED`, and that is incomplete -- an
     # explicit exclusion is not a supported-coverage PASS (Hard Rule 3).
-    chosen = {"support", "exclude", "future"}
-    undecided = {r["id"] for r in registry if r["kind"] == "card" and r["status"] not in chosen}
+    #
+    # GLG's scope decision (issue #2) replaced the placeholder verbs with two
+    # that mean different things, and the difference is the whole point:
+    #
+    #   parity-target(H<n>)           in scope, unbuilt, assigned to a hop.
+    #                                 Owed work -- it is what gate (2) counts.
+    #   out-of-scope(GLG,YYYY-MM-DD)  GLG removed it from the comparison.  A
+    #                                 subtraction from the denominator, never
+    #                                 an addition to the covered set.
+    #   declared-divergence           the contract doc states the difference.
+    #   DECISION REQUIRED             still waiting on GLG -- open debt.
+    #
+    # A scope status is worth exactly the receipt behind it, and an agent can
+    # type any of these words into a cell.  So both decided forms REQUIRE a
+    # decision_url naming the published comment that made the call: the status
+    # alone is reachable by one edit, the status plus its receipt is not.
+    CARD_STATUS = re.compile(
+        r"^(?:parity-target\(H\d+\)"
+        r"|out-of-scope\(GLG,\d{4}-\d{2}-\d{2}\)"
+        r"|declared-divergence"
+        r"|DECISION REQUIRED)$"
+    )
+    DECISION_URL = re.compile(r"^https://github\.com/junghan0611/prime-agent/issues/\d+#issuecomment-\d+$")
+    for r in live_cards:
+        if not CARD_STATUS.match(r["status"]):
+            hard.append(
+                f"card {r['id']} carries an unknown status {r['status']!r}; allowed: "
+                "parity-target(H<n>), out-of-scope(GLG,YYYY-MM-DD), declared-divergence, DECISION REQUIRED"
+            )
+            continue
+        if r["status"].startswith(("parity-target(", "out-of-scope(")) and not DECISION_URL.match(
+            r.get("decision_url", "-")
+        ):
+            hard.append(
+                f"card {r['id']} claims scope status {r['status']!r} with no decision receipt "
+                f"(decision_url={r.get('decision_url', '-')!r}) -- a scope call an agent can reach "
+                "by editing one cell is not a decision"
+            )
+
+    parity_cards = [r for r in live_cards if r["status"].startswith("parity-target(")]
+    out_cards = {r["id"] for r in live_cards if r["status"].startswith("out-of-scope(")}
+    divergent_cards = {r["id"] for r in live_cards if r["status"] == "declared-divergence"}
+    undecided = {r["id"] for r in live_cards if r["status"] == "DECISION REQUIRED"}
+
+    # Hard Rule 3, mechanised.  "Writing a hole down never makes a PASS" was a
+    # sentence a reader had to honour; these are the three doors it could walk
+    # back in through, each shut.  An exclusion earns no verdict other than D,
+    # holds no kill bucket, and -- the third door, opened by the interrupt
+    # negative contract -- a row that only says what the runtime REFUSES to do
+    # is not a terminal any oracle test may claim coverage from.
+    for m in manifest:
+        if m["target"] in out_cards and m["verdict"] != "D":
+            hard.append(
+                f"out-of-scope card {m['target']} is named by a ({m['verdict']}) verdict: {m['test_id']} "
+                "-- an exclusion is a subtraction from the denominator, not a coverage credit"
+            )
+    for r in live_cards:
+        if r["id"] in out_cards and r.get("kill_bucket", "-") != "-":
+            hard.append(
+                f"out-of-scope card {r['id']} carries kill_bucket={r['kill_bucket']!r} "
+                "-- nothing was built, so there is nothing a mutant could break"
+            )
+    negative_rows = {r["id"] for r in registry if r["kind"] == "row" and r["status"] == "negative-contract"}
+    for m in manifest:
+        if m["verdict"] == "row" and m["target"] in negative_rows:
+            hard.append(
+                f"negative-contract row {m['target']} is the terminal for {m['test_id']} "
+                "-- refusing out loud is not keeping the contract; it earns no coverage credit"
+            )
+
+    if not extract.TEST_DIR.is_dir():
+        hard.append(
+            f"oracle test dir not found at {extract.TEST_DIR} -- the gate resolves it relative to "
+            "its own file, so a directory copy reads the wrong tree and every manifest entry goes "
+            "stale; isolate with `git worktree add --detach` instead"
+        )
+        print(f"\nHARD FAILURE -- {len(hard)}:")
+        for line in hard:
+            print(f"  {line}")
+        return 2
 
     actual = extract.test_ids()
     mapped = {m["test_id"]: m for m in manifest}
-    hard = []
 
     for test_id in actual:
         if test_id not in mapped:
@@ -168,8 +261,58 @@ def main():
     skips = extract.host_skips()
 
     print(f"denominator: {len(actual)} oracle tests (unittest, AST-extracted)")
+    print(f"source:      read from {extract.TEST_DIR} -- this gate resolves the oracle "
+          "relative to its own file, so isolate with `git worktree add --detach`, never a directory copy")
     tally = {v: sum(1 for m in manifest if m["verdict"] == v) for v in sorted(VERDICTS)}
     print("verdicts:    " + "  ".join(f"{k}={v}" for k, v in tally.items()))
+
+    # The parity denominator is 70 because 50 tests were EXCLUDED, and those
+    # two numbers are one fact.  Print 70 alone and the next reader has no way
+    # to tell a small comparison from a nearly-finished one -- so the exclusion
+    # is rendered on the same lines, from the same data, every time.  Nothing
+    # here is a literal: the counts come from registry statuses, because every
+    # count in this lane that drifted drifted because a person typed it.
+    per_card = collections.Counter(m["target"] for m in manifest if m["verdict"] == "D")
+    total_D = sum(1 for m in manifest if m["verdict"] == "D")
+    # parity_tests is defined by the CLASS, not by the hop label: a card that
+    # got into this class without a readable hop must still be counted here, or
+    # the partition check below would balance while the ledger lies.  The label
+    # parse is its own failure, and it is a diagnosis rather than a traceback --
+    # a gate that dies with a stack trace has not told anyone anything.
+    HOP = re.compile(r"^parity-target\((H\d+)\)$")
+    parity_tests = sum(per_card[r["id"]] for r in parity_cards)
+    hops = collections.Counter()
+    for r in parity_cards:
+        label = HOP.match(r["status"])
+        if not label:
+            hard.append(
+                f"card {r['id']} is counted as a parity target but its status {r['status']!r} names no hop"
+            )
+            continue
+        hops[label.group(1)] += per_card[r["id"]]
+    out_tests = sum(per_card[c] for c in out_cards)
+    div_tests = sum(per_card[c] for c in divergent_cards)
+    und_tests = sum(per_card[c] for c in undecided)
+    out_label = "/".join(sorted({r["status"] for r in live_cards if r["id"] in out_cards})) or "out-of-scope"
+    # Four disjoint classes over the same cards.  Fold one into another -- the
+    # exact move that turns an exclusion into coverage -- and this stops adding
+    # up, because the classes are counted separately and summed against a D
+    # total taken from the manifest.
+    if parity_tests + out_tests + div_tests + und_tests != total_D:
+        hard.append(
+            f"scope classes do not partition the D verdicts: parity-target {parity_tests} + "
+            f"out-of-scope {out_tests} + declared-divergence {div_tests} + undecided {und_tests} "
+            f"!= D {total_D}"
+        )
+    hop_detail = " ".join(f"{h}={n}" for h, n in sorted(hops.items(), key=lambda kv: int(kv[0][1:])))
+    print(
+        f"scope:       D={total_D} split by card status -- parity-target {parity_tests} ({hop_detail}) · "
+        f"{out_label} {out_tests} · declared-divergence {div_tests} · undecided {und_tests}"
+    )
+    print(
+        f"parity:      denominator {parity_tests} = D {total_D} minus {out_label} {out_tests} "
+        "-- the exclusion is printed with it, never behind it"
+    )
     print(f"host_skip:   {len(skips)} tests carry a runtime skipTest guard (a contract this host may never watch Python keep)")
 
     # Report-only, and deliberately so: this gate answers "is everything
@@ -240,17 +383,39 @@ def main():
             print(f"  {line}")
         return 2
 
-    if debt_c or debt_card:
-        print(f"\nOPEN DEBT -- {len(debt_c)} (c) entries owe a row, {len(debt_card)} cards await a GLG choice:")
+    # Gate (1) asks whether the books balance.  A card GLG has PLACED is a loud
+    # terminal even though nothing is built yet -- "in scope, hop 9, unbuilt" is
+    # an answer.  What leaves gate (1) open is a contract with no terminal at
+    # all: a `c` entry owing a row, or a card still awaiting the call.
+    reaudit_open = bool(debt_c or debt_card)
+    if reaudit_open:
+        print(f"\ngate ①  re-audit closure: OPEN -- {len(debt_c)} (c) entries owe a row, "
+              f"{len(debt_card)} cards await a GLG choice:")
         for t in debt_c:
             print(f"  c  {t}")
         for c in debt_card:
-            n = sum(1 for m in manifest if m["target"] == c)
+            n = per_card[c]
             status = next(r["status"] for r in registry if r["id"] == c)
             print(f"  D  {c} ({n} tests) -- {status}")
-        return 1
+    else:
+        print("\ngate ①  re-audit closure: CLOSED -- every oracle test terminates at a row, "
+              "(a), (b), or a decided card.")
 
-    print("\nevery oracle test terminates at a row, (a), (b), or a decided card.")
+    # Gate (2) asks the other question, and it is the one the single exit code
+    # could not ask.  Every card here is a capability GLG kept IN scope that
+    # nobody has built.  Closing gate (1) does not move this line at all.
+    if parity_cards:
+        print(f"gate ②  parity baseline: NOT REACHED -- {len(parity_cards)} cards hold {parity_tests} "
+              f"in-scope oracle tests ({hop_detail}); {out_label} {out_tests} is excluded from that "
+              "denominator and stays in the ledger")
+    else:
+        print(f"gate ②  parity baseline: REACHED -- no card still holds an in-scope capability; "
+              f"denominator was {parity_tests} = D {total_D} minus {out_label} {out_tests}")
+
+    if reaudit_open:
+        return 1
+    if parity_cards:
+        return 3
     return 0
 
 

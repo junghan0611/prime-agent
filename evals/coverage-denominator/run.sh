@@ -11,7 +11,10 @@ usage() {
 coverage denominator — ./run.sh <cmd>
 
   extract   list every oracle test id the AST finds, with its skipTest guard
-  check     the gate. 0 = all terminate · 1 = open debt · 2 = hard failure
+  check     two gates, two questions.  ① re-audit closure — is every oracle
+            contract accounted for.  ② parity baseline — is every in-scope
+            capability actually built.  Terminal is not parity.
+            0 = both closed · 1 = ① open · 2 = hard failure · 3 = ① closed, ② not reached
   table     render the issue-comment tables from the data
             (cards | rows | verdicts | all) -- so a count is copied, never retyped
 
