@@ -2,8 +2,9 @@
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
 CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-09-01, 이슈 #1).
-**Pass A 는 끝났다. 지금은 Pass B — GLG 결정 8개 + J1 닫힘 정책 대기.** 표는 0행이 아니다:
+**Pass A·B 는 끝났다. GLG 가 범위를 결정했다 — MCP 는 out, 분모 120→72.** 표는 0행이 아니다:
 행 30 · 카드 14 · 분모 게이트 · 양 arm 실행 영수증이 서 있다.
+**단 그 72 는 아직 게이트 사실이 아니다** — 원장·`check.py` 미집행이 조정 부채로 남아 있다(NOW).
 **H1 은 아직 닫히지 않았다**(전 행 `green/no-kill`, 킬은 Pass C) — 그러므로 **TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
@@ -31,17 +32,83 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
 - [x] **H8 default switch + soak** — `edc3a3e8`. default = clojure, fallback 없음. 테라 `55b3ea` native 65/497 PASS.
 - [x] **H2 leftover receive** — `ed702304`. 2차 `primeclj` Q-R3 PASS (notice 0). H8 재오픈 아님.
-- [ ] **H1–H8 재검수** — **진행 중.** Pass A(기계) 끝, Pass B(GLG 결정) 대기, Pass C(킬) 남음.
+- [ ] **H1–H8 재검수** — **진행 중.** Pass A(기계) 끝, Pass B(GLG 결정) **수령**, Pass C(킬) 남음.
   홉을 빼지 말고 전부. 방법과 지금 사실은 아래 NOW. 새 기능 아님. Emmy 아님.
 - [ ] **Emmy / SICM** — 재검수 다음. 지금 열지 않음.
 
-현재 좌표: H0–H8 checkpoint · leftover receive 닫힘 → **H1–H8 재검수 — Pass A 끝, Pass B(GLG 결정) 대기** → Pass C(킬) → (그다음 Emmy).
+현재 좌표: H0–H8 checkpoint · leftover receive 닫힘 → **H1–H8 재검수 — Pass A·B 끝** → 원장·게이트 집행 + **H9–H12 parity 홉** → Pass C(킬) → (그다음 Emmy).
 
-# NOW — Pass A 끝. **Pass B(GLG 결정) 대기**
+# NOW — Pass B 결정 수령. **H9 갈래 결정 + 원장·게이트 집행 대기**
 
 좌표: 이슈 [#1](https://github.com/junghan0611/prime-agent/issues/1) 스레드. **본문과 어긋나면 스레드가 이긴다.**
 
-## 지금 사실 (2026-09-01, oracle, HEAD `85cc3903` · 워킹트리 clean)
+## 2026-09-01 저녁 레인 — 무엇이 바뀌었나 (여기부터 읽어라)
+
+**세 가지가 바뀌었다. 하나는 GLG 결정, 하나는 측정, 하나는 사고다.**
+
+**① GLG 범위 결정 — MCP 는 이 포크의 RLM 이 쓰지 않는다.**
+기준은 「Python 이 되는 범위」이고 기본값은 support 이지만, GLG 가 **제품 범위로** MCP 를 뺐다 —
+*"내가 바라보는 rlm 에이전트는 mcp 안 써. 인터넷 검색도 안 써. 스킬도 전통적인 방식으로 없어도 돼.
+lisp 으로 agent-server 로 내 하네스를 eval 하는 것 제외하면 그냥 모델 그 자체로 어떠한 외부 자극 없이
+어느 정도 단절된 터널에서 쭉 나아가게 할 거야."*
+→ 분모 **120 → 72** (MCP 48 out). 홉 9개 → **4개**. **HTTP 클라이언트·인증 계약 분기 blocker 후보가 통째로 사라졌다.**
+좌표: [#2 재범위 댓글](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5492713076).
+정정 둘: `find_models` 는 웹검색이 아니라 **자식 스폰용 모델 조회**이고, `harness.py` 는 전통적 스킬 계층이 아니라
+**에이전트 자기 노트장**이다 — 둘 다 터널 안쪽이다.
+
+**② 측정 — SCI 는 계산 루프에서 `Thread.interrupt` 를 관찰하지 못한다.**
+이 레인의 마지막 미측정 blocker 후보였고 답은 「관찰하지 못한다」다. 그러나 **그 사실이 H9 를 막지 않는다** —
+오라클의 `D-INTERRUPT` 21건 중 **순수 계산 루프는 0건**이고, 오라클 자신도 유일한 `while True: pass` 를
+interrupt 가 아니라 **watchdog 의 프로세스 exit** 으로 푼다(그 테스트는 `D-OWNER-WATCHDOG` 소속이다).
+→ **갈래 ⑤(셀 스레드 + `Thread.interrupt` 전달 + parking 상태기계)가 17/21 을 SCI 무변경으로 덮는다.**
+영수증: [측정·negative contract](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5493202373) ·
+[21건 전수 분류 + 갈래 ⑤](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5494371045).
+
+**③ 사고 — 21:15 오라클 재부팅으로 형제 셋이 한꺼번에 사라졌다.**
+감수 fable · 구현 opus · 검수 kimi 의 tmux 창이 전부 날아갔다. 세션 안에만 있던 영수증은 **건너가지 못한다.**
+그래서 위 두 링크가 있다. **다음 형제도 같은 방식으로 죽는다고 가정하고, 결정적 줄은 즉시 이슈로 옮겨라.**
+
+### 그래서 지금 열려 있는 것 — GLG 자리 셋
+
+1. **H9 갈래** — ⑤ 채택 여부. tight-loop 하나만 declared-divergence → H11 watchdog 으로 보낸다.
+   **이것이 정해져야 실무가 움직인다.**
+2. **Defect 3 — H10 ↔ `BASELINE.md` 충돌.** H10(harness state)이 parity-target 이 되는 순간
+   세션 넘는 global 항목은 **기능**인데, `BASELINE.md` Q-R0 은 "이전 세션 기억 없음"을 지시하고
+   FAIL 기준에 "claims memory of another session" 을 둔다. **BASELINE 개정 vs 인터뷰별 격리 global store.**
+3. **홉 배치 확정** — H9 셀취소 21 · H10 harness 33 · H11 프로세스회수 11 · H12 표면 7 (`emit` + `find-models`).
+
+### 조정 부채 — 결정과 무관하게 닫아야 한다 (Defect 1)
+
+**「분모 72」는 이슈 댓글에만 있고 게이트에는 없다.** 2026-09-01 22:00 재측정:
+`registry.tsv`/`manifest.tsv` 에 `out-of-scope` **0 hit** · D-* 카드 14장 전부 `DECISION REQUIRED` ·
+`check.py` 의 `chosen = {support, exclude, future}` 는 새 어휘를 모름 · 게이트 **exit 1**.
+집행할 것: ⓐ 카드 status 를 `parity-target(H<n>)` / `out-of-scope(GLG,2026-09-01)` 로 재작성하되
+**GLG 결정 영수증 URL 을 앵커로 달 것**(에이전트 편집만으로 도달 가능한 status 가 되지 않게)
+ⓑ `check.py` 의 `chosen` 확장 ⓒ **게이트 이원화** — 재감사 닫힘 / parity 기준점 도달은 다른 선이다
+(*"terminal 은 회계가 끝났다는 뜻이지 Python 대체 기준을 충족했다는 뜻은 아니다"* — GLG)
+ⓓ 분모 261 과 D=120 은 **불변**, 48 은 지우지 말고 `out-of-scope(GLG,…): 48` 로 **매번 함께 인쇄**.
+**숨기지 않는 제외만 제외다.**
+
+### 감수·검수가 남긴 살아 있는 결함 둘 (H10 이 흡수한다)
+
+- **harness 프롬프트 블록이 clj 전 세션에 Python 문법을 상시 주입한다.**
+  `_loadMergedHarnessState` 가 항상 객체를 반환 → `buildSystemPrompt` 의 `if (harnessState)` 항상 참 →
+  Call contract 가 `await rlm(...)`·`await agent_message.send(...)` 를 가르치는데,
+  같은 프롬프트의 `CLOJURE_REPL_CONTROL_PROMPT` 는 *"Do not write Python … `await` … are not valid here"* 라 적는다.
+  **엔트리 0 개인 빈 상태에서도 렌더된다.** 진짜 결함은 "clj 변형이 없다"가 아니라
+  **변형 선택자가 `hasIpython = tools.includes("ipython")` 이라는 상수에 묶인 것**이다 —
+  이 포크가 커널을 런타임 중립으로 만들면서 clj 커널도 `ipython` 도구 뒤에 섰고(`ToolName` 단일, 개명 금지),
+  프롬프트 조립만 도구 이름에서 런타임을 추론하는 채로 남았다. 수정 지점은 **런타임 신호의 별도 통로**다.
+- **MCP out-of-scope 에 경계 negative test 가 없다 (Defect 2).** `mcp.refresh`/`mcp.config` 는 런타임 중립 등록이라
+  clj 셀이 `host-request` 로 촉발할 수 있다 — **"MCP 범위 밖"은 프롬프트 층에서만 참이고 프로토콜 경계에서는 아직 거짓이다.**
+
+### H7 판정에 대한 정확한 문장
+
+**"H7 판정은 선다" 참 · "오염된 런이 없었다" 미증명.** `model-fumble` 0 · pyLeak 0 은 **문법 축** 측정이고,
+발견 3(clj 자식이 답을 안 보냄 / Python 자식은 보냄)은 **행동 축**이다. 프롬프트가 clj 팔에 없는 capability 를
+Python 문법으로 가르친 자리가 정확히 거기다. 두 문장을 붙여 쓰지 마라.
+
+## 지금 사실 (2026-09-01 저녁, oracle · 워킹트리 clean — interrupt negative contract 는 이 커밋에 들어갔다)
 
 ```
 kill buckets: 45 rows owe a kill -- A(strong)=29 B(weak, earns killed/weak not PASS)=3 C(equivalent mutant, documented limit)=13
@@ -60,10 +127,10 @@ OPEN DEBT -- 9 (c) entries owe a row, 14 cards await a GLG choice:
 exit=1
 ```
 
-- **clj:** `./run.sh test-native` → **`83 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 71 → 부채 정리 83). `./run.sh test repl-kernel-clojure-runtime` **14 passed**. `./run.sh lint` 0/0.
+- **clj:** `./run.sh test-native` → **`85 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 71 → 부채 정리 83 → interrupt negative contract 85). `./run.sh test repl-kernel-clojure-runtime` **14 passed**. `./run.sh lint` 0/0.
 - **python oracle:** 전체 실행 6회 중 **5회 green**. 1회 `test_bash.BashTest.test_term_ignoring_child_is_escalated` 실패(journal record `active == true`), 단독 재실행 3/3 green. **full-suite 재현성 간헐 실패이며 원인 미확정.**
 - **production source 0줄.** 바뀐 것은 `prime-agent-runtime-clj/test/` 다섯과 `docs/clojure-runtime.md`(stale 배너 + H4 알려진 편차) 하나, 그리고 artifact `evals/coverage-denominator/`.
-- **인용 규칙:** `71 tests / 0 failures` 만 안정 수로 쓴다. assertion 총수는 영수증에 적되 **비교 근거로 쓰지 않는다** — 흔들리는 메커니즘이 밝혀져 있다(아래 은퇴 목록).
+- **인용 규칙:** `85 tests / 0 failures` 만 안정 수로 쓴다 (assertion 은 같은 트리에서 622 와 623 이 둘 다 관측됐다). assertion 총수는 영수증에 적되 **비교 근거로 쓰지 않는다** — 흔들리는 메커니즘이 밝혀져 있다(아래 은퇴 목록).
 
 ## 다음 세션 첫 손 — **뒤로 1–2발자국 재검증** (GLG 지정)
 
@@ -100,15 +167,22 @@ exit=1
 
 ## 다음 한 걸음 — 우선순위
 
-1. **GLG 결정 10건** ← 이슈 #2. **에이전트가 고르지 않는다.**
-2. **태우기로 나오면** — A 29 집행 → 킬 영수증(10필드 + **예상 폐쇄 vs 실제 Red 대조**) → **닫힘 HEAD 재인증 스윕 1회** → 재감사 닫힘.
-3. **안 태우기로 나오면** — Pass C 종결 문서가 그대로 답이다. `green/no-kill` 32행을 "이 팔에서 킬이 왜 비싼가"와 함께 정직하게 닫는다.
-4. **부채 9** — 처분 확정. **새 green 테스트로 더 줄일 자리는 없다.**
-5. **`H1.8`** — `D-INTERRUPT` 결정에 매여 **일부러 비워둔다.**
+1. **조정 부채 집행** — 원장 어휘 + `check.py` `chosen` 확장 + **게이트 이원화**. 위 「조정 부채」 ⓐ–ⓓ.
+   **GLG 결정(A)(B) 와 무관하게 지금 할 수 있다.** 이것이 안 서면 「분모 72」를 인용하는 모든 문장이 근거를 잃는다.
+2. **GLG 자리 셋** — H9 갈래 ⑤ · Defect 3 · 홉 배치. **에이전트가 고르지 않는다.**
+3. **H9 착수(⑤ 채택 시)** — 셀 스레드 추적 + `Thread.interrupt` 전달 + parking 상태기계. **SCI 를 건드리지 않는다.**
+   tight-loop 은 declared-divergence 로 H11 watchdog 에 보낸다 — 오라클 자신의 답과 같은 모양이다.
+4. **Pass C 잔무** — A29 재검증 후 집행(기계 37~48분). 이 레인과 독립, 병렬 가능.
+   `H1.7b`/`H1.7c` 는 GLG 가 「집행하지 않음」으로 확정 — `green/no-kill` 그대로.
+5. **`H1.8`·`D-INTERRUPT` 원장 갱신** — named test 가 생겼으니 갱신 대상이지만
+   **negative contract 는 커버리지 크레딧이 아니다**(Hard Rule 3). `D-INTERRUPT` 21건은 `parity-target(H9)` 로 두고
+   negative-contract 행만 붙인다.
+6. **부채 9** — 처분 확정. **새 green 테스트로 더 줄일 자리는 없다.**
 
 ## 살아 있는 금지
 
-- **커밋·푸시는 GLG 의 현재 세션 지시가 있을 때만.** 지금 워킹트리에 미커밋 변경이 있고, 그대로 두는 것이 맞다.
+- **커밋·푸시는 GLG 의 현재 세션 지시가 있을 때만.** 커밋 요청이 푸시를 함의하지 않는다.
+- **형제의 영수증을 세션에 묵혀두지 않는다.** 21:15 재부팅으로 형제 셋이 한꺼번에 사라졌다 — 결정적 줄은 즉시 이슈로 옮긴다.
 - **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용.
 - **`git stash` 금지** — 여러 형제가 같은 트리에 있다. 격리는 임시 worktree.
 - **새 카드·새 계측 동결.** manifest 전수 재검증 금지.
@@ -307,6 +381,15 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 - Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy.
 
 # RECENT
+
+- [2026-09-01] **범위가 줄고 blocker 가 하나 남았다가 그것도 무력화됐다.** GLG 가 MCP 를 **제품 범위로** 제외 —
+  분모 120→72, 홉 9→4, HTTP·인증 blocker 후보 소멸. 이어 SCI 인터럽트를 실측: **tight loop 미관찰**(native 3/3, JVM 대조 동일).
+  그런데 `D-INTERRUPT` 21건 전수 분류 결과 **순수 계산 루프 계약이 0건**이고 오라클도 유일한 `while True: pass` 를
+  watchdog 프로세스 exit 으로 푼다 → **갈래 ⑤가 17/21 을 SCI 무변경으로 덮는다.** interrupt 를 조용히 버리던 자리에
+  negative contract + named test 2 + kill receipt 3(강 2·약 1). 형제 셋(fable 감수 · opus 구현 · kimi 검수) 전원 보고,
+  21:15 재부팅으로 전원 소실 — 영수증은 이슈 [5493202373](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5493202373) ·
+  [5494371045](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5494371045) 에 있다.
+  **함께 틀린 곳: 프롬프트 표면을 `rlm.ts` 와 동일시했다** — 실제 조립은 `system-prompt.ts` 이고 부록 넷 중 런타임 분기는 하나뿐이다.
 
 - [2026-09-01] **Pass C 계획 종결.** 계획 4회차 + Fable/sol 감사 5회. 결정 숫자 **A29 / B3 / C13 = 45**,
   이제 `kill_bucket` 열에 있고 **게이트가 partition·전이·중복을 하드 실패로 검사**한다 — `killed/weak` 가 처음으로 기계 규칙이 됐다.
