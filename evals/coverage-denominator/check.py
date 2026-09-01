@@ -141,6 +141,16 @@ def main():
     # this line is the only thing standing between that and "everything is
     # done".  Unreferenced is legitimate (a row can come from the contract doc
     # instead of an oracle test); unexamined is not.
+    # A kill receipt does not make every row equal.  A row whose green is also
+    # green under a weaker implementation earns `killed/weak`, never `PASS`:
+    # otherwise the kill column launders a false PASS the same way the coverage
+    # column would have.  Whether `killed/weak` counts as closed is J1's
+    # question and GLG's to answer; the gate only refuses to launder it.
+    weak = [r for r in registry if r["kind"] == "row" and "WEAK-KILL CANDIDATE" in r.get("one_line", "")]
+    if weak:
+        print(f"weak kills:   {len(weak)} rows are flagged weak-kill candidates -- a kill here would earn "
+              f"killed/weak, not PASS: " + " ".join(sorted(r["id"] for r in weak)))
+
     all_rows = [r for r in registry if r["kind"] == "row"]
     unref = [r for r in all_rows if r["id"] not in set(referenced)]
     if unref:
