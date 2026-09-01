@@ -1,7 +1,10 @@
 # feat/clojure-runtime — 8홉 레일 닫힘
 
 최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-08-31, 이슈 #1). 착수 1 = **이슈 #1 에 H1 댓글**로 H1.1–H1.4 를 채운다. **H1 이 닫히기 전에는 TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
+CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2026-09-01, 이슈 #1).
+**Pass A 는 끝났다. 지금은 Pass B — GLG 결정 8개 + J1 닫힘 정책 대기.** 표는 0행이 아니다:
+행 30 · 카드 14 · 분모 게이트 · 양 arm 실행 영수증이 서 있다.
+**H1 은 아직 닫히지 않았다**(전 행 `green/no-kill`, 킬은 Pass C) — 그러므로 **TS 17파일을 열지 않는다.** Emmy 는 성능평가 다음.
 
 계약: `docs/clojure-runtime.md`. 판: issue #1.
 
@@ -28,17 +31,75 @@ CURRENT = **H1–H8 재감사 — 커버리지 대응 + kill receipt** (좌표 2
 - [x] **H7 기능 A/B (DeepSeek)** — `b5e9e424`. 8런 both arms, $0.00576. 테라 `55b3ea` raw JSONL 재분석 일치.
 - [x] **H8 default switch + soak** — `edc3a3e8`. default = clojure, fallback 없음. 테라 `55b3ea` native 65/497 PASS.
 - [x] **H2 leftover receive** — `ed702304`. 2차 `primeclj` Q-R3 PASS (notice 0). H8 재오픈 아님.
-- [ ] **H1–H8 재검수** — **진행 중. 홉을 빼지 말고 전부.** 방법은 아래 NOW. 새 기능 아님. Emmy 아님.
+- [ ] **H1–H8 재검수** — **진행 중.** Pass A(기계) 끝, Pass B(GLG 결정) 대기, Pass C(킬) 남음.
+  홉을 빼지 말고 전부. 방법과 지금 사실은 아래 NOW. 새 기능 아님. Emmy 아님.
 - [ ] **Emmy / SICM** — 재검수 다음. 지금 열지 않음.
 
-현재 좌표: H0–H8 checkpoint · leftover receive 닫힘 → **H1–H8 재검수 (방법 확정, 착수 1번부터)** → (그다음 Emmy).
+현재 좌표: H0–H8 checkpoint · leftover receive 닫힘 → **H1–H8 재검수 — Pass A 끝, Pass B(GLG 결정) 대기** → Pass C(킬) → (그다음 Emmy).
 
-# NOW — H1–H8 재감사 = **커버리지 대응 + kill receipt**, 둘 다
+# NOW — Pass A 끝. **Pass B(GLG 결정) 대기**
 
-좌표: 이슈 [#1 comment](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5475775026) (2026-08-31).
-6인의 읽기 전용 입력을 반영했다 (Sonnet `ecd946` 측량 · glm-5.3 `75ccad` 2회 · Fable(bbot) oracle 검독 · terra `842aef` 방법론 · Opus `10ada8` 첫독자 · terra `651b4c` run.sh 검수).
-**표는 아직 0행이다.** 2026-08-31 은 문서 레일만 돌았다 — 커밋 10개 전부 문서·스크립트, production source 0줄.
-**다음 세션의 첫 손은 이슈 #1 의 H1 댓글이고, 그 전에 다른 커밋을 열지 않는다.**
+좌표: 이슈 [#1](https://github.com/junghan0611/prime-agent/issues/1) 스레드. **본문과 어긋나면 스레드가 이긴다.**
+
+## 지금 사실 (2026-09-01, oracle, HEAD `50b53f94` · 워킹트리는 미커밋 변경 있음)
+
+```
+verdicts:    D=120  a=91  b=3  c=17  row=30
+(a) anchors:  40 of 91 -- 38 via PASS (H1.3b), 2 via green/no-kill (H1.3c)
+row status:  참조된 행 전부 green/no-kill. empty 0
+dead triggers: 5 of 14 cards
+semantic:    stratified sample n=55 -- 4 terminal misclassifications (7.3%), all 4 fixed
+OPEN DEBT -- 17 (c) entries owe a row, 14 cards await a GLG choice
+exit=1
+```
+
+- **clj:** `./run.sh test-native` → **`71 tests / 0 failures`** (아침 65 → H1.4 로 67 → 빈 행 채우고 71). `./run.sh lint` 0/0.
+- **python oracle:** 전체 실행 6회 중 **5회 green**. 1회 `test_bash.BashTest.test_term_ignoring_child_is_escalated` 실패(journal record `active == true`), 단독 재실행 3/3 green. **full-suite 재현성 간헐 실패이며 원인 미확정.**
+- **production source 0줄.** 바뀐 것은 `prime-agent-runtime-clj/test/` 넷과 `docs/clojure-runtime.md`(stale 배너) 하나, 그리고 새 artifact `evals/coverage-denominator/`.
+- **인용 규칙:** `71 tests / 0 failures` 만 안정 수로 쓴다. assertion 총수는 영수증에 적되 **비교 근거로 쓰지 않는다** — 흔들리는 메커니즘이 밝혀져 있다(아래 은퇴 목록).
+
+## 읽을 곳 (순서대로)
+
+1. **Pass B 결정 시트** — [comment 5490271142](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5490271142). GLG 가 볼 것은 이것 하나다.
+2. **Pass A 헌장** — [comment 5489607349](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489607349). 레인 설계와 은퇴한 주장들.
+3. **분모 artifact** — `evals/coverage-denominator/`. `run.sh check` 가 게이트, `manifest.tsv` 가 261행 전수, `registry.tsv` 가 행·카드 원장. **산문을 믿지 말고 돌려봐라.**
+4. 카드 14장 — [9장](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489867845) · [5장+재분류](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489938033) · [D-INTERRUPT](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5489802290).
+
+## 다음 한 걸음 — 우선순위
+
+1. **Pass B 결정 반영** ← GLG 대기. 결정 8개 + J1. **에이전트가 고르지 않는다.**
+2. **부채 17 의 테스트 작성** — 전부 새 clj 테스트가 필요하다. **어느 것부터인지가 곧 우선순위 결정**이라 지시가 필요하다. 재빌드 0(테스트는 `test/` 아래, `rlm.sut/assert-native-ready!` 는 `src/**` 만 본다).
+3. **Pass C 킬 집행** — 배치 규율은 헌장에. `H4.1` 은 `mode-1 (env)` 로 표기돼 있어 native 재빌드 예산이 그만큼 준다. clj mode-2 는 배치, TS mode-2 는 공짜.
+4. **`H1.8`** — `D-INTERRUPT` 결정에 매여 **일부러 비워둔다.** 지금 채우면 GLG 선택지를 코드로 닫는다.
+5. **`--table`** (registry → Pass B 표 생성) — **보류.** 손 계산 표면을 없애는 값은 인정되나 계측 확장이다.
+
+## 살아 있는 금지
+
+- **커밋·푸시는 GLG 의 현재 세션 지시가 있을 때만.** 지금 워킹트리에 미커밋 변경이 있고, 그대로 두는 것이 맞다.
+- **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용.
+- **`git stash` 금지** — 여러 형제가 같은 트리에 있다. 격리는 임시 worktree.
+- **새 카드·새 계측 동결.** manifest 전수 재검증 금지.
+- **`PASS` 로 올리지 않는다** — 킬이 붙기 전 초록은 `green/no-kill` 이다.
+- **원천(오라클 테스트 또는 계약서 문장) 없는 원리 행 신설은 `H1.8` 에서 캡한다.**
+- **비용 상한을 스스로 정하지 않는다.**
+
+## 은퇴한 상속 주장 (전부 실측으로 대체됨)
+
+| 주장 | 실측 |
+|---|---|
+| "261 pytest" | **unittest** 다. CI 가 `unittest discover`, pytest 는 의존성에 없다. 숫자 261 은 생존 |
+| clj verb 13개 | **12개**. `sci/init` 맵 심볼 13 중 `'user` 는 네임스페이스. 런타임에 `user` 에 보이는 이름은 `bind-_` 의 `_` 포함 13 |
+| Windows 36건 | **38건**. `test_windows_*` 접두어가 없는데 본문이 taskkill/job 을 모는 2건이 있다 |
+| journal 7건 | **9건** (순수 8 + 혼재 1) |
+| 「거의 1:1」 `test_subagent_registry` 10 ↔ `host_bridge` 10 | **5 승격 / 3 부채.** 개수 대칭은 계약 대칭이 아니다 |
+| assertion 총수 변동 "메커니즘 미상" | **폴링 루프다.** `process-test/wait-exit` 가 `eval-edn` 을 최대 200회 부르고 그 안에 `is` 가 하나 있다. 폴 횟수 = 단언 수. **헌장의 `doseq` 정적 분석은 틀린 자리를 봤다** |
+| "`^def test_` 로 앵커하면 된다" | python 은 전부 클래스 메서드라 그 앵커가 **0** 을 준다. clj 함정은 부풀리고 python 함정은 비운다. **정본은 AST** |
+
+## 남은 부채의 성질 (17건, 전량은 `manifest.tsv`)
+
+- 대부분은 **"clj 가 아마 그럴 것"과 "clj 가 그렇다고 단언되어 있다"의 차이**다. 그 문장이 승격 판정의 기준이었다.
+- **`test_traceback_clean_with_source_line` 은 종류가 다르다** — 계약서가 `error` 이벤트를 **OPEN** 으로 열어뒀다. **재면 닫히는 게 아니라 정해야 닫힌다.** 측정하러 턴 쓰지 마라.
+- **`test_running_reflects_group_liveness` 는 부재가 아니라 편차다** — 오라클은 그룹 생존을 `running` 으로 보고하고 이 팔은 **리더 스코프**로 보고한다(양쪽 named test 로 확인). 등급 **Defect**, 지금 레인 열지 않음. 결정 7 카드에 사실로 실려 있다.
 
 ## 왜 지금 커버리지인가 (GLG)
 
@@ -66,7 +127,12 @@ kill receipt는 새 개념이 아니다 — H2 receive 랜딩 때 게이트를 �
 
 **행의 단위는 파일·grep 개수·test 함수가 아니라 하나의 observable scenario 다.** 한 Python 파일은 여러 행을 낼 수 있고, 한 named test 도 여러 행의 영수증이 될 수 없다. source 는 계약과 test 위치를 찾을 때만 읽고 **품질 평가는 하지 않는다.**
 
-## 착수 순서
+## 착수 순서 — **1·2·3 은 끝났다. 남은 것은 4번뿐이고 H1 미닫힘이라 열지 않는다**
+
+> 아래는 2026-08-31 에 세운 순서이고 **기록으로 남긴다.** 1번(대응표)은 행 30개로,
+> 2번(env 이음새)은 `H4.1a`/`H4.1b` 로, 3번(receive 기계화)은 H2 leftover 로 닫혔다.
+> **4번 TS 17파일은 H1 이 닫힌 뒤다** — 지금 전 행이 `green/no-kill` 이라 안 닫혔다.
+
 
 1. **Python 계약 → Clojure 대응표 — hop 단위, evidence-first. 산출은 이슈 #1 의 H1 댓글.** 파일 순서도 261:65 전수도 아니다. 한 세션의 단위는 **한 홉의 atomic observable contract row 묶음**이고, 첫 세션은 **H1만** 연다:
    - **H1.1** default=clojure + explicit python
@@ -175,6 +241,13 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 - Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy.
 
 # RECENT
+
+- [2026-09-01] **Pass A 끝.** production 이틀 0줄 → **`71 tests / 0 failures`**. 빈 행 4 → **0**.
+  분모가 열거의 산물에서 **실행의 산물**이 됐다(AST 261 = 오라클 런타임 수집 261, 이 HEAD 에서 처음 돌렸다).
+  `evals/coverage-denominator/` 신설 — 게이트가 미매핑·stale·풀리지 않는 id 에 **시끄럽게 실패**하고,
+  구조만 검사하고 **의미는 검사하지 않는다**는 사실까지 스스로 인쇄한다. 킬 영수증 6건.
+  카드 14장 · Pass B 결정 시트. 검수 Fable 5(Defect 3) · sol(Blocker 1, 의미 표본 오분류 7.3%).
+  `c` 40 → 17 (승격 21 · `b` 2 · 부채 17) — **안 올린 17이 이 표를 믿을 수 있게 만든 부분이다.**
 
 - [2026-08-30] H3 닫힘. 푸시 `ba2bba55`.
 - [2026-08-30] H4 `4c42dbb4` → `9229aa77`. 푸시 `a114668f`.

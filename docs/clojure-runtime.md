@@ -347,6 +347,12 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
 
 ## Host 연결 — 아직 없음
 
+> **STALE (2026-09-01).** 이 절은 host 연결 **이전** 상태를 적은 것이고 지금은 사실이 아니다.
+> host 는 붙었다 — `rlm.core/host-request` 가 돌고, 기본 런타임이 clojure 이며(H8), 이 절이
+> "붙는 날의 범위"로 예고한 다섯 항목은 H1–H8 에서 대부분 지나갔다. **이 절의 선언만으로
+> 어떤 행도 종결하지 마라.** 계약서 산문은 ground truth 가 아니라 그 시점의 의도다 —
+> 행은 코드 심볼과 named test 에 닻을 내려야 한다. 경위는 이슈 #1 스레드.
+
 Runtime은 독립 driver로 관통했다. TypeScript host에 붙이는 일은 RAIL 4다. 새 capability는 열지 않는다. spawn·bootstrap·prompt·snapshot-off만.
 
 붙는 날의 범위만 적어 둔다. 견적: 구현 220–300 + 테스트 180–250.
