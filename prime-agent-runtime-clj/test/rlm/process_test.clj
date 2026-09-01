@@ -371,3 +371,76 @@
         (is (zero? (:exit-code snap))))
       (is (= "absolute-ok" (eval-edn repl "as2" "(process-tail \"p1\")")))
       (finally (h/close! repl)))))
+
+;; H4 escalation. rlm.process/terminate! signals the group TERM, waits
+;; term-grace-ms, then signals KILL and destroyForcibly. Nothing exercised the
+;; second half, so "the tree dies" was pinned but "TERM is escalated" was not.
+;; NEXT carried this as leftover "H4 (c) SIGKILL orphan"; these two rows are its
+;; coordinate.
+(deftest a-term-ignoring-leader-is-escalated-to-kill
+  ;; Oracle twin: test_bash.py::BashTest::test_kill_escalates_to_sigkill.
+  (h/with-repl
+    (fn [repl _]
+      (let [snap (eval-edn repl "e1" "(process-start \"trap \\\"\\\" TERM; sleep 90\")")
+            pid (long (:pid snap))]
+        (is (= :running (:status snap)))
+        (is (alive? pid))
+        (let [after (eval-edn repl "e2" "(process-kill \"p1\")")]
+          (is (= :exited (:status after))))
+        (is (gone? pid) "TERM was ignored, so the kill had to escalate")))))
+
+(deftest a-term-ignoring-descendant-is-escalated-to-kill
+  ;; Oracle twin: test_bash.py::BashTest::test_term_ignoring_child_is_escalated.
+  ;; A DIFFERENT scenario from the leader case: here the leader dies on TERM and
+  ;; the stubborn process is one it forked, which only the group signal reaches.
+  (h/with-repl
+    (fn [repl _]
+      (let [snap (eval-edn repl "d1"
+                           "(process-start \"sh -c 'trap \\\"\\\" TERM; sleep 90' & wait\")")
+            pid (long (:pid snap))
+            kids (descendants-of pid 1)]
+        (is (= :running (:status snap)))
+        (is (= 1 (count kids)) "the leader forked one stubborn child")
+        (eval-edn repl "d2" "(process-kill \"p1\")")
+        (is (gone? pid))
+        (doseq [kid kids]
+          (is (gone? kid) (str "descendant " kid " ignored TERM and must still be killed")))))))
+
+;; H4 capture shape. captured-output-is-bounded pins truncation and the tail;
+;; whether the HEAD survives was never observable, because that fixture emits
+;; short lines and the tail alone runs past max-tail-lines. Few, very long lines
+;; put both ends inside one tail request.
+(deftest a-truncated-capture-keeps-both-ends-and-says-what-it-dropped
+  ;; Oracle twin: test_bash.py::BashTest::test_buffer_cap_keeps_head_and_tail.
+  (h/with-repl
+    (fn [repl _]
+      (eval-edn repl "h1"
+                (str "(do (def h (process-start "
+                     "\"i=1; while [ $i -le 40 ]; do printf 'L%d-' $i; "
+                     "head -c 20000 /dev/zero | tr '\\\\0' x; printf '\\n'; "
+                     "i=$((i+1)); done\")) :started)"))
+      (let [snap (wait-exit repl "(process-poll h)")]
+        (is (= :exited (:status snap)))
+        (is (true? (:output-truncated snap))))
+      (let [text (eval-edn repl "h2" "(process-tail h 2000)")
+            lines (str/split-lines text)]
+        (is (re-find #"^L1-" (first lines)) "the head survives the cap")
+        (is (re-find #"^L40-" (last lines)) "and so does the tail")
+        (is (re-find #"bytes dropped" text)
+            "the capture says what it dropped instead of hiding the seam")))))
+
+(deftest capture-under-the-cap-loses-no-line
+  ;; Deliberately NOT the oracle contract it sits beside
+  ;; (test_bash.py::BashTest::test_slow_pump_does_not_lose_foreground_output):
+  ;; there the vehicle is a reader held back mid-handoff, and nothing here can
+  ;; slow pump!. This row pins the reachable half -- under the cap, every line a
+  ;; child wrote comes back, in order -- and leaves that oracle entry owed.
+  (h/with-repl
+    (fn [repl _]
+      (eval-edn repl "l1" "(do (def h (process-start \"seq 1 500\")) :started)")
+      (wait-exit repl "(process-poll h)")
+      (let [lines (str/split-lines (eval-edn repl "l2" "(process-tail h 2000)"))]
+        (is (= 500 (count lines)) "no line is lost under the cap")
+        (is (= "1" (first lines)))
+        (is (= "500" (last lines)))
+        (is (= (mapv str (range 1 501)) (vec lines)) "and the order is the child order")))))

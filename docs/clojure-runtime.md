@@ -168,6 +168,21 @@ Python oracle의 `bash()` handle(`prime-agent-runtime/src/rlm/bash.py`)을 참�
 | `(process-kill id)` | tree 종료 후 snapshot |
 | `(process-list)` | registry 전체 snapshot vector |
 
+### 알려진 편차 — `:status` 는 그룹이 아니라 리더를 보고한다
+
+**사실 진술이다. 옳고 그름은 여기서 정하지 않는다.**
+
+Python oracle 은 프로세스 그룹 구성원이 하나라도 살아 있으면 handle 의 `running` 을 참으로 유지한다 —
+`prime-agent-runtime/test/test_bash.py::BashTest::test_running_reflects_group_liveness` 가
+`result.exit_code == 0` 을 받은 **뒤에도** `assertTrue(handle.running)` 을 단언한다.
+
+이 팔의 `:status` 는 **리더 프로세스**를 보고한다. `rlm.process-test/group-kill-reclaims-a-child-that-outlived-its-leader`
+가 같은 상황에서 리더를 `:exited` 로 보고하면서 그 자식이 아직 살아 있음을(`(is (alive? orphan))`) 함께 단언한다.
+그룹 생존은 `:contained` 와 `process-kill` / shutdown 의 회수 경로가 따로 다룬다.
+
+**intentional NO-CREDIT.** 이 편차를 적어두는 것은 supported coverage 를 만들지 않는다 (`AGENTS.md` Hard Rule 3).
+owner: 미배정. 고칠지 선언으로 둘지는 이슈 #1 의 결정 7(커널 사후 자식 회수) 옆에 있다.
+
 snapshot은 plain data만 담는다:
 
 ```clojure
