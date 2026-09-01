@@ -156,3 +156,21 @@
       (let [events (h/execute repl "bt2" "(+ 1 1)")]
         (is (empty? (filterv #(= "stdout" (get % "event")) events))
             "no leftover output rides into the next cell")))))
+
+;; A megabyte-scale stdout event has to reach the host as ONE complete JSON
+;; line. This is deliberately NOT the oracle contract it sits next to
+;; (test_repl.py::ReplTest::test_large_buffer_write_survives_short_pipe_writes):
+;; there the vehicle IS the contract -- the pipe hands back short writes and the
+;; writer must loop. Nothing here can make the OS split a write, so this row
+;; pins the weaker, reachable observable and leaves that oracle entry owed.
+(deftest a-large-stdout-event-arrives-as-one-whole-line
+  (h/with-repl
+    (fn [repl _]
+      (let [events (h/execute repl "big" "(println (apply str (repeat 400000 \"x\")))")
+            outs (filterv #(= "stdout" (get % "event")) events)
+            torn (h/first-torn-line repl)]
+        (is (nil? torn) (str "torn protocol line: " (pr-str torn)))
+        (is (= 1 (count outs)) "one batch flush, however large")
+        (is (= 400001 (count (get (first outs) "text"))) "the payload arrives entire")
+        (is (= "big" (get (first outs) "id")))
+        (is (= "ok" (get (h/one events "done") "status")))))))

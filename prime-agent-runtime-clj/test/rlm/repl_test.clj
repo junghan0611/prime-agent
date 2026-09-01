@@ -188,3 +188,83 @@
         (is (= "4" (get (h/one events "result") "text")))
         (is (empty? (filterv #(= "error" (get % "event")) events))
             "the error was consumed once, not latched")))))
+
+;; A hostile or malformed control line must cost the sender its request, never
+;; the reader thread. rlm.repl/start-reader! wraps handle-line in a
+;; catch-Throwable that answers with a protocol error, so even a parser blow-up
+;; stays a protocol error rather than ending the loop.
+(deftest a-deeply-nested-json-line-does-not-kill-the-reader
+  ;; Oracle twin: test_repl.py::ReplTest::test_hostile_deeply_nested_json_line_does_not_kill_reader.
+  (h/with-repl
+    (fn [repl _]
+      (h/send-raw! repl (str (apply str (repeat 20000 "[")) (apply str (repeat 20000 "]"))))
+      (let [e (h/read-event repl)]
+        (is (= "error" (get e "event")))
+        (is (= "ProtocolError" (get e "ename")))
+        (is (nil? (get e "id")))
+        (is (h/error-shape? e)))
+      (let [events (h/execute repl "deep-ok" "(+ 5 5)")]
+        (is (= "10" (get (h/one events "result") "text")))
+        (is (= "ok" (get (h/one events "done") "status")))))))
+
+(deftest a-non-scalar-request-type-does-not-kill-the-reader
+  ;; Oracle twin: test_repl.py::ReplTest::test_unhashable_request_type_does_not_kill_reader.
+  ;; protocol-error-unknown-type only ever sends a STRING type ("snapshot"), so
+  ;; nothing said what a map or a list in that slot does.
+  (h/with-repl
+    (fn [repl _]
+      (h/send! repl {"type" {"a" 1} "id" "u1"})
+      (let [e (h/read-event repl)]
+        (is (= "ProtocolError" (get e "ename")))
+        (is (nil? (get e "id")))
+        (is (h/error-shape? e)))
+      (h/send! repl {"type" [1 2] "id" "u2"})
+      (let [e (h/read-event repl)]
+        (is (= "ProtocolError" (get e "ename"))))
+      (let [events (h/execute repl "u-ok" "(+ 6 6)")]
+        (is (= "12" (get (h/one events "result") "text")))))))
+
+(deftest a-value-whose-printing-throws-is-reported-as-a-cell-error
+  ;; Oracle twin: test_repl.py::ReplTest::test_exception_with_broken_str_reported_safely.
+  ;; There the exception's own __str__ raises; here the nearest constructible
+  ;; shape is a value that only blows up when the runtime prints it. Either way
+  ;; the contract is the same: the blow-up is reported as this cell's error and
+  ;; does not take the runtime with it.
+  (h/with-repl
+    (fn [repl _]
+      (let [events (h/execute repl "bp" "(map (fn [_] (throw (ex-info \"boom\" {}))) [1 2 3])")
+            err (h/one events "error")]
+        (is (some? err) "printing must fail the cell, not the process")
+        (is (h/error-shape? err))
+        (is (= "error" (get (h/one events "done") "status")))
+        (is (= 1 (h/done-count events))))
+      (let [events (h/execute repl "bp-ok" "(+ 7 7)")]
+        (is (= "14" (get (h/one events "result") "text")))))))
+
+(deftest a-cell-cannot-redirect-its-own-output-and-says-so
+  ;; Oracle twin: test_repl.py::ReplTest::test_rebound_stdout_without_flush_still_completes.
+  ;; Rebinding the stream is ordinary there. Here it is closed, and MEASURING it
+  ;; found something worth writing down: with-out-str -- a core Clojure macro, not
+  ;; an interop form on its face -- expands to (java.io.StringWriter.) and dies in
+  ;; the native image with "No matching ctor found". That is
+  ;; docs/clojure-runtime.md "코드를 읽어야만 알던 것" 8 (reflective interop links
+  ;; and dies native) surfacing in a place a model would plausibly reach for.
+  ;;
+  ;; The row pins the observable, not an opinion about it: the attempt fails as
+  ;; THIS cell's error, the protocol stream is untouched, and the next cell
+  ;; prints normally. Whether the message should teach instead of leaking a
+  ;; reflection error is not settled here.
+  (h/with-repl
+    (fn [repl _]
+      (let [events (h/execute repl "wos" "(with-out-str (print \"captured, never flushed\"))")
+            err (h/one events "error")]
+        (is (some? err) "redirecting a cell's own output is closed on this arm")
+        (is (h/error-shape? err))
+        (is (= "error" (get (h/one events "done") "status")))
+        (is (= 1 (h/done-count events)))
+        (is (empty? (filterv #(= "stdout" (get % "event")) events))
+            "the failed redirect leaks nothing onto the protocol stream"))
+      (testing "and the runtime's own stream is intact for the next cell"
+        (let [events (h/execute repl "wos2" "(println \"back on the wire\")")]
+          (is (= "back on the wire\n" (h/stream-text events "stdout")))
+          (is (= "wos2" (get (h/one events "stdout") "id"))))))))

@@ -55,3 +55,8 @@ row	H4.7	https://github.com/junghan0611/prime-agent/issues/1#issuecomment-549043
 row	H6.6	PENDING	green/no-kill	a failed child is listed, not filtered -- continuity-test/a-failed-child-is-listed-not-filtered	-	-
 row	H2.1	PENDING	green/no-kill	a spawn forwards the orchestrator kwargs, and an omitted map rides as {} -- continuity-test/spawn-forwards-the-orchestrator-kwargs-to-the-host	-	-
 row	H6.7	PENDING	green/no-kill	registry entries pass through without a minted default: a missing session_name stays missing and is not an error -- continuity-test/registry-entries-pass-through-without-a-minted-default. Declared divergence from the oracle typed record	-	-
+row	H1.19	PENDING	green/no-kill	a deeply nested JSON line costs the sender its request, not the reader thread -- repl-test/a-deeply-nested-json-line-does-not-kill-the-reader	-	-
+row	H1.20	PENDING	green/no-kill	a non-scalar request type is a protocol error, not a dead reader -- repl-test/a-non-scalar-request-type-does-not-kill-the-reader	-	-
+row	H1.21	PENDING	green/no-kill	a value whose printing throws is reported as that cell error and the runtime keeps serving -- repl-test/a-value-whose-printing-throws-is-reported-as-a-cell-error	-	-
+row	H1.22	PENDING	green/no-kill	a cell cannot redirect its own output: with-out-str dies in the native image and the failure stays inside the cell -- repl-test/a-cell-cannot-redirect-its-own-output-and-says-so	-	-
+row	H1.23	PENDING	green/no-kill	a megabyte-scale stdout event arrives as one whole protocol line -- framing-test/a-large-stdout-event-arrives-as-one-whole-line. Deliberately WEAKER than the oracle short-pipe-write contract, which stays owed; no manifest entry terminates here	-	-
