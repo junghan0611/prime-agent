@@ -405,7 +405,7 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
 5. `deps.edn`의 `:test`는 **native**다. 바이너리가 없으면 실패하는 게 맞다.
 6. `build.sh`의 `--initialize-at-build-time`(인자 없음)을 패키지 목록으로 "고치면" SCI가 런타임에 `core__init`을 못 찾는다.
 7. `bin/rlm`은 Hop 1 손잡이다. TypeScript host가 아니고 제품 REPL도 아니다.
-8. **reflective interop은 링크는 되고 native에서 죽는다.** `(:import [java.lang ProcessBuilder])` 뒤의 생성자, 그리고 리터럴에 직접 붙인 `^java.util.List` 힌트는 둘 다 `RT.classForName`으로 컴파일되고 image에는 그 클래스가 없다 (`ClassNotFoundException`). 힌트는 **local에** 붙인다. `build.sh`가 AOT를 `*warn-on-reflection* true`로 감싸는 이유다 — reflect-config는 계약상 닫혀 있으므로 이 경고가 유일한 게이트다.
+8. **reflective interop은 링크는 되고 native에서 죽는다.** `(:import [java.lang ProcessBuilder])` 뒤의 생성자, 그리고 리터럴에 직접 붙인 `^java.util.List` 힌트는 둘 다 `RT.classForName`으로 컴파일되고 image에는 그 클래스가 없다 (`ClassNotFoundException`). 힌트는 **local에** 붙인다. `build.sh`가 AOT를 `*warn-on-reflection* true`로 감싸고 **경고가 있으면 exit 1 한다** (2026-09-02부터; 그전엔 경고만 찍고 exit 0 이라 게이트가 아니었다). reflect-config는 계약상 닫혀 있으므로 이 경고가 유일한 게이트다. 인자 타입이 var deref 라 오버로드가 안 잡히는 경우까지 여기로 온다 — `(Thread/sleep some-var)` 는 경고 한 줄만 남기고 링크되었다가 native 에서 죽는다. 2026-09-02에 watchdog 스레드 하나가 그렇게 조용히 사라졌고, `catch Throwable` 이 그것마저 삼켰다. 인자에 `(long ...)` 를 씌운다.
 9. `ProcessHandle.descendants()`는 native-image에서 **돈다** (실측: `sh -c "sleep & sleep & wait"`의 자식 2개 회수). `/proc/<pid>/stat`을 `slurp`하는 쪽은 안 된다.
 
 ---
