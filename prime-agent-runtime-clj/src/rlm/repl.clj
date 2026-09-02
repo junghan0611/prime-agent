@@ -239,6 +239,42 @@
   [runtime]
   (locked runtime (fn [st] (boolean (get-in @st [:finishing :interrupted?])))))
 
+(defn- current-cell-id
+  "The cell running at call time. Oracle twin: rlm/repl.py's _current_cell
+  ContextVar, read at emit(). No new state -- H9 already keeps the running id
+  in the :active slot, and reading it under the same lock keeps the answer
+  whole while the reader thread is moving that slot."
+  [runtime]
+  (locked runtime (fn [st] (get-in @st [:active :id]))))
+
+(defn- emit-display!
+  "Ship one display frame: a map of MIME type -> JSON payload, tagged with the
+  cell running now. Oracle twin: rlm/repl.py::emit.
+
+  The pre-flight serialization is NOT a framing guard in this arm, and the
+  reason matters. The oracle needs one because Python's json.dumps defaults to
+  allow_nan=True and would write bare NaN -- non-JSON text that tears the
+  host's framing. Measured here (2026-09-02): clojure.data.json REFUSES ##NaN
+  and ##Inf outright ('JSON error: cannot write Double NaN'), and send-event!
+  serializes OUTSIDE the write lock, before a single byte moves, so a torn
+  frame is structurally impossible. What the pre-flight buys is the ERROR
+  CONTRACT: the failure surfaces as this arm's own IllegalArgumentException at
+  the emit call, not as whatever class data.json happens to throw from inside
+  the send. Pinning a contract on a dependency's exception would make that
+  dependency's behaviour our promise."
+  [runtime data]
+  (when-not (and (map? data) (seq data) (every? string? (keys data)))
+    (throw (IllegalArgumentException.
+            "emit requires a non-empty map keyed by MIME type strings")))
+  (try
+    (json/write-str data :key-fn json-key)
+    (catch Throwable e
+      (throw (IllegalArgumentException.
+              (str "emit payload is not JSON-representable: " (or (ex-message e) ""))))))
+  (send-event! runtime {:event "display"
+                        :id (current-cell-id runtime)
+                        :data data}))
+
 (defn- interrupted-cause?
   "True when this throwable chain is an unwinding Thread.interrupt. SCI wraps a
   cell failure, so the InterruptedException is a cause, not the head."
@@ -443,7 +479,10 @@
                  :processes (atom {})
                  :process-counter (atom 0)}
         send! (fn [event] (send-event! runtime event))
-        runtime (assoc runtime :send! send!)]
+        ;; Installed like :send! -- an accessor over state repl already owns, so
+        ;; rlm.eval can bind the verb without a cycle back into this namespace.
+        emit! (fn [data] (emit-display! runtime data))
+        runtime (assoc runtime :send! send! :emit! emit!)]
     (process/install-shutdown-hook! runtime)
     (assoc runtime :ctx (eval/make-ctx runtime))))
 

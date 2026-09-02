@@ -111,6 +111,41 @@
               "host request rlm.list_subagents returned no subagents list")))
     (mapv dash-keys subagents)))
 
+(defn- model-from-payload
+  "Oracle twin: rlm/__init__.py::_model_from_payload. Every one of the four
+  fields must be a NON-EMPTY string; the oracle folds that into one message and
+  so does this, because a caller cannot act on which field was missing."
+  [entry]
+  (when-not (map? entry)
+    (throw (RuntimeException. "rlm.find_models returned an invalid model entry")))
+  (let [fields (mapv #(reply-field entry %) ["provider" "id" "name" "selector"])]
+    (when-not (every? #(and (string? %) (seq %)) fields)
+      (throw (RuntimeException. "rlm.find_models returned an invalid model entry")))
+    (zipmap [:provider :id :name :selector] fields)))
+
+(defn find-models
+  "Search the bounded model list the host backs with active credentials.
+
+  Oracle twin: rlm/__init__.py::find_models, defaults and messages included.
+  Returns workspace data -- a vector of maps -- never a typed handle."
+  ([runtime] (find-models runtime "" 8))
+  ([runtime query] (find-models runtime query 8))
+  ([runtime query limit]
+   (when-not (string? query)
+     (throw (IllegalArgumentException.
+             (str "query must be str, got " (some-> query class .getName)))))
+   (when-not (integer? limit)
+     (throw (IllegalArgumentException.
+             (str "limit must be int, got " (some-> limit class .getName)))))
+   (let [reply (reply-ok! (host-request runtime {:type "rlm.find_models"
+                                                 :query query
+                                                 :limit limit})
+                          "rlm.find_models")
+         models (reply-field reply "models")]
+     (when-not (sequential? models)
+       (throw (RuntimeException. "rlm.find_models returned an invalid models list")))
+     (mapv model-from-payload models))))
+
 (defn- child-target
   "A child id string, or any handle/registry entry that carries one."
   [target]

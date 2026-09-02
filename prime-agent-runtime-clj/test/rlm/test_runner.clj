@@ -2,9 +2,11 @@
   (:require [clojure.test :as t]
             [rlm.capability-test]
             [rlm.continuity-test]
+            [rlm.display-test]
             [rlm.framing-test]
             [rlm.host-bridge-test]
             [rlm.interrupt-test]
+            [rlm.model-search-test]
             [rlm.process-test]
             [rlm.repl-test]
             [rlm.sut :as sut]
@@ -13,7 +15,8 @@
 
 (def ^:private nses
   '[rlm.repl-test rlm.interrupt-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test
-    rlm.framing-test rlm.process-test rlm.write-test rlm.continuity-test])
+    rlm.framing-test rlm.process-test rlm.write-test rlm.continuity-test
+    rlm.model-search-test rlm.display-test])
 
 (defn -main
   [& _]

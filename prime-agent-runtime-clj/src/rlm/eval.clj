@@ -15,6 +15,16 @@
         ;; workspace emptied by a kernel restart recovers its child handles.
         children-fn (fn [] (core/rlm-children runtime))
         delete-child-fn (fn [target] (core/rlm-delete-child runtime target))
+        ;; Model search is workspace data, not a typed handle -- same shape rule
+        ;; as (rlm-children).
+        find-models-fn (fn
+                         ([] (core/find-models runtime))
+                         ([query] (core/find-models runtime query))
+                         ([query limit] (core/find-models runtime query limit)))
+        ;; Display frames belong to the protocol driver, so the verb is the
+        ;; function rlm.repl installed on the runtime rather than a call back
+        ;; into that namespace.
+        emit-fn (fn [data] ((:emit! runtime) data))
         read-fn (fn [path] (io/read-text path))
         ;; Write verbs return receipt maps. No file handle, no spit.
         write-fn (fn [path content] (io/write-text path content))
@@ -30,6 +40,8 @@
         list-fn (fn [] (process/ls runtime))]
     (sci/init {:namespaces {'user {'host-request host-fn
                                    'rlm rlm-fn
+                                   'find-models find-models-fn
+                                   'emit emit-fn
                                    'rlm-children children-fn
                                    'rlm-delete-child delete-child-fn
                                    'read-text read-fn

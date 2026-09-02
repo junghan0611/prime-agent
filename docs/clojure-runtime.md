@@ -109,6 +109,7 @@ prime-agent-runtime-clj/
 | `result` | 마지막 form의 non-`nil` 값을 `pr-str` |
 | `host_request` | runtime-minted id + typed data |
 | `error` | `ename`은 SCI wrapper class, traceback에 runtime frame이 실린다 (OPEN) |
+| `display` | `(emit {mime payload})` 가 쓰는 frame. `id` 는 **호출 시점의 셀**, `data` 는 mime→payload 맵 (H12) |
 | `done` | id가 있는 request마다 정확히 하나 |
 
 ### evaluation
@@ -118,7 +119,9 @@ prime-agent-runtime-clj/
 - 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
 - `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- public binding은 `rlm`, `rlm-children`/`rlm-delete-child`(H6), `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5)만. Java interop·classpath loading은 열지 않는다.
+- public binding은 `rlm`, `rlm-children`/`rlm-delete-child`(H6), `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5), `find-models`/`emit`(H12)만. Java interop·classpath loading은 열지 않는다.
+- `(emit {mime payload})` 는 비어 있지 않고 **키가 전부 문자열**인 맵을 요구하고, payload 를 먼저 직렬화해보고 안 되면 `IllegalArgumentException` 으로 거절한다. 그 pre-flight 이 지키는 것은 framing 이 아니라 **오류 계약**이다 — 측정(2026-09-02): `clojure.data.json` 은 `##NaN`/`##Inf` 를 쓰지 않고 던지고, `send-event!` 는 write lock 밖에서 먼저 직렬화하므로 찢긴 frame 이 구조적으로 불가능하다. 번역하는 이유는 **의존물의 예외 클래스를 우리 계약으로 삼지 않기 위해서**다. (oracle 은 `json.dumps(allow_nan=True)` 기본값 때문에 진짜로 framing 을 지켜야 한다.)
+- `(find-models)` / `(find-models query)` / `(find-models query limit)` 기본값 `"" 8`. 반환은 `:provider :id :name :selector` 네 키 맵의 vector — workspace 데이터이지 타입 있는 handle 이 아니다.
 
 ### `(rlm ...)`
 
@@ -235,8 +238,10 @@ Python `edit` skill (`packages/coding-agent/skills/edit/`)이 참고선이다. p
 
 H5 가 하지 않은 것:
 
-1. **diff display event 없음.** oracle skill 은 host 로 `application/vnd.prime-agent.diff+json` 을
-   emit 한다. 이 runtime 에 `emit`/display 축이 없다. receipt 만 돌려준다.
+1. **write/edit 이 스스로 diff display 를 내지 않는다.** oracle skill 은 host 로
+   `application/vnd.prime-agent.diff+json` 을 emit 한다. display 축 자체는 H12 에서 열렸고(`emit`), 그 mime 도
+   `rlm.display-test` 가 문다 — 그러나 `write-text`/`edit-text` 는 여전히 receipt 만 돌려주고 frame 을 쓰지 않는다.
+   워크스페이스가 원하면 receipt 를 받아 직접 `emit` 해야 한다.
 2. **delete / rename / mkdir 없음.** 게이트는 write + targeted edit 까지다.
 3. **동시 write 조정 없음.** 두 셀이 같은 파일을 쓰면 마지막이 이긴다. atomic replace 도 아니다
    (oracle 의 `write_text` 와 같은 자리).
