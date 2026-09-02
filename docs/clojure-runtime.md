@@ -97,7 +97,7 @@ prime-agent-runtime-clj/
 |---|---|
 | `execute` | persistent SCI context에서 forms를 순서대로 평가 |
 | `host_reply` | FIFO를 우회해 같은 id의 pending host request를 resolve |
-| `interrupt` | 파싱한다. **취소하지 않고, 취소할 일이 있으면 소리내어 거절한다** (아래 「알려진 편차」 3) |
+| `interrupt` | 파싱한다. **셀 스레드에 `Thread.interrupt` 로 전달한다. 관찰되면 취소, 창 안에 관찰되지 않으면 소리내어 보고한다** (아래 「알려진 편차」 3) |
 | `shutdown` | pending bridge를 실패시키고 process 종료 |
 
 `list_names`, `snapshot`, `restore`는 없다. Host 실험에서는 snapshot을 끈다.
@@ -363,19 +363,38 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
    host 가 보낸 모양을 그대로 넘겨 그 키가 없으면 `nil` 이 되고 에러가 아니다
    (`rlm.continuity-test/registry-entries-pass-through-without-a-minted-default`). 타입 있는 record 가 없다는 구조 차이다.
 
-3. **셀 취소가 없고, 그 사실을 프레임으로 말한다.** oracle 은 `interrupt` 를 실제 취소로 전달한다
-   (`rlm/repl.py::_request_interrupt` → `signal.pthread_kill` / task cancel). 여기에는 취소 경로가 **아예 없다** —
-   셀은 serve 루프에서 돌고, SCI 는 평가 중 `Thread.interrupt` 를 확인하지 않는다. 그래서 취소해야 할 일을 지목한
-   well-formed `interrupt` 는 `ename` = `InterruptNotSupported`, `id` = `nil` 인 `error` 프레임으로 **거절**하고
-   셀은 계속 돈다 (`rlm.repl-test/a-well-formed-interrupt-for-live-work-is-refused-out-loud`).
+3. **셀 취소가 blocking point 에서만 서고, 서지 않은 경우를 프레임으로 말한다.** oracle 은 `interrupt` 를 실제 취소로 전달한다
+   (`rlm/repl.py::_request_interrupt` → `signal.pthread_kill` / task cancel). 여기서는 셀이 자기 스레드에서 돌고
+   (`rlm.repl/handle-execute`), 인터럽트는 그 스레드에 `Thread.interrupt` 로 전달된다. 상태기계는 oracle 을 이름째로 옮겼다 —
+   `:active`=`_active`, `:finishing`=`_finishing_rid`, `:parked-ids`/`:parked-any`=`_pending_interrupts`, 잠금 하나가 순서를 잡는다.
+
+   **관찰되면 취소다.** 셀이 SCI 샌드박스에서 도달할 수 있는 blocking point 는 하나 — host bridge 의 promise `deref`
+   (`rlm.core/host-request`) — 이고, 거기서는 `InterruptedException` 으로 관찰되어 oracle 과 같은 모양으로 끝난다:
+   `ename` = `KeyboardInterrupt`, `evalue` = `""`, `id` = **그 셀의 id**, 이어서 `done status=error`
+   (oracle `rlm/repl.py::_interrupt_event`; `rlm.interrupt-test/an-interrupt-cancels-a-cell-blocked-in-host-request`).
+   활성화 전에 도착한 인터럽트는 파킹되었다가 활성화 시점에 소비되어 **첫 스텝 전에** 취소한다
+   (`rlm.interrupt-test/an-interrupt-for-a-queued-request-is-parked-and-cancels-it-before-its-first-step`).
+
+   **관찰되지 않으면 침묵하지 않는다.** SCI 는 평가 중 인터럽트 플래그를 확인하지 않으므로 순수 계산 루프는 끝내 관찰하지 못한다.
+   그 셀은 `done` 을 내지 않으므로 **셀이 끝난 뒤에 보고한다는 규칙은 바로 그 케이스에서 침묵이 된다.** 그래서 시간축으로 가른다:
+   전달 후 런타임 상수 창(`rlm.repl/not-delivered-window-ms`) 안에 셀이 끝나지 않으면 셀이 **도는 중에**
+   `ename` = `InterruptNotDelivered`, `id` = `nil` 인 `error` 를 내고, 요청 id 와 창 길이를 문장에 담는다
+   (`rlm.interrupt-test/a-cell-that-cannot-observe-its-interrupt-is-reported-while-it-still-runs`).
+   창 안에 끝났지만 인터럽트를 삼킨 셀은 자기 결과를 낸 뒤 같은 프레임으로 보고된다
+   (`rlm.interrupt-test/an-interrupt-the-cell-swallows-is-reported-not-silently-dropped`).
    취소할 일이 없는 `interrupt` — 모르는 id, 끝난 id, in-flight 가 없는 id 없는 요청 — 은 oracle 과 같이 조용히 버린다
    (`rlm.repl-test/an-interrupt-with-nothing-to-cancel-stays-silent-like-the-oracle`).
-   **`id` 가 `nil` 인 것은 선택이다**: `repl-manager.ts::handleEvent` 는 문자열 id 의 `error` 를 활성 execution 에 붙여
-   `status` 를 error 로 만드는데, 그 셀이 바로 아직 돌고 있는 셀이다.
+
+   **`id` 규칙이 두 프레임을 가른다.** 문자열 `id` 는 「그 셀은 끝났고 이것이 그 셀의 결과」, `nil` 은 「셀은 자기 결과를 따로 내고
+   이것은 못 지킨 인터럽트에 대한 커널 진단」이다. `repl-manager.ts::handleEvent` 가 이 구분을 하중 있게 만든다 — 문자열이 아닌 id 를
+   `undefined` 로 접어 `appendKernelDiagnostic` 으로 보내고, 문자열 id 는 활성 execution 에 붙여 `status` 를 error 로 만든다.
+
    측정 (2026-09-01, GraalVM CE 25.0.2 native image, sci 0.9.44): tight loop `(loop [] (recur))` 는 `Thread.interrupt`
    를 **관찰하지 못하고**(인터럽트 플래그만 서고 루프는 계속), blocking point — `Thread/sleep`, promise `deref` —
    에서는 `InterruptedException` 으로 관찰한다. sci 0.9.44 소스에 `interrupt` 문자열은 0 회다.
-   그러므로 H9(셀 취소)는 `Thread.interrupt` 만으로 서지 않는다. **어느 설계로 세울지는 미결이다.**
+   **DECLARED DIVERGENCE (H11):** tight loop 은 serve 루프를 계속 쥐고 있으므로 이 런타임은 거기서 회복하지 못한다 —
+   호스트의 커널 재시작만이 푼다. 측정 (2026-09-02): 도는 셀이 있으면 EOF 정리가 끝나지 못해 harness `close!` 가
+   10s 뒤 `destroyForcibly` 로 떨어진다(종료코드 -9). 그 셀이 자식 프로세스를 소유하지 않을 때만 안전하다.
 
 ## 코드를 읽어야만 알던 것
 

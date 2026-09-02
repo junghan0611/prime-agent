@@ -4,6 +4,7 @@
             [rlm.continuity-test]
             [rlm.framing-test]
             [rlm.host-bridge-test]
+            [rlm.interrupt-test]
             [rlm.process-test]
             [rlm.repl-test]
             [rlm.sut :as sut]
@@ -11,8 +12,8 @@
             [rlm.write-test]))
 
 (def ^:private nses
-  '[rlm.repl-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test rlm.framing-test
-    rlm.process-test rlm.write-test rlm.continuity-test])
+  '[rlm.repl-test rlm.interrupt-test rlm.host-bridge-test rlm.workspace-test rlm.capability-test
+    rlm.framing-test rlm.process-test rlm.write-test rlm.continuity-test])
 
 (defn -main
   [& _]

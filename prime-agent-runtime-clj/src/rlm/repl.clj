@@ -1,6 +1,12 @@
 (ns rlm.repl
   "JSONL protocol driver. Frames are one locked write. host_reply and interrupt
-  bypass the FIFO queue. malformed lines emit ProtocolError and keep serving."
+  bypass the FIFO queue. malformed lines emit ProtocolError and keep serving.
+
+  Cells run on their own thread so an interrupt has something to deliver to.
+  The interrupt state machine is the oracle's, ported by name: :active is
+  _active, :finishing is _finishing_rid, :parked-ids/:parked-any are
+  _pending_interrupts, and one lock (:interrupt-lock) orders every decision
+  exactly as rlm/repl.py orders them under _interrupt_lock."
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [rlm.core :as core]
@@ -45,43 +51,218 @@
                         :evalue message
                         :traceback []}))
 
-(def interrupt-unsupported-ename "InterruptNotSupported")
+(def interrupt-ename "KeyboardInterrupt")
+(def interrupt-not-delivered-ename "InterruptNotDelivered")
 
-(defn- interrupt-would-cancel?
-  "True when this interrupt names work the oracle would have delivered or
-  parked. Oracle twin: rlm/repl.py::_request_interrupt takes the running or
-  finishing request when the id is nil or matches, parks a targeted id that is
-  still in _inflight, parks an untargeted one while anything is inflight, and
-  DROPS interrupts for unknown or finished requests. Only that last case is
-  silence the oracle also keeps."
+;; How long a delivered interrupt gets to be observed before the runtime says
+;; out loud that it was not. A runtime constant on purpose: the number belongs
+;; in the frame it explains, not in a document or a gate that would go stale
+;; against it. Long enough that an interruptible wait (the host-request deref)
+;; always unwinds first, short enough that a caller learns inside one turn.
+(def ^:private not-delivered-window-ms 750)
+
+;; ---------------------------------------------------------------------------
+;; Interrupt state machine. Oracle twin: rlm/repl.py's _interrupt_lock section.
+;; ---------------------------------------------------------------------------
+
+(defn- locked
+  "Run f on the interrupt state under the one lock that orders every interrupt
+  decision. The lock is bound out of the locking form for the same clj-kondo
+  reason send-event! does it. Never send a protocol frame from inside f: the
+  write can block on backpressure and the oracle keeps its sends out of the
+  lock for that reason."
+  [runtime f]
+  (let [lock ^Object (:interrupt-lock runtime)]
+    (locking lock (f (:interrupt-state runtime)))))
+
+(defn- make-reporter
+  "One cell run's at-most-once report that its interrupt went unhonoured.
+
+  Two different facts reach it and both are the same failure: the window
+  expired while the cell was still running (the tight-loop case, which never
+  reaches a done frame at all -- reporting only after done would be silence
+  exactly where the cell can least afford it), or the cell finished inside the
+  window without ever observing the interrupt. The window length rides in the
+  message so 'not observed' is the precise sentence 'not observed within N ms'.
+
+  id is nil on the frame, and that is what separates this from a real
+  cancellation on the same channel. repl-manager.ts::handleEvent folds a
+  non-string id to undefined and routes such an error to
+  appendKernelDiagnostic; a string id would be attributed to the execution and
+  mark it errored. The named cell reports its own outcome -- when it can."
   [runtime id]
-  (let [inflight @(:inflight runtime)]
-    (if (nil? id)
-      (boolean (seq inflight))
-      (contains? inflight id))))
+  (let [reported (atom false)]
+    (fn [reason]
+      (when (compare-and-set! reported false true)
+        (send-event! runtime
+                     {:event "error"
+                      :id nil
+                      :ename interrupt-not-delivered-ename
+                      :evalue (str "the interrupt for " (pr-str id)
+                                   (case reason
+                                     :still-running
+                                     (str " was delivered but not observed within "
+                                          not-delivered-window-ms
+                                          " ms; the cell is still running")
+                                     :ran-to-completion
+                                     (str " was delivered but never observed; the cell ran to"
+                                          " completion inside the " not-delivered-window-ms
+                                          " ms window")))
+                      :traceback []})))))
 
-(defn- interrupt-unsupported
-  "Refuse the interrupt out loud. This runtime has no cancellation path at all:
-  the evaluating thread runs the cell on the serve loop, and SCI does not check
-  Thread.interrupt while it evaluates, so a tight loop would never observe one
-  (measured on the native image, 2026-09-01). Dropping the frame silently would
-  read to the caller as the oracle's 'unknown or finished request'.
+(defn- report-fn-for-run
+  "The reporter of the cell run still holding either window, or nil once that
+  run is over. Identity on the run token, not the id: a later request may reuse
+  the id and must never inherit this run's watchdog."
+  [runtime run]
+  (locked runtime
+          (fn [st]
+            (let [{:keys [active finishing]} @st]
+              (cond
+                (and active (identical? run (:run active))) (:report! active)
+                (and finishing (identical? run (:run finishing))) (:report! finishing)
+                :else nil)))))
 
-  The frame carries id nil on purpose. repl-manager.ts::handleEvent routes an
-  error whose id is a string onto the ACTIVE execution and marks it errored --
-  that cell is precisely the one still running, so attributing this frame to it
-  would report a live cell as failed. id nil keeps it on the same
-  kernel-diagnostic channel a protocol error uses."
+(defn- watch-delivery!
+  "Delivery is not observation. Thread.interrupt sets a flag; a cell that never
+  reaches an interruptible point never sees it, and a tight loop never reaches
+  one at all. This is the clock that turns that silence into a frame."
+  [runtime run]
+  (doto (Thread. ^Runnable
+                 (fn []
+                   (try
+                     ;; (long ...) is load-bearing, not decoration: a var deref
+                     ;; leaves the overload unresolved, and build.sh warns that a
+                     ;; reflective interop form links fine and then dies in the
+                     ;; native image -- which it did, silently, inside this catch.
+                     (Thread/sleep (long not-delivered-window-ms))
+                     (when-let [report! (report-fn-for-run runtime run)]
+                       (report! :still-running))
+                     (catch Throwable _ nil)))
+                 "rlm-interrupt-watch")
+    (.setDaemon true)
+    (.start)))
+
+(defn- request-interrupt!
+  "Reader-thread half. Oracle twin: rlm/repl.py::_request_interrupt, in its
+  order. The active request owns an interrupt that names it or names nothing;
+  otherwise a request in its finishing window owns it (never parked -- parking
+  there would leak the interrupt onto the NEXT request); otherwise it parks for
+  a still-inflight request; otherwise it is dropped, silently, because that is
+  the one silence the oracle also keeps."
+  [runtime target]
+  (let [entry (locked runtime
+                      (fn [st]
+                        (let [{:keys [active finishing]} @st]
+                          (cond
+                            (and active (or (nil? target) (= target (:id active))))
+                            (do (swap! st assoc-in [:active :interrupted?] true)
+                                active)
+
+                            (and finishing (or (nil? target) (= target (:id finishing))))
+                            (do (swap! st assoc-in [:finishing :interrupted?] true)
+                                finishing)
+
+                            (and target (contains? @(:inflight runtime) target))
+                            (do (swap! st update :parked-ids conj target) nil)
+
+                            (and (nil? target) (seq @(:inflight runtime)))
+                            (do (swap! st assoc :parked-any true) nil)
+
+                            :else nil))))]
+    ;; Delivery and the watchdog are side effects on other threads; keep them
+    ;; out of the lock so a cell unwinding on the interrupt cannot block the
+    ;; reader, and so the watchdog can take the lock itself when it wakes.
+    (when entry
+      (.interrupt ^Thread (:thread entry))
+      (watch-delivery! runtime (:run entry)))))
+
+(defn- activate!
+  "Move id into the active slot and consume any interrupt parked for it.
+  Oracle twin: _run_guarded's activation block, which calls
+  _consume_pending_interrupt(rid) under the lock and cancels before the first
+  step. Returns true when this cell is cancelled before it ever runs."
+  [runtime id ^Thread thread run report!]
+  (locked runtime
+          (fn [st]
+            (let [{:keys [parked-ids parked-any]} @st
+                  parked? (or parked-any (contains? parked-ids id))]
+              (swap! st (fn [s]
+                          (-> s
+                              (assoc :active {:id id :thread thread :run run
+                                              :report! report! :interrupted? parked?})
+                              (assoc :parked-any false)
+                              (update :parked-ids disj id))))
+              parked?))))
+
+(defn- begin-finishing!
+  "Close the active window and open the finishing one in a single locked step.
+  Oracle twin: _run_guarded's finally sets _finishing_rid BEFORE clearing
+  _active so the lock-free reader always finds the id in exactly one slot --
+  a torn in-between state would let the interrupt fall through to parking,
+  where the next request would eat it. Returns true when the active window
+  already took an interrupt."
+  [runtime id ^Thread thread run report!]
+  (locked runtime
+          (fn [st]
+            (let [was (get-in @st [:active :interrupted?])]
+              (swap! st assoc
+                     :finishing {:id id :thread thread :run run
+                                 :report! report! :interrupted? false}
+                     :active nil)
+              (boolean was)))))
+
+(defn- finish-request!
+  "Drop a finished request. Oracle twin: _finish_locked -- the id leaves
+  inflight, its parked target dies with it (so a later request reusing the id
+  cannot be cancelled by a stale one), and a parked untargeted interrupt
+  survives only while another request is still inflight. Returns true when the
+  finishing window took an interrupt."
   [runtime id]
-  (send-event! runtime
-               {:event "error"
-                :id nil
-                :ename interrupt-unsupported-ename
-                :evalue (str "cell cancellation is not supported by the clojure runtime: "
-                             "the interrupt for "
-                             (if (nil? id) "the in-flight cell" (pr-str id))
-                             " was not delivered and that cell keeps running")
-                :traceback []}))
+  (locked runtime
+          (fn [st]
+            (let [was (when (= id (get-in @st [:finishing :id]))
+                        (get-in @st [:finishing :interrupted?]))]
+              (swap! (:inflight runtime) disj id)
+              (swap! st (fn [s]
+                          (cond-> s
+                            (= id (get-in s [:finishing :id])) (assoc :finishing nil)
+                            :always (update :parked-ids disj id)
+                            (empty? @(:inflight runtime)) (assoc :parked-any false))))
+              (boolean was)))))
+
+(defn- active-interrupted?
+  [runtime]
+  (locked runtime (fn [st] (boolean (get-in @st [:active :interrupted?])))))
+
+(defn- finishing-interrupted?
+  [runtime]
+  (locked runtime (fn [st] (boolean (get-in @st [:finishing :interrupted?])))))
+
+(defn- interrupted-cause?
+  "True when this throwable chain is an unwinding Thread.interrupt. SCI wraps a
+  cell failure, so the InterruptedException is a cause, not the head."
+  [^Throwable e]
+  (loop [^Throwable t e
+         depth 0]
+    (cond
+      (nil? t) false
+      (> depth 32) false
+      (instance? InterruptedException t) true
+      (instance? java.nio.channels.ClosedByInterruptException t) true
+      :else (recur (.getCause t) (inc depth)))))
+
+(defn- interrupt-event
+  "A cancelled cell reports as the oracle's KeyboardInterrupt. Oracle twin:
+  _interrupt_event, whose traceback is exactly this one line when there is no
+  cell stack to format -- and this runtime has no cell-source stack (declared
+  deviation, docs/clojure-runtime.md)."
+  [cell-id]
+  {:event "error"
+   :id cell-id
+   :ename interrupt-ename
+   :evalue ""
+   :traceback ["KeyboardInterrupt\n"]})
 
 (defn- error-event
   [cell-id ^Throwable e]
@@ -92,21 +273,83 @@
    :evalue (or (ex-message e) "")
    :traceback (mapv str (.getStackTrace e))})
 
-(defn- handle-execute
+(defn- cell-body
+  [runtime req send-done!]
+  (let [id (get req "id")
+        code (get req "code")
+        thread (Thread/currentThread)
+        ;; Identity, not the id: a later request may reuse the id, and a
+        ;; watchdog left over from this run must never speak for that one.
+        run (Object.)
+        report! (make-reporter runtime id)
+        pre-cancelled? (activate! runtime id thread run report!)
+        ;; ---- active window ----
+        outcome (if pre-cancelled?
+                  {:status "error" :cancelled? true}
+                  (try
+                    {:status "ok" :value (eval/eval-cell (:ctx runtime) (:send! runtime) id code)}
+                    (catch Throwable e
+                      (if (and (active-interrupted? runtime) (interrupted-cause? e))
+                        {:status "error" :cancelled? true}
+                        {:status "error" :throwable e}))))
+        active-interrupt? (begin-finishing! runtime id thread run report!)
+        ;; ---- finishing window: the post-run bind and repr ----
+        outcome (if (and (= "ok" (:status outcome)) (some? (:value outcome)))
+                  (try
+                    (let [v (:value outcome)]
+                      (eval/bind-_ (:ctx runtime) v)
+                      (assoc outcome :result-text (pr-str v)))
+                    (catch Throwable e
+                      (if (and (or active-interrupt? (finishing-interrupted? runtime))
+                               (interrupted-cause? e))
+                        {:status "error" :cancelled? true}
+                        {:status "error" :throwable e})))
+                  outcome)
+        finishing-interrupt? (finish-request! runtime id)
+        ;; The window is closed before any send, so a late interrupt can never
+        ;; tear a frame mid-write. Oracle twin: _finish_request runs before the
+        ;; result/error/done sends for exactly that reason. Clearing the flag
+        ;; here also keeps an unhonoured interrupt out of the protocol writes.
+        _ (Thread/interrupted)
+        cancelled? (boolean (:cancelled? outcome))
+        owned? (or pre-cancelled? active-interrupt? finishing-interrupt?)]
+    (when-let [text (:result-text outcome)]
+      (send-event! runtime {:event "result" :id id :text text}))
+    (cond
+      cancelled? (send-event! runtime (interrupt-event id))
+      (:throwable outcome) (send-event! runtime (error-event id (:throwable outcome))))
+    (send-done! (:status outcome))
+    ;; At-most-once: if the watchdog already spoke while this cell was running,
+    ;; the fact is on the wire and saying it twice would invent a second event.
+    (when (and owned? (not cancelled?))
+      (report! :ran-to-completion))))
+
+(defn- run-cell!
+  "Run one execute on its own thread. The request must end even if the driver
+  itself fails, and it must end exactly once."
   [runtime req]
   (let [id (get req "id")
-        code (get req "code")]
+        done? (atom false)
+        send-done! (fn [status]
+                     (when (compare-and-set! done? false true)
+                       (send-event! runtime {:event "done" :id id :status status})))]
     (try
-      (let [value (eval/eval-cell (:ctx runtime) (:send! runtime) id code)]
-        (when-not (nil? value)
-          (eval/bind-_ (:ctx runtime) value)
-          (send-event! runtime {:event "result" :id id :text (pr-str value)}))
-        (send-event! runtime {:event "done" :id id :status "ok"}))
+      (cell-body runtime req send-done!)
       (catch Throwable e
-        (send-event! runtime (error-event id e))
-        (send-event! runtime {:event "done" :id id :status "error"}))
-      (finally
-        (swap! (:inflight runtime) disj id)))))
+        (finish-request! runtime id)
+        (when-not @done?
+          (send-event! runtime (error-event id e)))
+        (send-done! "error")))))
+
+(defn- handle-execute
+  [runtime req]
+  (let [^Thread t (doto (Thread. ^Runnable #(run-cell! runtime req)
+                                 (str "rlm-cell-" (get req "id")))
+                    (.setDaemon true)
+                    (.start))]
+    ;; One cell at a time, as before: the serve loop waits here. What changed is
+    ;; that the cell now has a thread of its own for an interrupt to land on.
+    (.join t)))
 
 (defn- handle-line
   [runtime raw]
@@ -118,17 +361,9 @@
       (cond
         (= "interrupt" rtype)
         (let [id (get req "id")]
-          (cond
-            (and (contains? req "id") (not (string? id)))
+          (if (and (contains? req "id") (not (string? id)))
             (protocol-error runtime "interrupt request id must be a string")
-
-            ;; Negative contract, not cancellation: saying no is what this
-            ;; branch promises. Implementing cancellation is H9 and needs a
-            ;; different design -- see interrupt-unsupported.
-            (interrupt-would-cancel? runtime id)
-            (interrupt-unsupported runtime id)
-
-            :else nil))
+            (request-interrupt! runtime id)))
 
         (= "host_reply" rtype)
         (let [id (get req "id")
@@ -145,16 +380,26 @@
           (if (seq missing)
             (protocol-error runtime (str rtype " request needs string fields: "
                                          (str/join ", " missing)))
-            (if (and (= "execute" rtype)
-                     (contains? @(:inflight runtime) (get req "id")))
-              (protocol-error runtime (str "duplicate in-flight request id: "
-                                           (pr-str (get req "id"))))
-              (do
-                (when (= "execute" rtype)
-                  (swap! (:inflight runtime) conj (get req "id")))
-                (when (= "shutdown" rtype)
-                  (core/fail-pending-host! runtime))
-                (.put ^LinkedBlockingQueue queue req)))))))))
+            ;; The duplicate check and the inflight add are one step under the
+            ;; interrupt lock: a reused in-flight id would corrupt interrupt and
+            ;; finish bookkeeping. Oracle twin: _handle_line's `with
+            ;; _interrupt_lock` around exactly this pair -- and, like the oracle,
+            ;; the protocol write happens after the lock is released.
+            (let [duplicate? (and (= "execute" rtype)
+                                  (locked runtime
+                                          (fn [_]
+                                            (let [id (get req "id")]
+                                              (if (contains? @(:inflight runtime) id)
+                                                true
+                                                (do (swap! (:inflight runtime) conj id)
+                                                    false))))))]
+              (if duplicate?
+                (protocol-error runtime (str "duplicate in-flight request id: "
+                                             (pr-str (get req "id"))))
+                (do
+                  (when (= "shutdown" rtype)
+                    (core/fail-pending-host! runtime))
+                  (.put ^LinkedBlockingQueue queue req))))))))))
 
 (defn- start-reader!
   [runtime]
@@ -185,6 +430,13 @@
                  :write-lock (Object.)
                  :queue (LinkedBlockingQueue.)
                  :inflight (atom #{})
+                 ;; One lock orders every interrupt decision, as _interrupt_lock
+                 ;; does in the oracle. Its state is the oracle's, by name.
+                 :interrupt-lock (Object.)
+                 :interrupt-state (atom {:active nil
+                                         :finishing nil
+                                         :parked-ids #{}
+                                         :parked-any false})
                  :pending-host (atom {})
                  :host-closed (atom false)
                  ;; id -> live entry. Only snapshots of these cross into SCI.

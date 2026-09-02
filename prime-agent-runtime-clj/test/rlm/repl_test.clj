@@ -166,7 +166,8 @@
 ;;
 ;; SCOPE: this row is only about a MALFORMED id. What the runtime does with a
 ;; WELL-FORMED interrupt is a different contract -- D-INTERRUPT and row H1.8 own
-;; it, and the two deftests below hold it. Two contracts live on the same
+;; it. Its drop half is the deftest below; cancellation and the refusal that
+;; survives it live in rlm.interrupt-test (H9). Two contracts live on the same
 ;; symbol; they are not the same row.
 (deftest interrupt-with-non-string-id-is-a-protocol-error
   (h/with-repl
@@ -188,45 +189,6 @@
         (is (= "4" (get (h/one events "result") "text")))
         (is (empty? (filterv #(= "error" (get % "event")) events))
             "the error was consumed once, not latched")))))
-
-;; NEGATIVE CONTRACT, not cancellation. This runtime has no cancel path: the
-;; cell runs on the serve loop and SCI never checks Thread.interrupt while it
-;; evaluates, so a compute loop could not be broken even if one were delivered
-;; (measured on a native image, 2026-09-01). What is refused here is SILENCE --
-;; the caller must be able to tell "not supported" from the oracle's "unknown
-;; or finished request", which rlm/repl.py::_request_interrupt drops quietly.
-;; Implementing cancellation is H9, and it is not what this row promises.
-(deftest a-well-formed-interrupt-for-live-work-is-refused-out-loud
-  (h/with-repl
-    (fn [repl _]
-      (h/send! repl {"type" "execute" "id" "live"
-                     "code" "(host-request {:type \"block\"})"})
-      (let [req (h/wait-event repl "host_request")]
-        ;; Targeted: names the in-flight id, the shape the host actually sends
-        ;; (repl-manager.ts::interrupt writes the active execution's requestId).
-        (h/send! repl {"type" "interrupt" "id" "live"})
-        (let [e (h/read-event repl)]
-          (is (= "error" (get e "event")))
-          (is (= "InterruptNotSupported" (get e "ename")))
-          (is (h/error-shape? e))
-          (is (nil? (get e "id"))
-              "attributing this to the live cell would report a running cell as failed")
-          (is (re-find #"not supported" (str (get e "evalue"))))
-          (is (re-find #"\"live\"" (str (get e "evalue")))
-              "the refusal names the request it could not cancel"))
-        ;; Untargeted: the oracle applies an id-less interrupt to the running
-        ;; request, so this runtime owes the same refusal rather than silence.
-        (h/send! repl {"type" "interrupt"})
-        (let [e (h/read-event repl)]
-          (is (= "InterruptNotSupported" (get e "ename")))
-          (is (re-find #"in-flight cell" (str (get e "evalue")))))
-        ;; The refusal was honest: nothing was cancelled and the cell still runs.
-        (h/send! repl {"type" "host_reply" "id" (get req "id")
-                       "data" {"status" "ok"}})
-        (let [events (h/until-done repl "live")]
-          (is (= 1 (h/done-count events)))
-          (is (= "ok" (get (h/one events "done") "status"))
-              "refusing the interrupt must not disturb the cell it named"))))))
 
 ;; The other half of the same contract: an interrupt with nothing to cancel is
 ;; NOT an unsupported-cancellation report. rlm/repl.py::_request_interrupt
