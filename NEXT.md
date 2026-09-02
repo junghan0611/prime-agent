@@ -1,13 +1,12 @@
-# feat/clojure-runtime — parity 홉 진행 중
+# prime-agent — Clojure/SCI 팔, 비교 준비로
 
-최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8 은 **rollback checkpoint**. 새 브랜치 없음.
-CURRENT = **H9–H12 parity 홉**. H9 ⑤ 는 닫혔다(2026-09-02, `94ef0ca2`·`73b89b85`). **다음은 H12.**
+**이 파일은 2026-09-02 밤 `NEXT--feat_clojure-runtime.md` 를 승격한 것이다.** 브랜치 작업이 master 에 ff-merge 됐고(GLG 지시), 이후 좌표는 여기 하나다.
+최종 1번은 실사용 대체 (`ROADMAP.md` H8). H1–H8 은 **rollback checkpoint**. 계속 `feat/clojure-runtime` 에서 이어가되 master 와 같은 커밋에서 출발한다.
 
-**게이트가 처음으로 parity 잔량을 줄였다** — `parity 69 → 65`, `out-of-scope(GLG,2026-09-01) 50` **불변**, `H9.1`–`H9.4` PASS(강한 킬 5/5).
-게이트는 둘(① 재감사 닫힘 / ② parity 기준점, `exit 3` = ①닫힘·②미도달). **H1 은 아직 닫히지 않았다** — **TS 17파일을 열지 않는다.**
+**GLG 방향 (2026-09-02 밤):** 더 짓기보다 **마무리** — Python 팔 MCP-없는 시나리오를 검증하고, 벤치마크 시나리오를 잡아 양팔 비교를 준비한다.
+빈 곳(parity 잔량)은 그 준비를 위해 채워온 것이니 **남은 것을 채워가며 닫는다.** 새 아이디어(Emmy·steering·Emacs)는 비교 뒤.
 
-계약: `docs/clojure-runtime.md`. 판: [issue #1](https://github.com/junghan0611/prime-agent/issues/1). 범위·방향: [issue #2](https://github.com/junghan0611/prime-agent/issues/2)
-(설계자 방향 점검 [5508986229](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5508986229) — 이슈 #2 결정과 어긋난 곳 없음, 걸리는 건 순서).
+계약: `docs/clojure-runtime.md`. 판: [issue #1](https://github.com/junghan0611/prime-agent/issues/1). 범위·방향: [issue #2](https://github.com/junghan0611/prime-agent/issues/2).
 
 # COMPASS — Entwurf #88
 
@@ -20,40 +19,43 @@ CURRENT = **H9–H12 parity 홉**. H9 ⑤ 는 닫혔다(2026-09-02, `94ef0ca2`·
 
 # RAIL — 현재 좌표
 
-같은 브랜치 `feat/clojure-runtime`. 새 브랜치 없음.
-
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
-- [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0.
-- [ ] **3. H9–H12 parity 홉** ← CURRENT: **H9 ⑤ 닫힘 → H12 착수** (`D-MODEL-SEARCH` 2 · `D-DISPLAY` 3, clj 팔 only) → H10 → H11
-- [ ] **4. 유료 pilot (승인됨, 12런 ≈ $0.01–0.03)** ← PAUSED: host `src/` seam 둘이 프리즈. **GLG 결정 (ii) 대기**
-- [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 그 뒤. 지금 열지 않는다
+- [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
+- [ ] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** ← CURRENT: H9 ⑤·H12 닫힘(parity 69 → 61). **다음 손: ① Python 팔 MCP-off 영수증 ② 벤치마크 시나리오 초안 ③ H10 CRUD 슬라이스(self-note) → GLG hands-on 양팔**
+- [ ] **4. 유료 pilot (승인됨, 12런 ≈ $0.01–0.03)** ← PAUSED: host `src/` seam 둘이 프리즈. GLG 결정 (ii) 대기. **GLG 본인의 hands-on 은 이것과 무관하게 지금 가능**
+- [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
-현재 좌표: 1·2 완료 → **3 진행(H9 닫힘, H12 다음)** → 4 보류(GLG) → 5 미개시.
+현재 좌표: 1·2 완료 → **3 진행** → 4 보류(GLG) → 5 미개시.
 
-# NOW — H12 착수
+# NOW — 비교 준비
 
-**역할 (GLG, 2026-09-02):** 설계자 = fable(claude-code) · 실무 = opus(entwurf ACP). 실무는 설계자 요청으로 움직이고, GLG 판단이 필요한 것은 설계자를 거쳐 올린다. 영수증은 세션에 묵히지 않고 이슈 #1 에 즉시.
+**역할 (GLG, 2026-09-02):** 설계자 = fable(claude-code) · 실무 = opus(entwurf ACP). 실무는 설계자 요청으로 움직이고, GLG 판단은 설계자를 거쳐 올린다. 영수증은 세션에 묵히지 않고 이슈에 즉시.
 
-## 첫 손 — H12 (게이트 `H12=5`)
+## 다음 손 셋 (순서대로)
 
-- `D-MODEL-SEARCH` — 오라클 `find_models`: **자식을 어떤 모델로 띄울 수 있는지** 호스트에 묻는다. `rlm()` 재귀의 전제. 호스트 `model.info` 는 런타임 중립(`agent-session.ts`) → 없는 것은 clj 워크스페이스 래퍼(관용 verb · 인자 검증 · 결과 shape · 오류 계약)뿐.
-- `D-DISPLAY` — display verb 래퍼, 같은 패턴.
-- **새 호스트 verb 없음. TS 안 건드림.** 커버리지 대응 + kill receipt 둘 다(Hard Rule 1). 숫자는 게이트가 센다.
-- 그 다음 **H10** (harness 노트장 — 터널 안에서 에이전트가 자기 프롬프트·기억·자식 스펙을 쌓는 면, GLG 가 「써보며 관찰」할 자리) → **H11** (프로세스 회수·watchdog, tight loop 의 declared state-loss 가 여기로).
+**① Python 팔 MCP-off 시나리오 검증 — 영수증 한 장.**
+측정된 사실(2026-09-02, oracle): `~/.prime/agent/auth.json` 에 `mcp:` 자격증명 **0건**, `settings.json` 에 `mcpServers` **없음**. MCP 는 자격증명(`auth.json` `mcp:<server>` 또는 env bearer)이 있을 때만 붙고 없으면 `NotEnabled` 다(`rlm/mcp_base.py`, `ai/mcp/catalog.ts` 는 Linear·Notion 내장). **별도 스위치는 없다.**
+할 일: `./run.sh py` 로 띄운 세션에서 MCP 접근이 `NotEnabled` 로 끝나는 live probe 한 줄 + 위 파일 사실 → 이슈 #2 댓글. 양팔 모두 `--no-skills --no-context-files` 로 뜬다(run.sh). 이걸로 「양팔 다 MCP 없음」이 비교의 전제 사실이 된다.
 
-## H9 잔량 — 처분 (H12 와 병렬, 설계자 결정)
+**② 벤치마크 시나리오 초안 — 설계자.**
+같은 모델(DeepSeek v4-pro 기본, flash 후보) · 같은 evaluator · 같은 budget · 양팔. 과제는 `BASELINE.md` Q-R0–R4 를 재사용하고 터널형 장기 과제 1개를 더한다(self-note 생성·재사용, child 회수 뒤 상태). 비용은 착수 전 GLG 에 먼저(Hard Rule 4). **격리 fixture**(BASELINE 「Baseline isolation」)는 pilot 영수증용이지 GLG hands-on 의 전제가 아니다.
 
-게이트 `bundles:` 가 세 통을 인쇄한다. 통마다 갈 곳이 다르다:
-- **parking + `begin-finishing!` 전이** → GLG 질문 ①(아래). manifest `D` 유지, evidence 열에 이유. 새 status 어휘 만들지 않음.
-- **오라클 전용 seam 6** (`sync_blocking` · `await_suspended` · `selectors` · `without_pthread_kill` · `loop_hogging_background_task` · `slow_repr`) → declared-divergence 후보. 행 단위 근거는 [5508709386](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508709386) 「아직 못 덮는 것」. **전환은 설계자가 행 단위로, 아직 미집행.**
-- **process-ownership** → `process-*` 동사의 취소 계약으로 재해석. H11 과 함께 설계.
-- **MCP 프로토콜 경계 negative test** — `mcp.refresh`/`mcp.config` 가 런타임 중립 등록이라 clj 셀이 `host-request` 로 닿는다. 막을 자리가 호스트면 프리즈 → 자리만 보고.
+**③ H10 CRUD 슬라이스 → GLG hands-on.**
+`D-HARNESS-CRUD` 오라클 행(test_harness.py `HarnessStateTest`, 게이트가 세는 수)이 self-note 의 최소 수직 slice 다. 호스트는 merged harness block 을 clj system prompt 에도 넣으므로 읽기는 이미 있고, 없는 것은 clj 쪽 write verb 다. 이것이 서면 GLG 가 양팔에서 「메모를 만들고 다음 턴에 재사용하는가」를 직접 본다. 그 뒤 `D-HARNESS-SCOPE`(session/global) · `EXTERNAL` · `SKILL`(Python 전용 계약, divergence 후보) · H11.
+
+## 잔량 처분 (설계자 결정, 상태 바꾸지 않음)
+
+게이트 `bundles:` 가 세 통을 인쇄한다. 통마다 갈 곳:
+- **parking + `begin-finishing!` 전이** → GLG 질문 ①. manifest `D` 유지, evidence 에 이유.
+- **오라클 전용 seam 6**(`sync_blocking`·`await_suspended`·`selectors`·`without_pthread_kill`·`loop_hogging_background_task`·`slow_repr`) + H12 의 detached-task 1 + H10 의 `test_skill_references_must_be_python` → **행 단위 declared-divergence 메커니즘이 아직 없다.** 게이트의 divergence 는 카드 단위(check.py `scope` partition)라 parity-target 카드 안의 행 하나를 빼면 parity 분모가 조용히 준다. **설계자가 게이트 쪽으로 한 번에 설계한다**(카드 밖으로 빼되 분모에서 빠지지 않게 세는 방식). 그때까지 전부 `D`.
+- **process-ownership** → `process-*` 취소 계약 재해석, H11 과 함께.
+- **MCP 프로토콜 경계** — `mcp.refresh`/`mcp.config` 가 런타임 중립 등록이라 clj 셀이 `host-request` 로 닿는다. ① 의 영수증에 이 사실을 함께 적고, 막을 자리가 호스트면 프리즈 → 자리만.
 
 ## GLG 자리 셋 — 전부 한 줄
 
-1. **in-process JVM 단위 표면** — parking 행 + finishing 전이. 오라클 쌍둥이가 모듈 import 화이트박스(`test_repl.py::FinishRequestTest`)라 프로토콜로 못 몬다. 열면 커버 가능, 안 열면 미커버로 카드에 남는다. 새 계측이라 에이전트가 못 연다.
-2. **프리즈 국소 해제 (ii)** — 아래 절. pilot 이 H12/H10 과 병렬로 갈 수 있다.
-3. **sol 의 잣대 둘** — 아래 절. H12·H10 은 어느 쪽이든 그대로.
+1. **in-process JVM 단위 표면** — parking 행 + finishing 전이. 오라클 쌍둥이가 모듈 import 화이트박스라 프로토콜로 못 몬다. 새 계측이라 에이전트가 못 연다.
+2. **프리즈 국소 해제 (ii)** — 아래 절. pilot 전제.
+3. **sol 의 잣대 둘** — 아래 절. 벤치 시나리오 ② 가 사실상 이것의 실체다.
 
 ## 대기 중인 GLG 결정 — **프리즈 국소 해제**
 
@@ -79,28 +81,30 @@ tight-loop catastrophic 은 H11 + **declared state-loss** 로 정직히 분리�
 **69 를 다 복제해도 ②가 자동으로 서지 않고, ②만 돌리면 parity 를 말할 자격이 없다.**
 H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제안이 함께 있다. **아직 채택 안 됨.**
 
-## 지금 사실 (2026-09-02 밤, oracle, HEAD `73b89b85`, 푸시됨)
+## 지금 사실 (2026-09-02 밤, oracle, master == feat/clojure-runtime)
 
-- 게이트: `D=115 a=91 b=4 c=10 row=41` · `parity 65 (H9=16 H10=33 H11=11 H12=5)` · `out-of-scope(GLG,2026-09-01) 50` ·
-  `bundles: D-INTERRUPT 16 — parking 4 · process-ownership 5 · thread-interrupt 7` · ① OPEN(c 10) · ② NOT REACHED · **exit 1** · HARD 0
-- `./run.sh test-native` **89 tests / 0 failures** (tight-loop deftest 가 teardown 에 10s 를 더한다 — 도는 셀은 `destroyForcibly`, 종료코드 -9).
-  assertion 총수는 폴링 때문에 흔들린다 — 비교 근거 아님. `lint` 0/0 · `npm run check` exit 0.
-- **`native-image/build.sh` 는 reflection warning 이 있으면 exit 1** (2026-09-02 부터). `(Thread/sleep var)` 처럼 var deref 로 오버로드가 안 잡히는 경우도 걸린다.
-- interrupt 계약 (H9 ⑤): 셀은 자기 스레드, `Thread.interrupt` 전달. blocking point(host bridge deref)에서 취소 = `KeyboardInterrupt` + **셀 id** + `done error`.
-  창(`rlm.repl/not-delivered-window-ms`) 안에 안 끝나면 셀이 도는 중에 `InterruptNotDelivered` + **nil id**. 취소할 게 없으면 침묵(오라클 twin).
-  `InterruptNotSupported`(83857b71) 은퇴. `H1.8` 은 `negative-contract` 유지, 앵커 넷, credit 0.
-- **husky pre-commit 이 스테이징된 파일을 통째로 재-`add` 한다** → hunk 분할 커밋은 커밋 시점의 워킹트리를 그 커밋 내용과 같게 맞춰야 한다. 오늘 (i)/(ii) 를 그렇게 갈랐다.
-- **kill_bucket 은 PASS 행에서 `-`** — PASS 는 킬을 빚지 않는다. 게이트가 partition 검사로 막는다.
+- 게이트(설계자 직접 실행): `parity-target 61 (H9=16 H10=33 H11=11 H12=1)` · `out-of-scope(GLG,2026-09-01) 50` ·
+  `bundles: D-INTERRUPT 16 — parking 4 · process-ownership 5 · thread-interrupt 7` · HARD 0 · ② NOT REACHED · exit 1.
+- `./run.sh test-native` **93 tests / 0 failures**. assertion 총수는 폴링 때문에 흔들린다 — 비교 근거 아님. `lint` 0/0 · `npm run check` exit 0.
+- **`native-image/build.sh` 는 reflection warning 이 있으면 exit 1** (2026-09-02 부터). var deref 로 오버로드가 안 잡히는 경우도 걸린다.
+- SCI `user` 공개 심볼(이름만, 수는 `rlm.eval/make-ctx` 가 정본): `host-request` `rlm` `rlm-children` `rlm-delete-child` `find-models` `emit` `read-text` `write-text` `edit-text` `process-start/poll/tail/kill/list`.
+  **없는 것:** harness self-note(H10) · `bash` 동기 await(설계상 `process-*`) · 프로세스 회수/watchdog(H11).
+- interrupt 계약(H9 ⑤): blocking point(host bridge deref)에서 취소 = `KeyboardInterrupt` + 셀 id. 창(`rlm.repl/not-delivered-window-ms`) 밖은 `InterruptNotDelivered` + nil id. `InterruptNotSupported`(83857b71) 은퇴. `H1.8` negative-contract 앵커 넷, credit 0.
+- display(H12): `emit` 은 `:active` 셀 id 로 `display` 프레임. NaN 은 셀 안 `IllegalArgumentException` — 이 팔에선 framing 벡터가 아니라 오류 계약(data.json 이 던지고 `send-event!` 는 lock 밖 직렬화).
+- **husky pre-commit 이 스테이징 파일을 통째로 재-`add` 한다** → hunk 분할 커밋은 커밋 시점 워킹트리를 그 커밋 내용과 같게 맞춰야 한다.
+- **kill_bucket 은 PASS 행에서 `-`** — 게이트 partition 검사가 막는다.
+- Python 팔 MCP: `~/.prime/agent/auth.json` `mcp:` 0건 · `mcpServers` 없음 → 지금 환경에서 `NotEnabled`. 영수증은 ① 에서.
 
 ## 읽을 곳 (순서대로)
 
-1. **[이슈 #2](https://github.com/junghan0611/prime-agent/issues/2)** — 범위 결정 + 설계자 방향 점검(레일 제안·GLG 자리 셋).
-2. **이슈 #1 오늘 영수증 셋** — [H9 구현·kill 표](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508709386) ·
-   [재판정 전후 + 빌드 게이트 receipt](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508795408) ·
-   [설계 결정 7건](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508730449). 어제 영수증 넷은 이슈 #1 스레드 그대로.
-3. **artifact** — `evals/coverage-denominator/`. `run.sh check` 게이트 · `run.sh table` 표 · `manifest.tsv` · `registry.tsv`. **산문을 믿지 말고 돌려봐라.**
-4. **`BASELINE.md`** — 운영자 인터뷰, 「Baseline isolation」·「Recovery outcomes」.
-5. `docs/clojure-runtime.md` 「알려진 편차」 3 — 오늘 전면 교체된 interrupt 계약.
+1. **[이슈 #2](https://github.com/junghan0611/prime-agent/issues/2)** — 범위 결정 + 설계자 방향 점검 + 마무리 댓글.
+2. **이슈 #1 오늘 영수증** — [H9 구현·kill](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508709386) ·
+   [재판정+빌드 게이트](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508795408) ·
+   [설계 결정 7건](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508730449) ·
+   [H12 구현·kill](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5509542377). 어제 영수증 넷도 이슈 #1 스레드.
+3. **artifact** — `evals/coverage-denominator/`. `run.sh check` 게이트 · `run.sh table` 표. **산문을 믿지 말고 돌려봐라.**
+4. **`BASELINE.md`** — 운영자 인터뷰 질문 · 「Baseline isolation」 · 「Recovery outcomes」. 벤치 시나리오 ② 의 재료.
+5. `docs/clojure-runtime.md` 「알려진 편차」 3(interrupt) · event 표 `display` 행 · 「코드를 읽어야만 알던 것」 8(빌드 게이트).
 
 ## 살아 있는 금지
 
@@ -208,6 +212,13 @@ H4 (a)no-setsid (b)re-group (c)SIGKILL orphan · H5 symlink 거부/diff event �
 - Do not touch: Python oracle 삭제, `ipython` 개명, `list_names`, snapshot/restore, `spit`/`slurp`, Emmy.
 
 # RECENT
+
+- [2026-09-02 밤] **H9 ⑤·H12 닫힘, parity 69 → 61, master 에 ff-merge, 브랜치 NEXT 를 NEXT.md 로 승격.** 역할 분리(설계자 fable · 실무 opus) 첫날.
+  H9: 셀 스레드 + `Thread.interrupt` + 오라클 이름 그대로의 상태기계, 창 밖은 `InterruptNotDelivered`(「셀 done 뒤 보고」는 tight loop 에서 침묵이라 시간축).
+  창 구현 중 watchdog 이 native 에서 안 뜨는 버그(`(Thread/sleep var)` 리플렉티브)가 드러나 `build.sh` 를 진짜 게이트로. 83857b71 은퇴.
+  H12: `find-models`·`emit`. NaN 은 이 팔에서 framing 벡터가 아님을 측정. M4(네 필드 shape)가 깨끗한 fixture 에서 살아남아 계약의 빈 곳을 가리켰다.
+  kill 12/12 강한 킬, `H9.1–4`·`H12.1–4` PASS. 게이트가 어휘 실수(bundle on row · kill_bucket on PASS · 카드 리터럴)를 막아줬다.
+  열린 설계: 행 단위 declared-divergence 메커니즘. GLG 방향: 더 짓지 말고 마무리 → MCP-off 검증 → 벤치 시나리오 → 비교.
 
 - [2026-09-02 저녁] **H9 ⑤ 닫힘 — 게이트가 처음으로 parity 잔량을 줄였다 (69 → 65).** 역할 분리: 설계자 fable · 실무 opus.
   셀 스레드 + `Thread.interrupt` + 오라클 이름 그대로의 상태기계. blocking point 에서 취소, 창 밖은 `InterruptNotDelivered` 보고 —
