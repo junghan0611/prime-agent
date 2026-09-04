@@ -14,7 +14,7 @@
 > RLM = Prime Agent 의 **persistent REPL workspace 루프** — 모델이 셀을 실행하고 그 상태가 대화를 가로질러 남는다.
 > 작업은 전부 `feat/clojure-runtime` 에서 이어간다 — **새 브랜치로 자르지 않는다.** H1–H8 은 rollback checkpoint 다.
 > 무엇을 어떻게 돌리는지는 `./run.sh help` — 명령은 문서가 아니라 거기 산다.
-> 지금 위치와 다음 한 걸음은 [NEXT--feat_clojure-runtime.md](./NEXT--feat_clojure-runtime.md),
+> 지금 위치와 다음 한 걸음은 [NEXT.md](./NEXT.md),
 > 판은 [issue #1](https://github.com/junghan0611/prime-agent/issues/1).
 
 ## North Star — 뚫고, 재는 것
@@ -97,7 +97,7 @@
 | `BASELINE.md` | 운영자 인터뷰 (Q-R0…Q-R4) |
 | `ROADMAP.md` | 제품 홉 H1–H8 |
 | `docs/clojure-runtime.md` | **Clojure 런타임 계약서** — 알려진 편차, "코드를 읽어야만 알던 것" |
-| `NEXT--feat_clojure-runtime.md` | 브랜치 좌표와 다음 한 걸음 |
+| `NEXT.md` | 지금 좌표와 다음 한 걸음 (2026-09-02 에 `NEXT--feat_clojure-runtime.md` 를 승격) |
 | `.github/workflows/clojure-runtime.yml` | clojure 축 CI (clj-kondo lint 전용) |
 | `prime-agent-runtime-clj/test/rlm/sut.clj` | native SUT 게이트 (native 아니면 throw) |
 
@@ -118,9 +118,23 @@
 - **증거가 제품보다 커지면 멈추고 GLG 에게 보고한다.**
 - **영수증이 지탱하는 것만 주장한다.** 더 강한 문장은 증명 의무를 만들고, 그 의무가 서브시스템을 만든다.
 
+## 담당자 문서 — 제목이 아니라 id 로 기억한다
+
+이 리포의 담당자 문서는 **denote id 로만** 붙든다. 제목·슬러그·태그·파일명은 하루에도 움직이고 `#+identifier` 는 안 움직인다 — 2026-09-04 에 개명 한 번으로 서치가 이 리포를 `후보 없음` 으로 답했고, 제목이 고쳐지자 같은 서치가 같은 id 를 찾아냈다(sorge 담당자 측정, garden id `20260904T123125-7c716c`). 그러니 매번 유도하지 말고 여기서 읽는다.
+
+| | id | 어디 | 상태 |
+|---|---|---|---|
+| **담당자 문서** | `20260521T134542` | `~/org/botlog/` | **정본.** GLG 가 2026-09-04 에 직접 지정 |
+| 곁노트 | `20260827T222209` | `~/org/llmlog/` | **폐기 — 참고만.** 정본 아니고 승격하지 않는다 (GLG, 2026-09-04) |
+
+- **읽는 자리는 `~/org/botlog` 의 org 원본이다.** `notes/content/` 의 내보내진 md 는 한 주기 늦으므로 판정 근거로 쓰지 않는다.
+- 폐기된 곁노트(`20260827T222209`)는 Entwurf #88 원문과 선행조사의 임시 합본이다. 그 뒤로 리포가 H1–H12 까지 움직였으므로 **거기 적힌 상태를 현재로 읽지 않는다.**
+- 손은 `botlog` 스킬 — `agent-denote-add-history` / `agent-denote-add-heading`. 통째로 다시 쓰지 않는다.
+- **내용을 실제로 고쳤으면 `agent-denote-set-front-matter` 로 `:hugo_lastmod` 도장을 찍는다.** 이 필드는 퍼블리시가 아니라 「정말 고쳤다」의 손도장이고, 빚(도장 이후 커밋 수)을 세는 유일한 기준선이다. 히스토리 줄은 로그이지 수정이 아니므로 기준선을 올리지 않는다.
+
 ## Next and References
 
-- [NEXT--feat_clojure-runtime.md](./NEXT--feat_clojure-runtime.md) — 지금 좌표와 다음 한 걸음. 브랜치 작업은 일회용 `NEXT--<branch>.md`.
+- [NEXT.md](./NEXT.md) — 지금 좌표와 다음 한 걸음. 브랜치가 master 에 ff-merge 되면서 `NEXT--feat_clojure-runtime.md` 가 여기로 승격됐다 (`78ca5ac8`). 새 브랜치 작업은 다시 일회용 `NEXT--<branch>.md`.
 - [issue #1](https://github.com/junghan0611/prime-agent/issues/1) — **판.** 표·영수증·결정 카드가 공개로 쌓인다. 홉 하나가 댓글 하나. **현재 첫 산출은 H1 댓글**(H1.1 default · H1.2 ready gate · H1.3 bootstrap/state-op-off · H1.4 framing)이며 **H1 이 닫히기 전에는 TS 17파일을 열지 않는다.** NEXT 의 현재 행을 먼저 읽는다.
 - [ROADMAP.md](./ROADMAP.md) — 제품 홉 H1–H8 과 그다음(Emmy/SICM).
 - [BASELINE.md](./BASELINE.md) — 운영자 인터뷰 프로토콜과 기록된 런.
