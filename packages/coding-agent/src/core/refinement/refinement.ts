@@ -15,6 +15,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
 import { getAgentDir } from "../../config.js";
 import { serializeConversation } from "../compaction/utils.js";
+import type { KernelRuntimeKind } from "../kernel/runtime.js";
 import { convertToLlm } from "../messages.js";
 import type { CustomEntry } from "../session-manager.js";
 
@@ -435,13 +436,23 @@ export function formatHarnessStateForPrompt(
 		includeIpythonExamples?: boolean;
 		includeShellExamples?: boolean;
 		includeRefineExamples?: boolean;
+		kernelRuntime?: KernelRuntimeKind;
 	} = {},
 ): string {
 	const maxEntriesPerKind = options.maxEntriesPerKind ?? DEFAULT_OVERVIEW_ENTRY_LIMIT;
 	const maxRefinements = options.maxRefinements ?? DEFAULT_OVERVIEW_REFINEMENT_LIMIT;
 	const maxContentLength = options.maxContentLength ?? DEFAULT_OVERVIEW_CONTENT_LIMIT;
-	const includeIpythonExamples = options.includeIpythonExamples ?? true;
-	const includeRefineExamples = options.includeRefineExamples ?? includeIpythonExamples;
+	// The harness block was the one prompt section that stayed runtime-blind. `ToolName`
+	// is `"ipython"` on both arms, so the Clojure workspace also read a Python call
+	// contract here — byte-identical to the Python arm's. Split it the way
+	// `buildSubagentGuidance` already splits: same contract, the spelling of the arm
+	// the cell actually runs in.
+	const isClojureRuntime = options.kernelRuntime === "clojure";
+	const hasReplExamples = options.includeIpythonExamples ?? true;
+	const includeIpythonExamples = hasReplExamples && !isClojureRuntime;
+	const includeClojureExamples = hasReplExamples && isClojureRuntime;
+	// `refine` is a Python skill; on the Clojure arm there is no `await refine.run()` to call.
+	const includeRefineExamples = (options.includeRefineExamples ?? hasReplExamples) && !isClojureRuntime;
 	const lines = [
 		"# Continual Harness State",
 		"",
@@ -454,11 +465,13 @@ export function formatHarnessStateForPrompt(
 			? "When to call `await refine.run()`: after a repeated failure, a reusable tactic emerges, a repeated delegation role should become a subagent spec, a repeated procedure should become a skill, a durable fact/preference should become a memory, a narrow behavioral policy should become a prompt addendum, a user corrects behavior that should persist locally or globally, validation shows a continual harness entry is wrong, or a skill/subagent/memory/prompt note should be created, updated, deleted, or rolled back. Keep `await refine.run()` continual harness edits small and evidence-backed."
 			: "When to refine the continual harness: after a repeated failure, a reusable tactic emerges, a repeated delegation role should become a subagent spec, a repeated procedure should become a skill, a durable fact/preference should become a memory, a narrow behavioral policy should become a prompt addendum, a user corrects behavior that should persist locally or globally, validation shows a continual harness entry is wrong, or a skill/subagent/memory/prompt note should be created, updated, deleted, or rolled back. Keep continual harness edits small and evidence-backed.",
 		"",
-		includeIpythonExamples
-			? "Call contract: read each installed Python skill's SKILL.md and call its documented module function in the Python REPL; do not assume a `.run` entrypoint. Use `<skill_import> ...` in shell when a CLI exists. Continual harness skill entries are Python REPL skills with an explicit Python `reference` and `arguments` contract. Spawn a continual harness subagent spec by composing a concise task prompt and calling `handle = await rlm('sub-task')`; admission returns immediately with `rlm_child_id`, `name`, `session_dir`, and `model`, never the child's answer. Results arrive only through explicit `agent_message` replies or files; children reply with `await agent_message.send(message, receiver_role='parent')`. Use `await rlm.list_subagents()` to recover direct child handles and `await agent_message.send(..., receiver_role='child', receiver_name=handle.name)` for follow-ups. Do not invent wrappers such as `call_skill(...)`, `run_subagent(...)`, or named subagent registries."
-			: options.includeShellExamples
-				? "Call contract: use installed skills as shell commands when available (for example `<skill_import> ...`). Continual harness entries are routing/context hints only in sessions without the Python REPL; do not use Python `await`, `asyncio`, or `rlm` examples unless the prompt also documents a Python kernel."
-				: "Call contract: continual harness entries are routing/context hints only in sessions without the Python REPL or shell access; do not use Python `await`, `asyncio`, `rlm`, or shell skill commands unless the prompt also documents those interfaces.",
+		includeClojureExamples
+			? 'Call contract: this session\'s workspace is a persistent Clojure/SCI REPL; evaluate forms here. Continual harness skill entries carry a Python `reference` and `arguments` contract and are not callable from this workspace; treat them as routing/context hints and say so plainly rather than pretending to run them. Spawn a continual harness subagent spec by composing a concise task prompt and evaluating `(def handle (rlm "sub-task"))`; admission returns immediately with `:rlm-child-id`, `:name`, `:session-dir`, and `:model`, never the child\'s answer. Results arrive only through explicit agent messages or files; children reply with `(host-request {:type "agent_message.send" :message "answer" :receiver_role "parent"})`. Use `(rlm-children)` to recover direct child handles and the same host verb with `:receiver_role "child"` plus `:receiver_name` for follow-ups. Do not invent wrappers such as `call-skill` or `run-subagent`, and do not assume Python names exist here.'
+			: includeIpythonExamples
+				? "Call contract: read each installed Python skill's SKILL.md and call its documented module function in the Python REPL; do not assume a `.run` entrypoint. Use `<skill_import> ...` in shell when a CLI exists. Continual harness skill entries are Python REPL skills with an explicit Python `reference` and `arguments` contract. Spawn a continual harness subagent spec by composing a concise task prompt and calling `handle = await rlm('sub-task')`; admission returns immediately with `rlm_child_id`, `name`, `session_dir`, and `model`, never the child's answer. Results arrive only through explicit `agent_message` replies or files; children reply with `await agent_message.send(message, receiver_role='parent')`. Use `await rlm.list_subagents()` to recover direct child handles and `await agent_message.send(..., receiver_role='child', receiver_name=handle.name)` for follow-ups. Do not invent wrappers such as `call_skill(...)`, `run_subagent(...)`, or named subagent registries."
+				: options.includeShellExamples
+					? "Call contract: use installed skills as shell commands when available (for example `<skill_import> ...`). Continual harness entries are routing/context hints only in sessions without the Python REPL; do not use Python `await`, `asyncio`, or `rlm` examples unless the prompt also documents a Python kernel."
+					: "Call contract: continual harness entries are routing/context hints only in sessions without the Python REPL or shell access; do not use Python `await`, `asyncio`, `rlm`, or shell skill commands unless the prompt also documents those interfaces.",
 		"",
 	];
 
@@ -471,7 +484,11 @@ export function formatHarnessStateForPrompt(
 		// Render subagent specs as a task-shaped roster the model can match against — the
 		// analogue of Claude Code's agent-type menu — rather than a bare count. In
 		// REPL sessions, include the native `rlm` invocation hint.
-		if (kind === "subagent" && entries.length > 0 && includeIpythonExamples) {
+		if (kind === "subagent" && entries.length > 0 && includeClojureExamples) {
+			lines.push(
+				`${kind}: ${entries.length} (invoke a spec by turning it into a concise task prompt and spawning with \`(rlm "<task>")\`; admission returns a child handle, never the answer)`,
+			);
+		} else if (kind === "subagent" && entries.length > 0 && includeIpythonExamples) {
 			lines.push(
 				`${kind}: ${entries.length} (invoke a spec by turning it into a concise task prompt and spawning with \`await rlm('<task>')\`; admission returns a child handle, never the answer)`,
 			);
