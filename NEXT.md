@@ -21,11 +21,11 @@
 
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
-- [ ] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** ← CURRENT: ①·③ 닫힘(parity 61 → 54). **다음 손: ② 벤치마크 시나리오 초안. 그전에 GLG 결정 둘 — clj 프롬프트의 Python 누출, `overview()` 범위**
-- [ ] **4. 유료 pilot (12런 ≈ $0.01–0.03)** ← PAUSED: host `src/` seam 둘이 프리즈. GLG 결정 (ii) 대기. **「승인됨」은 영수증 없는 상속이다** — 이슈에 에이전트 서술만 있고 GLG 본인 승인 문장이 세션 원문에 없다(2026-09-08 재조사). **GLG 본인의 hands-on 은 이것과 무관하게 지금 가능**
+- [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). GLG 가 끝에서 한 번에 본다
+- [ ] **4. 유료 pilot** ← CURRENT-PAUSED: **크기·비용은 GLG 자리**(`BASELINE.md` 「BENCH-1」 의 run shape). 프리즈 예외는 **① 프롬프트에만 썼고 ② 격리 seam 은 안 열었다** — 그래서 pilot 영수증의 전제가 아직 미충족이다. **「승인됨」은 영수증 없는 상속이다** — 이슈에 에이전트 서술만 있고 GLG 본인 승인 문장이 세션 원문에 없다(2026-09-08 재조사). **GLG 본인의 hands-on 은 이것과 무관하게 지금 가능**
 - [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
-현재 좌표: 1·2 완료 → **3 진행** → 4 보류(GLG) → 5 미개시.
+현재 좌표: 1·2·3 완료 → **4 보류(GLG: BENCH-1 크기·비용, 격리 seam ② 를 열지)** → 5 미개시.
 
 # NOW — 비교 준비
 
@@ -36,7 +36,11 @@
 **① Python 팔 MCP-off 시나리오 검증 — 닫혔다** ([영수증](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5583842513), 2026-09-08).
 정정 하나가 딸려 나왔다: 「없으면 `NotEnabled`」는 **authored/builtin 경로만**이고, generic 서버는 `KeyError: not declared in user settings` 다. 프롬프트에는 양팔 모두 `mcp` 라는 글자가 **0회**. 다만 **범위 결정이 프로토콜로는 강제돼 있지 않다** — clj 셀이 `host-request` 로 `mcp.config` 를 호스트 와이어에 올리는 것을 실측했다. 막을 자리는 호스트라 프리즈 안쪽.
 
-**② 벤치마크 시나리오 초안 — 다음 손.**
+**② 벤치마크 시나리오 초안 — 닫혔다** (`67386acf`, `BASELINE.md` 「BENCH-1」, 2026-09-08). `docs/` 아래 새 문서 없이 루트 `BASELINE.md` 안이다.
+고정: 같은 모델 · evaluator · budget · 양팔 · skills off · MCP off · `./run.sh` 만. **P-A** = `Q-R0`–`Q-R4` 원문, **P-B = T-1 터널 과제**(self-note 생성→**읽어서** 재사용 · 커널 재시작 뒤 child 회수 · child 실패 뒤 정직한 상태). FAIL 은 `semantics-gap`/`model-fumble`/`harness-gap` 로 분류하고 prose-only·Python fallback 은 FAIL.
+전제 둘을 적어뒀다: 프롬프트 계약 **충족**(`ebb8c2c1`), per-run store 격리 **미충족** → `Q-R0` prior-session-memory 판정 무효, T-1 note 재사용은 한 세션 안에서만. **비용 상한 없음 — 크기는 GLG.**
+
+**② 의 원래 본문 (참고):**
 같은 모델(DeepSeek v4-pro 기본, flash 후보) · 같은 evaluator · 같은 budget · 양팔. 과제는 `BASELINE.md` Q-R0–R4 를 재사용하고 터널형 장기 과제 1개를 더한다(self-note 생성·재사용, child 회수 뒤 상태). 비용은 착수 전 GLG 에 먼저(Hard Rule 4). **격리 fixture**(BASELINE 「Baseline isolation」)는 pilot 영수증용이지 GLG hands-on 의 전제가 아니다.
 
 **③ H10 CRUD 슬라이스 — 이식은 닫혔고, 관찰 목적은 막혔다** ([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584557562), 2026-09-08).
@@ -55,11 +59,11 @@
 ## GLG 자리 셋 — 전부 한 줄
 
 1. **in-process JVM 단위 표면** — parking 행 + finishing 전이. 오라클 쌍둥이가 모듈 import 화이트박스라 프로토콜로 못 몬다. 새 계측이라 에이전트가 못 연다. **H10 의 `test_module_harness_binds_lazily_to_env_set_after_import` 도 여기 걸린다** — 프로세스마다 새로 뜨는 SUT 는 자기 env 를 도중에 못 바꾼다.
-2. **프리즈 국소 해제 (ii)** — 아래 절. pilot 전제. **근거가 하나 빠지고 하나 들어왔다**(2026-09-08): MCP 프롬프트 오염은 없음이 측정돼 빠졌고, **harness 블록의 Python call contract** 가 들어왔다 — 실재하고 상시다. 심볼은 `refinement.ts::formatHarnessStateForPrompt` 의 `includeIpythonExamples` 인자로, (ii) 가 이름 붙인 둘과 **다른 세 번째**다.
+2. ~~**프리즈 국소 해제 (ii)**~~ — **담당자가 2026-09-08 에 ① 만 풀어서 집행했다** (`ebb8c2c1`, 3파일, 무는 test `harness-prompt-runtime-contract`, kill 4/4 강한 킬·예상 폐쇄 정확). **② 격리 seam 은 안 열었다** — pilot 전제이지 hands-on 전제가 아니라서. 되돌리려면 그 커밋 하나. 아래 절은 결정 당시 기록으로 남긴다. **근거가 하나 빠지고 하나 들어왔다**(2026-09-08): MCP 프롬프트 오염은 없음이 측정돼 빠졌고, **harness 블록의 Python call contract** 가 들어왔다 — 실재하고 상시다. 심볼은 `refinement.ts::formatHarnessStateForPrompt` 의 `includeIpythonExamples` 인자로, (ii) 가 이름 붙인 둘과 **다른 세 번째**다.
 3. **sol 의 잣대 둘** — 아래 절. 벤치 시나리오 ② 가 사실상 이것의 실체다.
-4. **`overview()` 범위** (신규, 2026-09-08) — H10 의 D 4건 중 **셋이 `overview()` 하나에 막혀 있다.** 단순 이식이 아니다: 오라클 테스트가 그 텍스트를 문자 그대로 단언하고 그 텍스트가 Python call contract 다. 그대로 옮기면 clj 팔 안에 Python 호출 모양을 심는다. **declared-divergence 인가, 다른 계약으로 제공인가.**
+4. ~~**`overview()` 범위**~~ — **담당자 결정: declared divergence, verb 만들지 않는다** (`67386acf`). 오라클 텍스트가 곧 Python call contract 라 옮기면 `ebb8c2c1` 이 걷어낸 문장을 워크스페이스에 다시 심는다. capability 는 `harness-list`/`harness-get` 이 **데이터로** 이미 덮는다. **행은 D, 크레딧 0**, 게이트 `declared-divergence 0` 그대로 — 행 단위 메커니즘은 발명하지 않았다. 아래는 결정 당시 기록. H10 의 D 4건 중 **셋이 `overview()` 하나에 막혀 있다.** 단순 이식이 아니다: 오라클 테스트가 그 텍스트를 문자 그대로 단언하고 그 텍스트가 Python call contract 다. 그대로 옮기면 clj 팔 안에 Python 호출 모양을 심는다. **declared-divergence 인가, 다른 계약으로 제공인가.**
 
-## 대기 중인 GLG 결정 — **프리즈 국소 해제**
+## ~~대기 중인 GLG 결정~~ — **프리즈 국소 해제 (집행됨 2026-09-08, ① 만)**
 
 유료 pilot 의 전제(sol 순서 2)가 **host `src/` 둘**이다: 런타임 신호 통로(`system-prompt.ts::hasIpython`)와
 격리 seam(`refinement.ts::getGlobalHarnessStateDir` + `agent-session.ts` 호출 5곳).
@@ -83,8 +87,10 @@ tight-loop catastrophic 은 H11 + **declared state-loss** 로 정직히 분리�
 **69 를 다 복제해도 ②가 자동으로 서지 않고, ②만 돌리면 parity 를 말할 자격이 없다.**
 H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제안이 함께 있다. **아직 채택 안 됨.**
 
-## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `5dfc3c02` — **푸시 안 함**)
+## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `67386acf` — **푸시 안 함, 미푸시 5개**)
 
+- **harness 블록이 이제 팔마다 다르게 쓰인다** (`ebb8c2c1`). `formatHarnessStateForPrompt` 가 `kernelRuntime` 을 받고, clj 팔은 `(def handle (rlm "sub-task"))` · `:rlm-child-id` · `(rlm-children)` · `(host-request {:type "agent_message.send" …})` 를 배운다. skill 항목은 「없다」가 아니라 **"not callable from this workspace"**. python 팔은 **바이트 동일**(HEAD 모듈을 나란히 로드해 5옵션 × 2런타임에서 측정). 무는 test = `harness-prompt-runtime-contract` **6 tests**, kill 4/4 강한 킬.
+- **`overview()` 는 declared divergence** (`67386acf`) — verb 없음, D 3행 크레딧 0, 게이트 `declared-divergence 0` 불변.
 - 게이트(직접 실행): `parity-target 54 (H9=16 H10=26 H11=11 H12=1)` · `out-of-scope(GLG,2026-09-01) 50` ·
   `registry 74 rows, 15 cards` · HARD 0 · ② NOT REACHED · exit 1(게이트 ① 의 `(c)` 10건, H10 과 무관).
 - `./run.sh test-native` **107 tests / 0 failures**. assertion 총수는 폴링 때문에 흔들린다 — 비교 근거 아님. `lint` 0/0 · `npm run check` exit 0.
@@ -104,7 +110,7 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 ## 읽을 곳 (순서대로)
 
 1. **[이슈 #2](https://github.com/junghan0611/prime-agent/issues/2)** — 범위 결정 + 설계자 방향 점검 + 마무리 댓글.
-2. **이슈 #1 최신 영수증 (2026-09-08)** — [clj 프롬프트의 Python 누출](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5583887773) ·
+2. **이슈 #1 최신 영수증 (2026-09-08)** — [담당자 결정 A·B + 벤치 초안](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300) · [clj 프롬프트의 Python 누출](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5583887773) ·
    [H10 구현·kill 14/14](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584557562) ·
    [MCP-off (#2)](https://github.com/junghan0611/prime-agent/issues/2#issuecomment-5583842513). 그 앞(09-02) — [H9 구현·kill](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508709386) ·
    [재판정+빌드 게이트](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5508795408) ·
@@ -118,7 +124,7 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 
 - **커밋·푸시는 GLG 의 현재 세션 지시가 있을 때만.** 커밋 요청이 푸시를 함의하지 않는다.
 - **형제의 영수증을 세션에 묵혀두지 않는다.** 2026-09-01 21:15 재부팅으로 형제 셋이 한꺼번에 사라졌다 — 결정적 줄은 **즉시** 이슈로 옮긴다. 다음 형제도 같은 방식으로 죽는다고 가정한다.
-- **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용. **프리즈 국소 해제가 승인되면 위 NOW 의 4조 경계 안에서만.**
+- **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용. **프리즈 국소 해제는 ① 에만 쓰였다** — `refinement.ts`·`system-prompt.ts` 와 새 test 1파일뿐이고 17파일은 하나도 안 열렸다. **② 격리 seam(`getGlobalHarnessStateDir`·`agent-session.ts`)은 여전히 프리즈다.**
 - **`git stash` 금지** — 여러 형제가 같은 트리에 있다. 격리는 임시 `git worktree add --detach`.
   **디렉터리 복사 금지** — 게이트가 오라클을 자기 파일 기준으로 해석해 엉뚱한 트리를 읽는다(이제 hard failure 로 막히고 `source:` 행이 읽은 경로를 인쇄한다).
 - **새 카드·새 계측 동결.** manifest 전수 재검증 금지.
