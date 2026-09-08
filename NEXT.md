@@ -22,7 +22,7 @@
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
 - [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
-- [ ] **4. 유료 pilot** ← CURRENT: **seam ② 열렸다**(`e6a8fc1a`, kill 4/4 강한 킬, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585608252)) — 격리 fixture 와 장치(`evals/bench1/`)가 서 있다. **8 세션 승인은 GLG 가 줬다**(2026-09-08 21:4x, B 경유, 8 세션 한도). **막힌 곳은 모델 rail 이다** — DeepSeek 잔액 `-1.42 USD`/`is_available false`, 양 팔 모두 `402 Insufficient Balance`(이 세션 실측). `--no-env` 가 다른 provider 키를 전부 지우므로 모델만 갈아끼울 수 없다. **rail 이 서면 `evals/bench1/run.sh <outdir>` 한 명령**
+- [ ] **4. 유료 pilot** ← CURRENT: **seam ② 열렸다**(`e6a8fc1a` + 검수 수선 `7048258b`, kill **9/9 강한 킬**, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585608252) · [검수](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585807852)) — 격리 fixture 와 장치(`evals/bench1/`)가 서 있다. **8 세션 승인은 GLG 가 줬다**(2026-09-08 21:4x, B 경유, 8 세션 한도). **막힌 곳은 모델 rail 이다** — DeepSeek 잔액 `-1.42 USD`/`is_available false`, 양 팔 모두 `402 Insufficient Balance`(이 세션 실측). `--no-env` 가 다른 provider 키를 전부 지우므로 모델만 갈아끼울 수 없다. **rail 이 서면 `evals/bench1/run.sh <outdir>` 한 명령**
 - [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
 현재 좌표: 1·2·3 완료 → **4 진행 중(장치·격리 완료, BENCH-1 8 세션은 모델 rail 대기 — GLG 자리)** → 5 미개시.
@@ -78,7 +78,9 @@ sol 권고 = **(ii) 국소 해제**. 프리즈의 목적은 H1 미닫힘에서 �
 ② host prompt loader·kernel env·refinement 가 한 per-run global path 를 공유하고 launcher 가 arm·local·global 경로를 receipt 로 인쇄함을 무는 test
 ③ 이 둘 밖의 TS 파일·기능은 열지 않음 ④ **pilot 종료가 이 예외의 자동 종결점.**
 
-**② 집행됨** (`e6a8fc1a`): `src/` 는 `refinement.ts::getGlobalHarnessStateDir` **하나**(per-run env 오버라이드, 명시 인자가 이김), launcher `run.sh::launch` 가 런마다 빈 store 를 따고 arm·global·local root·session dir 을 인쇄, 새 test 1파일 `harness-store-isolation` 9 tests. **`agent-session.ts` 는 안 열었다** — 호출 5곳이 무인자 기본값을 써서 편집 없이 한 경로를 공유하고, 그것을 무는 킬이 M2 다(그 중 한 곳이 따로 풀면 Red). kill 4/4 강한 킬, 예측 폐쇄 정확.
+**② 집행됨** (`e6a8fc1a`): `src/` 는 `refinement.ts::getGlobalHarnessStateDir` **하나**(per-run env 오버라이드, 명시 인자가 이김), launcher `run.sh::launch` 가 런마다 빈 store 를 따고 arm·global·local root·session dir 을 인쇄, 새 test 1파일 `harness-store-isolation` **14 tests**(검수 뒤). **`agent-session.ts` 는 안 열었다** — 호출 5곳이 무인자 기본값을 써서 편집 없이 한 경로를 공유하고, 그것을 무는 킬이 M2 다(그 중 한 곳이 따로 풀면 Red). kill **9/9 강한 킬**, 예측 폐쇄 정확.
+
+**검수(`xai/grok-4.6`, 한 턴)가 구멍 셋을 잡았고 `7048258b` 로 메웠다.** ① fixture 가 세션 agent dir 을 비워둬서 「소비자가 자기 agent dir 을 넘기는」 변이가 안 물렸다 → 세션에 agent dir 을 주고 무는다. ② store env 는 **launch env 로만** worker 에 닿는다(`daemon-protocol.ts::collectDaemonLaunchEnv`, 이후 클라이언트는 `DAEMON_CLIENT_ENV_KEYS` 뿐) — 그 forwarding 을 무는 test 가 없었고, **소켓이 arm 마다 고정이라 두 번째 런이 store B 를 찍고 store A 를 쥔 daemon 에 붙었다(실제 결함).** 지금은 fresh 면 소켓도 런마다 갈리고 상속이면 공유한다. ③ local root 가 영수증 전용이라 `getSessionArtifactsRoot` 와 갈려도 초록이었다 → 프로덕션 함수 결과와 대조하고, dry 모드가 넘길 env 를 덤프해 「찍은 경로 ≠ 넘긴 경로」를 막는다.
 
 ## 아직 GLG 자리인 방향 제안 (채택 전)
 
@@ -89,8 +91,10 @@ tight-loop catastrophic 은 H11 + **declared state-loss** 로 정직히 분리�
 **69 를 다 복제해도 ②가 자동으로 서지 않고, ②만 돌리면 parity 를 말할 자격이 없다.**
 H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제안이 함께 있다. **아직 채택 안 됨.**
 
-## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `e6a8fc1a`)
+## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` — **master 를 같은 커밋으로 ff 했고 둘 다 푸시됐다**)
 
+- **daemon socket 을 arm 마다 고정하면 격리 영수증이 거짓말을 한다** — 두 번째 런이 새 store 를 찍고, 첫 런의 store 를 쥔 daemon 에 붙는다(검수 발견, `7048258b` 로 수선). 지금 launcher 는 **fresh store 면 소켓도 런마다** 갈리고, 상속받은 store(이어가는 턴)면 공유 소켓을 쓴다.
+- **`master` 를 `feat/clojure-runtime` 로 ff 했다** (`78ca5ac8` 에서 오늘 밤 끝으로, 2026-09-08). NEXT 규칙(「master 와 같은 커밋에서 출발한다」)대로이고 ff 라 히스토리 재작성은 없다.
 - **워크스페이스가 빌드돼 있지 않으면 두 팔 다 안 뜬다.** `packages/*/dist` 가 전부 없어 `./run.sh clj|py` 가 `ERR_MODULE_NOT_FOUND: @earendil-works/pi-agent-core/dist/index.js` 로 죽었다(2026-09-08 실측). `npm run build` 한 번(exit 0)으로 풀린다. **clean checkout 의 첫 손이 여기서 막힌다.**
 - **그 빌드가 `packages/ai/src/models.generated.ts` 를 재생성한다** — 3106줄 변경, `packages/ai/test/*` 타입체크가 깨져 pre-commit `npm run check` 가 실패한다. **빌드 뒤 이 파일은 커밋에서 뺀다.**
 - **BENCH-1 의 모델 rail 이 말랐다** — DeepSeek 잔액 `-1.42 USD`, `is_available false`(`/user/balance`, http 200), 양 팔 한 턴 모두 `402 Insufficient Balance` · usage cost `0`(이 세션 실측). **오늘 쓴 돈 $0.00.**
@@ -168,6 +172,8 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 |---|---|
 | 8 | **총함수는 킬을 삼킨다.** Clojure `get` 은 map 아닌 값에도 답하므로, 오라클이 필요로 하는 방어적 coercion 이 이 팔에서는 equivalent mutant 가 된다. 「오라클에 있으니 여기도 계약」이 아니라 **깨봐야 안다** (M3 → M3b) |
 | 9 | **예측이 틀린 것과 테스트가 약한 것은 다르다.** M12 에서 표적은 혼자 Red 였는데 예상 폐쇄가 하나 넓었다. 원인은 그 시나리오의 제목에 구두점이 없다는 것 — **틀린 쪽은 예측이다.** 그대로 적는다 |
+
+| 10 | **킬 되돌리기가 `git checkout -- <file>` 이면 먼저 커밋한다.** 2026-09-08 에 M8·M9 가 예측보다 넓게 빨개졌는데 원인은 테스트 약함이 아니라 **아직 커밋 안 한 하드닝을 되돌리기가 같이 지운 것**이었다. 커밋 뒤 다시 돌리니 셋 다 예측대로 1 Red |
 
 **표준 용어:** C 통 = **equivalent mutant**(mutation testing 의 알려진 하한) · B 통 = **weak test oracle**(변이가 상태는 바꾸는데 단언이 못 본다).
 
