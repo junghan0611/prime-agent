@@ -32,19 +32,32 @@ to each other — same model, same probes, same launcher, same turn count.
 
 ## Classified failures
 
-**`harness-gap` — the two arms were not told the same thing about formal receive.**
-This is the run's headline, and it invalidates the Q-R3 / T-1.2 comparison rather
-than settling it. In `core/prompts/rlm.ts` the Clojure branch states the
-`agent_message.send` reply contract unconditionally; the Python branch puts the
-same sentence behind `hasAgentMessage`, which is
-`!isClojureRuntime && installedSkills.includes("agent_message")`. BENCH-1's fixed
-factors launch **skills-off**, so on the Python arm that gate is false and the
-prompt falls through to the `else` branch — recover handles with
-`rlm.list_subagents()`, nothing about replying. Behaviour matches exactly: all
-four Clojure cells used `(host-request {:type "agent_message.send" …})`; all four
-Python cells routed the child's answer through a file instead
-(`answer.txt`, `child_output.txt`). **The Clojure arm looking better here is a
-prompt asymmetry, not a runtime finding.**
+**`prompt-asymmetry` — the two arms were not told the same thing *as loudly*.**
+Corrected after first publication; the first version of this section overstated
+it as "the Python arm was not told at all", and that is false.
+
+- In `core/prompts/rlm.ts`, the subagent-guidance block states the
+  `agent_message.send` reply contract **unconditionally on the Clojure arm**, but
+  on the Python arm puts it behind `hasAgentMessage`, which is
+  `!isClojureRuntime && installedSkills.includes("agent_message")`. BENCH-1 runs
+  skills-off, so that sentence was absent on the Python arm.
+- **But** `core/refinement/refinement.ts::formatHarnessStateForPrompt` emits a
+  "Call contract" line **on both arms, unconditionally** — no early return on an
+  empty store — and the Python spelling of it names
+  `await agent_message.send(message, receiver_role='parent')` outright. One cell
+  quoted that very sentence back out of its own prompt.
+
+So the Python arm **did** carry the formal-receive contract, once, in the harness
+block; the Clojure arm carried it twice, including in the always-on subagent
+block. Behaviour split along that line — all four Clojure cells used
+`(host-request {:type "agent_message.send" …})`, all four Python cells routed the
+child's answer through a file (`answer.txt`, `child_output.txt`) — but a
+prominence asymmetry is **not** enough to call the Python failures `harness-gap`.
+
+**Therefore Q-R3 and T-1.2 are unresolved in this run**, and that is the honest
+verdict: the receipt cannot separate `harness-gap` from `model-fumble` here,
+because a real confound exists and it is smaller than the observed split. The
+next run has to remove the confound before this row can be scored either way.
 
 **`harness-gap` — `pb-clojure-r2` lost three of four turns.** Turn 1 finished
 normally; turns 2–4 died before reaching the model with
