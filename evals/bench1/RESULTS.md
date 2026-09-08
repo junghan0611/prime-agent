@@ -17,18 +17,29 @@ to each other — same model, same probes, same launcher, same turn count.
 
 ## Scorecard
 
-`✓` PASS · `✗` FAIL · `—` never reached.
+Corrected after cross-review (`xai/grok-4.6`). Two FAILs in the first published
+table were **my analyzer's bug, not the model's**: it scored the *last* assistant
+text block of a turn, and in both cells the graded answer was in the first block
+with the closing pleasantry after it. Both are now PASS.
 
-| cell | Q-R0 / T-1.1 | Q-R1+R2 / T-1.2 | Q-R3+R4 / T-1.3 | / T-1.4 | api req |
+`✓` PASS · `✗` FAIL · `∅` unresolved in this run (see the formal-receive section
+below) · `—` never reached.
+
+| cell | Q-R0 / T-1.1 | Q-R1+R2 / T-1.2 | Q-R3+R4 / T-1.3 | T-1.4 | api req |
 |---|---|---|---|---|---|
-| pa-clojure-r1 | ✓ | ✓ ✓ | ✓ ✓ | | 16 |
-| pa-clojure-r2 | ✓ | ✓ ✓ | ✓ ✓ | | 18 |
-| pa-python-r1 | ✓ | ✓ ✓ | ✗ ✗ | | 15 |
-| pa-python-r2 | ✓ | ✓ ✓ | ✗ — | | 8 |
-| pb-clojure-r1 | ✓ | ✓ | ✓ | ✗ | 41 |
+| pa-clojure-r1 | ✓ | ✓ ✓ | ∅ ✓ | | 16 |
+| pa-clojure-r2 | ✓ | ✓ ✓ | ∅ ✓ | | 18 |
+| pa-python-r1 | ✓ | ✓ ✓ | ∅ ✓ | | 15 |
+| pa-python-r2 | ✓ | ✓ ✓ | ∅ — | | 8 |
+| pb-clojure-r1 | ✓ | ∅ | ✓ | ✓ | 41 |
 | pb-clojure-r2 | ✓ | — | — | — | 21 |
-| pb-python-r1 | ✓ | ✓ | ✓ | ✓ | 31 |
-| pb-python-r2 | ✓ | ✓ | ✓ | ✓ | 39 |
+| pb-python-r1 | ✓ | ∅ | ✓ | ✓ | 31 |
+| pb-python-r2 | ✓ | ∅ | ✓ | ✓ | 39 |
+
+Every formal-receive cell — Q-R3 on both arms, T-1.2 on both arms — is `∅`, so
+the table says what the prose says. The first table scored those cells green on
+the Clojure arm and red on the Python arm while the prose called the comparison
+unresolved; one column cannot say two things.
 
 ## Classified failures
 
@@ -47,9 +58,11 @@ it as "the Python arm was not told at all", and that is false.
   `await agent_message.send(message, receiver_role='parent')` outright. One cell
   quoted that very sentence back out of its own prompt.
 
-So the Python arm **did** carry the formal-receive contract, once, in the harness
-block; the Clojure arm carried it twice, including in the always-on subagent
-block. Behaviour split along that line — all four Clojure cells used
+And it is not only volume. In the same `rlm.ts` subagent block the Python branch
+teaches, unconditionally, **"Have children write files and read those files for
+fan-in."** The Clojure branch teaches `agent_message.send` in that slot instead.
+So the two arms were given **different fan-in contracts**, and every Python cell
+did exactly what its own prompt taught. Behaviour split along that line — all four Clojure cells used
 `(host-request {:type "agent_message.send" …})`, all four Python cells routed the
 child's answer through a file (`answer.txt`, `child_output.txt`) — but a
 prominence asymmetry is **not** enough to call the Python failures `harness-gap`.
@@ -62,18 +75,23 @@ next run has to remove the confound before this row can be scored either way.
 **`harness-gap` — `pb-clojure-r2` lost three of four turns.** Turn 1 finished
 normally; turns 2–4 died before reaching the model with
 `Error: text.replace is not a function` from `daemon-errors.ts::deserializeDaemonError`,
-called out of `main.ts::createDaemonClientConnection` — a non-string `error`
-field on a daemon response during reconnect. Nothing model-side; the cell simply
-has no T-1.2–T-1.4 data. Zero API requests on those turns, which is why its
-premium cost is low.
+called out of `main.ts::createDaemonClientConnection` on reconnect. **The "so the
+daemon returned a non-string `error` field" inference is withdrawn** —
+`DaemonResponse.error` is typed `string` in `daemon-protocol.ts`, so that message
+is as likely to be the error string the daemon handed back. What holds is the
+part that matters: zero API requests on those turns, so nothing model-side, and
+the cell simply has no T-1.2–T-1.4 data. Whether turn 1's long 21-round-trip turn
+left the state that broke reconnect is a lead, not a finding.
 
-**`model-fumble` — final answers that narrate instead of showing.** `pa-python-r1`
-closed Q-R3/Q-R4 with "All requested checks … are complete. Please let me know if
-you need anything else!" after computing a Q-R4 value it never reported.
-`pa-python-r2` stopped at "I will now wait for the child agent" and never
-returned. `pb-clojure-r1` closed T-1.4 with "The completion notification from the
-host is noted" — it had made the right calls and reported none of the values, and
-took the host notice as the answer, which the probe names as a FAIL.
+**`model-fumble` — one cell, not three.** The first version of this section named
+three, and cross-review retired two of them against the raw turns.
+`pa-python-r2` is the real one: it stopped at "I will now wait for the child
+agent" and never returned, so Q-R4 was never reached. `pa-python-r1` did report
+its Q-R4 value (`{'exit_code': 0, 'output': 'Python version: 3.13.14', …}`) in the
+same turn, and `pb-clojure-r1` did give the T-1.4 truthful report — no answer
+received, `(rlm-children)` status, and the binding list — before its closing
+line. Both were scored off a trailing pleasantry by an analyzer that read only
+the last text block.
 
 **Symmetric, not classified:** both arms fumbled the harness getter's arity on
 first use (`harness-get "title"` → `harness-get "memory" "title"`;

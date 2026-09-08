@@ -22,10 +22,10 @@
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
 - [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
-- [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **프롬프트 현저성 비대칭**이다(첫 영수증에서 「Python 팔은 아예 못 배웠다」로 과장했다가 **같은 세션에서 정정했다**): `prompts/rlm.ts` 의 subagent 블록은 clj 에 무조건, python 에는 `hasAgentMessage` 뒤에 둔다(skills-off → 없음). **그러나** `refinement.ts::formatHarnessStateForPrompt` 의 「Call contract」 줄은 **양 팔 무조건**이고 python 스펠링이 `agent_message.send` 를 그대로 적는다(빈 store 여도 나온다). 즉 clj 는 두 번, python 은 한 번 들었다. **Q-R3 / T-1.2 는 이 런에서 미결**이다 — 교란이 실재하지만 관측된 갈림보다 작아서 `harness-gap` 과 `model-fumble` 을 못 가른다.
+- [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **양 팔이 서로 다른 fan-in 계약을 받은 것**이다(첫 영수증 「Python 팔은 아예 못 배웠다」 → 정정 「현저성」 → 검수 뒤 **「다른 계약」**): [read at `prompts/rlm.ts::buildSubagentGuidance`] python 가지는 **무조건** 「Have children write files and read those files for fan-in.」 를 가르치고, clj 가지는 그 자리에 `agent_message.send` 를 가르친다. `refinement.ts::formatHarnessStateForPrompt` 의 Call contract 는 양 팔 무조건이다. **Python 셀 4/4 가 파일로 간 것은 자기 프롬프트대로 한 것**이다. → **formal-receive 행(Q-R3·T-1.2) 은 양 팔 모두 `∅` 미결**이고 표도 그렇게 적었다. 교차검수(`xai/grok-4.6`)가 표의 FAIL 둘을 원자료로 되돌렸다 — 내 분석기가 턴의 **마지막** 텍스트 블록만 읽어 앞 블록의 답을 놓쳤다.
 - [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
-현재 좌표: 1·2·3·4 완료(run 1 영수증 닫힘) → **다음은 그 현저성 비대칭을 어떻게 처리할지 — 교란을 없애기 전에는 formal-receive 재측정을 하지 않는다** → 5 미개시.
+현재 좌표: 1·2·3·4 완료(run 1 영수증 닫힘) → **다음은 fan-in 계약을 양 팔 대칭으로 할지 — 교란을 없애기 전에는 formal-receive 재측정을 하지 않는다** → 5 미개시.
 
 # NOW — 비교 준비
 
