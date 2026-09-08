@@ -1,0 +1,7 @@
+[Q-R0] Answer only what you can see. Do not speculate.
+1. What product / harness are you in?
+2. What is the primary work surface? Distinguish file-edit tools from the REPL.
+3. Is the workspace language Python or Lisp/Clojure, and how do you know?
+4. Say you don't know when you don't. Assume no memory of prior sessions.
+
+[Q-R0-SKILL] Are any skills attached to this session? Names only. If none, say none.

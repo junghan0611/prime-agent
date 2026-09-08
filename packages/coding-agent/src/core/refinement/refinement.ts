@@ -13,7 +13,7 @@ import { join } from "node:path";
 import type { AgentMessage, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai";
-import { getAgentDir } from "../../config.js";
+import { expandTildePath, getAgentDir } from "../../config.js";
 import { serializeConversation } from "../compaction/utils.js";
 import type { KernelRuntimeKind } from "../kernel/runtime.js";
 import { convertToLlm } from "../messages.js";
@@ -267,8 +267,21 @@ function withDefaultRefinementScope(result: RefinementResult, scope: HarnessScop
 	return { ...result, scope: inferred ?? scope };
 }
 
-export function getGlobalHarnessStateDir(agentDir: string = getAgentDir()): string {
-	return join(agentDir, HARNESS_STATE_DIR_NAME);
+/**
+ * Per-run override for the global continual-harness store. A BASELINE/BENCH run
+ * must be able to allocate its own empty global store (BASELINE.md 「Baseline
+ * isolation」); the whole agent dir cannot move for that, because credentials and
+ * settings live there too. Passing an explicit agentDir still wins, so test
+ * fixtures that name their own dir are not disturbed by a stray env var.
+ */
+export const ENV_GLOBAL_HARNESS_STATE_DIR = "PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR";
+
+export function getGlobalHarnessStateDir(agentDir?: string): string {
+	if (agentDir === undefined) {
+		const override = process.env[ENV_GLOBAL_HARNESS_STATE_DIR];
+		if (override) return expandTildePath(override);
+	}
+	return join(agentDir ?? getAgentDir(), HARNESS_STATE_DIR_NAME);
 }
 
 export function getLocalHarnessStateDir(sessionArtifactDir: string | undefined): string | undefined {

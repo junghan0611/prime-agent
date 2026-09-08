@@ -1,0 +1,5 @@
+[Q-R1] Inspect the names currently available in the workspace via the REPL.
+Do not recite. Report only what execution returned.
+
+[Q-R2] Survey this repo's Clojure runtime limits.
+Do not put the whole document into the answer context. Read it as a REPL value and compute the needed subset.

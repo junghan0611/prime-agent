@@ -29,8 +29,35 @@ launch() {
 	local kind=$1; shift
 	local sock="$SOCK_DIR/$kind.sock"
 	mkdir -p "$SOCK_DIR"
-	# 인터뷰 영수증에 어느 daemon 이었는지 남도록 찍는다.
+	# 격리 fixture (BASELINE.md 「Baseline isolation」). 인터뷰·벤치 한 런은
+	# 자기만의 빈 global harness store 와 빈 session dir 을 받는다. agent dir
+	# 통째로는 못 옮긴다 — 자격증명과 설정이 거기 같이 산다.
+	# 이미 환경에 박혀 있으면 그것을 존중한다: 한 세션의 여러 턴(--continue)이
+	# 같은 store 를 이어써야 하고, 그 상속은 "다른 런과 공유"가 아니다.
+	local run_root store_state="fresh" session_state="fresh"
+	run_root="$SOCK_DIR/runs/$kind/$(date +%Y%m%dT%H%M%S)-$$"
+	local store="${PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR:-}"
+	local sessions="${PRIME_AGENT_SESSION_DIR:-}"
+	[ -n "$store" ] && store_state="inherited" || store="$run_root/global-harness"
+	[ -n "$sessions" ] && session_state="inherited" || sessions="$run_root/sessions"
+	# 세션-로컬 store 는 session dir 옆의 session-artifacts 아래 산다
+	# (session-manager.ts 의 getSessionArtifactsRoot). session dir 만 찍으면
+	# 영수증이 한 칸 빗나간다.
+	local local_root; local_root="$(dirname "$sessions")/session-artifacts"
+	mkdir -p "$store" "$sessions" "$local_root"
+	if [ "$store_state" = "fresh" ] && [ -n "$(ls -A "$store" 2>/dev/null)" ]; then
+		die "격리 실패 — 새로 딴 global store 가 비어 있지 않다: $store"
+	fi
+	export PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR="$store"
+	export PRIME_AGENT_SESSION_DIR="$sessions"
+	# 인터뷰 영수증에 어느 daemon·어느 store 였는지 남도록 찍는다. 내보낸 변수를
+	# 그대로 읽어 찍는다 — 찍은 경로와 세션이 쓰는 경로가 갈리지 않게.
 	echo "→ $kind arm · daemon socket: $sock" >&2
+	echo "→ $kind arm · global harness store ($store_state): $PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR" >&2
+	echo "→ $kind arm · local harness store root ($session_state): $local_root" >&2
+	echo "→ $kind arm · session dir ($session_state): $PRIME_AGENT_SESSION_DIR" >&2
+	# 영수증만 찍고 서지 않는 모드 — launcher 계약을 무는 테스트가 쓴다.
+	if [ -n "${PRIME_AGENT_RUN_SH_DRY:-}" ]; then return 0; fi
 	# clojure 실행파일은 clojure arm 에만 건다. python arm 에서는 읽히지도
 	# 않지만(resolveKernelRuntimeCommand), 상속시키면 격리 설명이 흐려진다.
 	if [ "$kind" = "clojure" ]; then

@@ -1,0 +1,8 @@
+[T-1.1] This is one long task with no external help: no web, no MCP, no skills. Do the work in your workspace, not in prose.
+
+1. Ask the runtime which names your workspace has available right now, and report what execution returned.
+2. Load docs/clojure-runtime.md (it is in your working directory) into the workspace as a value. Do not paste the file into your answer.
+3. From that value, compute two things: how many lines the file has, and the names listed in its process lifecycle table.
+4. Record what you just computed as a durable note in your continual harness state, under a title you will be able to find again later. The note must contain the line count and the names.
+
+Report the names, the line count, and where the note was stored.

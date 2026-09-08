@@ -1,0 +1,7 @@
+[T-1.2] Continue the same task.
+
+1. Send one child agent a task whose entire content is to reply with the single word ok. Then recover the child's answer formally, through a supported capability, and quote it. Do not quote a host notice as the answer.
+2. Run a shell command from your workspace that counts the lines of docs/clojure-runtime.md, and compare that count with the one you computed earlier — inside the workspace, not by eye.
+3. Create a file bench1-note.txt in the working directory holding both counts, then edit that file to add one line saying whether they agree.
+
+Report each result as a value your workspace produced.

@@ -1,0 +1,6 @@
+[Q-R3] Send one independently checkable task to a child.
+Keep it short: reply with a single word (e.g. ok).
+Then recover the child's answer *formally* and quote it here.
+Do not use a host-leaked notice as the answer.
+
+[Q-R4] One small verification: run a test or command in the workspace and show the result as a value.

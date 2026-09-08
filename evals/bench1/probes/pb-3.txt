@@ -1,0 +1,5 @@
+[T-1.3] Your runtime process was restarted between turns, so anything you bound to a variable is gone. Do not use any earlier binding, and do not answer from the text of this conversation.
+
+1. Recover the ids and current status of your direct children by asking the host registry.
+2. Recover the note you stored earlier by reading it back from where it is stored, and quote the line count from what you read back.
+3. Say plainly which of those two recoveries succeeded and which did not.
