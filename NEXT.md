@@ -21,11 +21,11 @@
 
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
-- [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). GLG 가 끝에서 한 번에 본다
-- [ ] **4. 유료 pilot** ← CURRENT-PAUSED: **크기·비용은 GLG 자리**(`BASELINE.md` 「BENCH-1」 의 run shape). 프리즈 예외는 **① 프롬프트에만 썼고 ② 격리 seam 은 안 열었다** — 그래서 pilot 영수증의 전제가 아직 미충족이다. **「승인됨」은 영수증 없는 상속이다** — 이슈에 에이전트 서술만 있고 GLG 본인 승인 문장이 세션 원문에 없다(2026-09-08 재조사). **GLG 본인의 hands-on 은 이것과 무관하게 지금 가능**
+- [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
+- [ ] **4. 유료 pilot** ← CURRENT: **seam ② 열렸다**(`e6a8fc1a`, kill 4/4 강한 킬, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585608252)) — 격리 fixture 와 장치(`evals/bench1/`)가 서 있다. **8 세션 승인은 GLG 가 줬다**(2026-09-08 21:4x, B 경유, 8 세션 한도). **막힌 곳은 모델 rail 이다** — DeepSeek 잔액 `-1.42 USD`/`is_available false`, 양 팔 모두 `402 Insufficient Balance`(이 세션 실측). `--no-env` 가 다른 provider 키를 전부 지우므로 모델만 갈아끼울 수 없다. **rail 이 서면 `evals/bench1/run.sh <outdir>` 한 명령**
 - [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
-현재 좌표: 1·2·3 완료 → **4 보류(GLG: BENCH-1 크기·비용, 격리 seam ② 를 열지)** → 5 미개시.
+현재 좌표: 1·2·3 완료 → **4 진행 중(장치·격리 완료, BENCH-1 8 세션은 모델 rail 대기 — GLG 자리)** → 5 미개시.
 
 # NOW — 비교 준비
 
@@ -63,7 +63,7 @@
 3. **sol 의 잣대 둘** — 아래 절. 벤치 시나리오 ② 가 사실상 이것의 실체다.
 4. ~~**`overview()` 범위**~~ — **담당자 결정: declared divergence, verb 만들지 않는다** (`67386acf`). 오라클 텍스트가 곧 Python call contract 라 옮기면 `ebb8c2c1` 이 걷어낸 문장을 워크스페이스에 다시 심는다. capability 는 `harness-list`/`harness-get` 이 **데이터로** 이미 덮는다. **행은 D, 크레딧 0**, 게이트 `declared-divergence 0` 그대로 — 행 단위 메커니즘은 발명하지 않았다. 아래는 결정 당시 기록. H10 의 D 4건 중 **셋이 `overview()` 하나에 막혀 있다.** 단순 이식이 아니다: 오라클 테스트가 그 텍스트를 문자 그대로 단언하고 그 텍스트가 Python call contract 다. 그대로 옮기면 clj 팔 안에 Python 호출 모양을 심는다. **declared-divergence 인가, 다른 계약으로 제공인가.**
 
-## ~~대기 중인 GLG 결정~~ — **프리즈 국소 해제 (집행됨 2026-09-08, ① 만)**
+## ~~대기 중인 GLG 결정~~ — **프리즈 국소 해제 (집행됨 2026-09-08: ① `ebb8c2c1` · ② `e6a8fc1a`)**
 
 유료 pilot 의 전제(sol 순서 2)가 **host `src/` 둘**이다: 런타임 신호 통로(`system-prompt.ts::hasIpython`)와
 격리 seam(`refinement.ts::getGlobalHarnessStateDir` + `agent-session.ts` 호출 5곳).
@@ -78,6 +78,8 @@ sol 권고 = **(ii) 국소 해제**. 프리즈의 목적은 H1 미닫힘에서 �
 ② host prompt loader·kernel env·refinement 가 한 per-run global path 를 공유하고 launcher 가 arm·local·global 경로를 receipt 로 인쇄함을 무는 test
 ③ 이 둘 밖의 TS 파일·기능은 열지 않음 ④ **pilot 종료가 이 예외의 자동 종결점.**
 
+**② 집행됨** (`e6a8fc1a`): `src/` 는 `refinement.ts::getGlobalHarnessStateDir` **하나**(per-run env 오버라이드, 명시 인자가 이김), launcher `run.sh::launch` 가 런마다 빈 store 를 따고 arm·global·local root·session dir 을 인쇄, 새 test 1파일 `harness-store-isolation` 9 tests. **`agent-session.ts` 는 안 열었다** — 호출 5곳이 무인자 기본값을 써서 편집 없이 한 경로를 공유하고, 그것을 무는 킬이 M2 다(그 중 한 곳이 따로 풀면 Red). kill 4/4 강한 킬, 예측 폐쇄 정확.
+
 ## 아직 GLG 자리인 방향 제안 (채택 전)
 
 sol: **"Python 은 여전히 옳은 `oracle` 이지만 더 이상 옳은 단일 `yardstick` 이 아니다."**
@@ -87,8 +89,16 @@ tight-loop catastrophic 은 H11 + **declared state-loss** 로 정직히 분리�
 **69 를 다 복제해도 ②가 자동으로 서지 않고, ②만 돌리면 parity 를 말할 자격이 없다.**
 H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제안이 함께 있다. **아직 채택 안 됨.**
 
-## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `67386acf` — **푸시 안 함, 미푸시 5개**)
+## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `e6a8fc1a`)
 
+- **워크스페이스가 빌드돼 있지 않으면 두 팔 다 안 뜬다.** `packages/*/dist` 가 전부 없어 `./run.sh clj|py` 가 `ERR_MODULE_NOT_FOUND: @earendil-works/pi-agent-core/dist/index.js` 로 죽었다(2026-09-08 실측). `npm run build` 한 번(exit 0)으로 풀린다. **clean checkout 의 첫 손이 여기서 막힌다.**
+- **그 빌드가 `packages/ai/src/models.generated.ts` 를 재생성한다** — 3106줄 변경, `packages/ai/test/*` 타입체크가 깨져 pre-commit `npm run check` 가 실패한다. **빌드 뒤 이 파일은 커밋에서 뺀다.**
+- **BENCH-1 의 모델 rail 이 말랐다** — DeepSeek 잔액 `-1.42 USD`, `is_available false`(`/user/balance`, http 200), 양 팔 한 턴 모두 `402 Insufficient Balance` · usage cost `0`(이 세션 실측). **오늘 쓴 돈 $0.00.**
+- **모델만 갈아끼울 수 없다.** BASELINE 고정 인자인 `./run.sh` 는 `--no-env` 로 뜨고, `prime-agent.sh` 의 그 플래그가 `GEMINI`·`OPENROUTER`·`XAI`·`ZAI` 키를 전부 unset 한다. 살아남는 provider 키는 `DEEPSEEK_API_KEY` 하나뿐이고 `auth.json` 은 여전히 `{}` 2바이트다.
+- **daemon 은 자기를 처음 띄운 클라이언트의 env 를 통째로 물려받는다**(`daemon-protocol.ts::collectDaemonLaunchEnv`). 그 뒤 클라이언트 env 는 allowlist(`collectDaemonClientEnv`) 밖이면 안 넘어간다 → **셀마다 daemon socket 을 따로 줘야** 격리가 산다. `evals/bench1/run.sh` 에 박아뒀다.
+- **세션-로컬 store 는 session dir 이 아니라 그 옆이다** — `session-manager.ts::getSessionArtifactsRoot` 가 `dirname(sessionDir)/session-artifacts` 를 준다. 영수증이 한 칸 빗나갈 자리.
+- **`--cwd` 없이 셸에서 `cd` 만 하면 세션 cwd 가 리포 루트가 된다** — launcher 가 자기 루트로 `cd` 한다. 셀이 리포에 파일을 쓸 뻔했다(2026-09-08 실측).
+- **재개 시 python 팔은 네임스페이스를 스냅샷으로 되살리고 clojure 팔은 아니다**(`ipython.ts` 의 `kernelRuntimeSupportsStateOps` 게이트). T-1.3 을 「이전 바인딩을 쓰지 마라」로 팔 중립하게 물은 이유다. 그 비대칭은 declared divergence 이지 프로브 판정이 아니다.
 - **harness 블록이 이제 팔마다 다르게 쓰인다** (`ebb8c2c1`). `formatHarnessStateForPrompt` 가 `kernelRuntime` 을 받고, clj 팔은 `(def handle (rlm "sub-task"))` · `:rlm-child-id` · `(rlm-children)` · `(host-request {:type "agent_message.send" …})` 를 배운다. skill 항목은 「없다」가 아니라 **"not callable from this workspace"**. python 팔은 **바이트 동일**(HEAD 모듈을 나란히 로드해 5옵션 × 2런타임에서 측정). 무는 test = `harness-prompt-runtime-contract` **8 tests**, kill 5/5 강한 킬.
 - **검수가 한 번에 구멍을 하나 잡았다** (gpt-5.6-terra, 한 턴, `b54082e5` 로 수선). 처음 6 tests 의 negative assertion 이 **금칙어 블랙리스트**라, clj 문단에 `handle = rlm('sub-task')` 처럼 **금칙어 없는 Python 호출 모양**을 넣어도 전부 초록이었다. 지금은 **call-contract 줄을 팔마다 통째로 고정**하고 줄 개수까지 단언한다. 그 변이를 격리 worktree 에서 실제로 넣어 새 2행만 Red 를 확인했다.
 - **`overview()` 는 declared divergence** (`67386acf`) — verb 없음, D 3행 크레딧 0, 게이트 `declared-divergence 0` 불변.
@@ -125,7 +135,7 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 
 - **커밋·푸시는 GLG 의 현재 세션 지시가 있을 때만.** 커밋 요청이 푸시를 함의하지 않는다.
 - **형제의 영수증을 세션에 묵혀두지 않는다.** 2026-09-01 21:15 재부팅으로 형제 셋이 한꺼번에 사라졌다 — 결정적 줄은 **즉시** 이슈로 옮긴다. 다음 형제도 같은 방식으로 죽는다고 가정한다.
-- **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용. **프리즈 국소 해제는 ① 에만 쓰였다** — `refinement.ts`·`system-prompt.ts` 와 새 test 1파일뿐이고 17파일은 하나도 안 열렸다. **② 격리 seam(`getGlobalHarnessStateDir`·`agent-session.ts`)은 여전히 프리즈다.**
+- **TS 테스트 17파일을 열지 않는다** (H1 미닫힘). `src/` 읽기는 계약 찾기용으로 허용. **프리즈 국소 해제는 ①·② 에만 쓰였다** — ① `refinement.ts`·`system-prompt.ts` + 새 test 1, ② `refinement.ts` + `run.sh` + 새 test 1. **17파일은 여전히 하나도 안 열렸고 `agent-session.ts` 도 안 열렸다.** pilot 종료가 이 예외의 종결점.
 - **`git stash` 금지** — 여러 형제가 같은 트리에 있다. 격리는 임시 `git worktree add --detach`.
   **디렉터리 복사 금지** — 게이트가 오라클을 자기 파일 기준으로 해석해 엉뚱한 트리를 읽는다(이제 hard failure 로 막히고 `source:` 행이 읽은 경로를 인쇄한다).
 - **새 카드·새 계측 동결.** manifest 전수 재검증 금지.

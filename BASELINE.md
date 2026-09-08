@@ -37,14 +37,21 @@ unsupported. Global persistence is tested separately by an H10 acceptance
 scenario that deliberately shares one dedicated global store across fresh
 sessions. Do not use that persistence scenario as a Q-R0 interview.
 
-**Implementation status (measured at `c81daf2f`).** The launcher splits the
-daemon socket and kernel runtime per arm but not the agent dir, and
-`getGlobalHarnessStateDir` resolves under `getAgentDir()` with no per-run
-override at its `agent-session.ts` call sites. This records the measured state
-of that commit, not a permanent limitation. A later run becomes eligible only
-when its launch receipt identifies distinct, empty local and global stores as
-required above; the change that provides that receipt must update this status
-in the same patch.
+**Implementation status (measured at `e6a8fc1a`).** The fixture is now
+available. `getGlobalHarnessStateDir` takes a per-run override, so the whole
+agent dir does not have to move (credentials and settings live there); an
+explicit `agentDir` argument still wins, so fixtures are undisturbed. The
+launcher allocates a fresh, empty global store and session dir per launch,
+respects ones already pinned in the environment — the turns of one session must
+share them, and that is not sharing with another run — and prints arm, global
+store, local store root and session dir as the launch receipt. Two things a
+caller still owns: the session-local store lives beside the session dir, not
+under it (`session-manager.ts::getSessionArtifactsRoot`), and a daemon inherits
+the environment of whichever client first spawned it
+(`daemon-protocol.ts::collectDaemonLaunchEnv`; later clients only carry the
+allowlist in `collectDaemonClientEnv`), so **cells that must not share a store
+must not share a daemon socket**. The named test is
+`harness-store-isolation`.
 
 Fresh session, with the isolated empty harness stores above. cwd may be
 anywhere; `read-text` is rooted at that cwd.
@@ -244,17 +251,25 @@ Prose-only success and Python fallback on the Clojure arm are FAIL, not PASS.
   carried the Python call contract, so a Clojure FAIL could not be told apart
   from `harness-gap`. That block is now spelled per runtime and a named test
   bites it (`harness-prompt-runtime-contract`).
-- **Per-run store isolation — NOT met.** 「Baseline isolation」 above still
-  records the measured state: `getGlobalHarnessStateDir` resolves under
-  `getAgentDir()` with no per-run override at its `agent-session.ts` call sites,
-  and the launcher prints no store paths. Until a launch receipt names distinct,
-  empty local and global stores, `Q-R0`'s prior-session-memory verdict is
-  invalid and T-1's note reuse must be read **within one session only**.
+- **Per-run store isolation — met at `e6a8fc1a`.** 「Baseline isolation」 above
+  records what the launcher now allocates and prints, and a named test bites it.
+  `Q-R0`'s prior-session-memory verdict and T-1's note reuse across the turns of
+  one session are therefore readable — provided the run's receipt actually shows
+  distinct, empty stores, which is what the four printed lines are for.
+- **Model rail — not standing (measured 2026-09-08).** The DeepSeek account this
+  repo's launcher can reach reports `is_available: false` (balance below zero),
+  and both arms answer `402 Insufficient Balance`. Swapping providers is not a
+  model flag: `./run.sh` launches with `--no-env`, which unsets every other
+  provider key, and the agent-dir auth store is empty. Which rail to spend is
+  GLG's call (`AGENTS.md` Hard Rule 4).
 
 ### Run shape — a request, not a cap
 
 `P-A` and `P-B` are each one session per cell: `2 probes × 2 arms × 2 repeats
-= 8 sessions`. Repeats exist because a single model turn is noisy, not to
+= 8 sessions`. The device that runs exactly that shape is `evals/bench1/`
+(probes, runner; one daemon socket and one store pair per cell, and a fresh
+process per turn — which is the kernel restart T-1.3 needs, identically on both
+arms). Repeats exist because a single model turn is noisy, not to
 reach significance; BENCH-1 is a design signal, not a paper bench.
 
 The nearest measured cost is the H7 A/B run, `$0.00576` for 8 short runs
