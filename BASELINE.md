@@ -187,6 +187,81 @@ outcomes into one FAIL:
 A future operator recovery probe must have its own stable id and fixture. Until
 then, an incidental recovery event is a NOTE, not a new BASELINE verdict.
 
+## BENCH-1 — two-arm comparison scenario (draft, no run opened)
+
+The interview above is one arm at a time. BENCH-1 is the paired form of it:
+the same questions, the same model, the same evaluator, the same budget, run
+on the Python arm and the Clojure arm, so a difference is attributable.
+
+**Status: draft.** No paid run has been opened and no cost cap is set here.
+The run shape and its estimate go to GLG before anything is spent (`AGENTS.md`
+Hard Rule 4). This section is the scenario, not an authorization.
+
+### What it compares, and what it cannot
+
+BENCH-1 compares **model behaviour in the loop**. It is the paid axis of
+`AGENTS.md` 「검증 축」 — it does not replace the free axes, and a green free
+axis does not shrink it. It says nothing about parity coverage: that is the
+denominator gate's job, and a BENCH-1 result must not be quoted as one.
+
+### Fixed factors
+
+| factor | value |
+|---|---|
+| model | one model for every cell of the matrix; the arm is the only variable |
+| evaluator | one evaluator, the answer guide above plus the T-1 checks below |
+| budget | one per-session budget, identical on both arms |
+| skills | none on either arm (`./run.sh clj` / `./run.sh py` launch skills-off) |
+| MCP | off on both arms — the tunnel shape GLG named |
+| launch | `./run.sh` only; the launch receipt names the arm and its socket |
+
+### Probe set
+
+**P-A — the interview.** `Q-R0`–`Q-R4` verbatim, one round per message, scored
+by the answer guide above. Ids do not change, so a BENCH-1 row is comparable to
+the operator runs in HISTORY.
+
+**P-B — T-1, the tunnel task.** One long task with **no external stimulus**:
+no MCP, no web, no skills. It must exercise the whole loop
+`inspect → read → compute → spawn → receive → run → edit → verify` and, on top
+of the interview, three things the interview does not reach:
+
+1. **self-note create → reuse.** The model writes a continual-harness entry
+   during the task and is later asked something that entry answers. PASS is the
+   model reading its own entry back; reciting it from context is not a PASS.
+2. **child recovery.** After a kernel restart mid-task, the model recovers its
+   direct child handles from the host registry rather than from a lost var.
+3. **state after failure.** A child fails or is reclaimed; the parent still
+   reports a truthful workspace state instead of narrating success.
+
+T-1 is scored per step, and a FAIL is classified with a receipt as
+`semantics-gap` / `model-fumble` / `harness-gap` — never left as a bare FAIL.
+Prose-only success and Python fallback on the Clojure arm are FAIL, not PASS.
+
+### Preconditions
+
+- **Prompt contract — met.** Until `ebb8c2c1` the Clojure arm's harness block
+  carried the Python call contract, so a Clojure FAIL could not be told apart
+  from `harness-gap`. That block is now spelled per runtime and a named test
+  bites it (`harness-prompt-runtime-contract`).
+- **Per-run store isolation — NOT met.** 「Baseline isolation」 above still
+  records the measured state: `getGlobalHarnessStateDir` resolves under
+  `getAgentDir()` with no per-run override at its `agent-session.ts` call sites,
+  and the launcher prints no store paths. Until a launch receipt names distinct,
+  empty local and global stores, `Q-R0`'s prior-session-memory verdict is
+  invalid and T-1's note reuse must be read **within one session only**.
+
+### Run shape — a request, not a cap
+
+`P-A` and `P-B` are each one session per cell: `2 probes × 2 arms × 2 repeats
+= 8 sessions`. Repeats exist because a single model turn is noisy, not to
+reach significance; BENCH-1 is a design signal, not a paper bench.
+
+The nearest measured cost is the H7 A/B run, `$0.00576` for 8 short runs
+(`evals/h7-functional-ab/`). BENCH-1's sessions are longer than those, so the
+estimate is that order of magnitude and above, not that number. **Take the
+shape and the estimate to GLG and let GLG set the size.**
+
 ## HISTORY
 
 ### 2026-08-30 — first operator run (GLG, `primeclj`)
