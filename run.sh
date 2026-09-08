@@ -27,7 +27,6 @@ need_native() {
 # 한 arm 을 띄운다. --model 을 뒤에 주면 그게 이긴다.
 launch() {
 	local kind=$1; shift
-	local sock="$SOCK_DIR/$kind.sock"
 	mkdir -p "$SOCK_DIR"
 	# 격리 fixture (BASELINE.md 「Baseline isolation」). 인터뷰·벤치 한 런은
 	# 자기만의 빈 global harness store 와 빈 session dir 을 받는다. agent dir
@@ -44,12 +43,24 @@ launch() {
 	# (session-manager.ts 의 getSessionArtifactsRoot). session dir 만 찍으면
 	# 영수증이 한 칸 빗나간다.
 	local local_root; local_root="$(dirname "$sessions")/session-artifacts"
-	mkdir -p "$store" "$sessions" "$local_root"
+	mkdir -p "$store" "$sessions" "$local_root" "$run_root"
 	if [ "$store_state" = "fresh" ] && [ -n "$(ls -A "$store" 2>/dev/null)" ]; then
 		die "격리 실패 — 새로 딴 global store 가 비어 있지 않다: $store"
 	fi
 	export PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR="$store"
 	export PRIME_AGENT_SESSION_DIR="$sessions"
+	# **새로 딴 store 에는 새 daemon socket 을 준다.** daemon 은 자기를 처음 띄운
+	# 클라이언트의 env 만 물려받고(daemon-protocol.ts 의 collectDaemonLaunchEnv),
+	# 그 뒤 클라이언트의 store env 는 allowlist(collectDaemonClientEnv) 밖이라
+	# 안 넘어간다. 소켓을 arm 마다 고정하면 두 번째 런이 "store B" 를 찍고
+	# 실제로는 첫 런의 store A 를 쓰는 daemon 에 붙는다 — 영수증이 거짓말을 한다.
+	# 이어가는 런(store 를 상속받은 런)은 반대로 같은 daemon 에 붙어야 한다.
+	local sock
+	if [ "$store_state" = "fresh" ]; then
+		sock="$run_root/daemon.sock"
+	else
+		sock="$SOCK_DIR/$kind.sock"
+	fi
 	# 인터뷰 영수증에 어느 daemon·어느 store 였는지 남도록 찍는다. 내보낸 변수를
 	# 그대로 읽어 찍는다 — 찍은 경로와 세션이 쓰는 경로가 갈리지 않게.
 	echo "→ $kind arm · daemon socket: $sock" >&2
@@ -57,7 +68,12 @@ launch() {
 	echo "→ $kind arm · local harness store root ($session_state): $local_root" >&2
 	echo "→ $kind arm · session dir ($session_state): $PRIME_AGENT_SESSION_DIR" >&2
 	# 영수증만 찍고 서지 않는 모드 — launcher 계약을 무는 테스트가 쓴다.
-	if [ -n "${PRIME_AGENT_RUN_SH_DRY:-}" ]; then return 0; fi
+	# 띄울 프로세스가 실제로 받을 env 를 그대로 덤프한다: 찍은 경로와 넘기는
+	# 경로가 갈리면 그 자리에서 드러난다.
+	if [ -n "${PRIME_AGENT_RUN_SH_DRY:-}" ]; then
+		env | grep -E "^PRIME_AGENT_(GLOBAL_HARNESS_STATE_DIR|SESSION_DIR)=" | sed "s/^/receipt-env: /" >&2
+		return 0
+	fi
 	# clojure 실행파일은 clojure arm 에만 건다. python arm 에서는 읽히지도
 	# 않지만(resolveKernelRuntimeCommand), 상속시키면 격리 설명이 흐려진다.
 	if [ "$kind" = "clojure" ]; then

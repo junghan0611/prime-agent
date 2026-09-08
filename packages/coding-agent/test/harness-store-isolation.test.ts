@@ -12,6 +12,8 @@ import {
 	type RefinementResult,
 	saveHarnessState,
 } from "../src/core/refinement/refinement.js";
+import { getSessionArtifactsRoot } from "../src/core/session-manager.js";
+import { collectDaemonLaunchEnv } from "../src/modes/daemon/daemon-protocol.js";
 import { createTestSession } from "./utilities.js";
 
 // Seam ② of BASELINE.md 「Baseline isolation」: a BENCH/BASELINE run must be able
@@ -140,6 +142,33 @@ describe("global harness store — one path for prompt loader, refinement, and k
 		expect(session._rlmKernelEnv().RLM_GLOBAL_HARNESS_STATE_DIR).toBe(getGlobalHarnessStateDir());
 	});
 
+	it("keeps serving the run's store even when the session carries its own agent dir", () => {
+		// The consumers must resolve the run's store, not the session's agent dir.
+		// Without this, a call site that forwards its agentDir would silently take
+		// the fixture back to the shared store, and every other assertion here would
+		// stay green because the test fixture leaves that dir undefined.
+		saveHarnessState(store, harnessStateWith("bench-note", "note written by this run"));
+		const foreignAgentDir = join(tempDir, "session-agent-dir");
+		saveHarnessState(
+			join(foreignAgentDir, "harness"),
+			harnessStateWith("agent-dir-note", "belongs to the agent dir"),
+		);
+
+		const ctx = createTestSession();
+		cleanup = ctx.cleanup;
+		const session = ctx.session as unknown as {
+			_agentDir?: string;
+			_loadMergedHarnessState(): HarnessState;
+			_rlmKernelEnv(): Record<string, string>;
+		};
+		session._agentDir = foreignAgentDir;
+
+		const merged = session._loadMergedHarnessState();
+		expect(merged.entries.prompt["bench-note"]?.content).toBe("note written by this run");
+		expect(merged.entries.prompt["agent-dir-note"]).toBeUndefined();
+		expect(session._rlmKernelEnv().RLM_GLOBAL_HARNESS_STATE_DIR).toBe(store);
+	});
+
 	it("does not read a store the run did not allocate", () => {
 		const other = join(tempDir, "some-other-run");
 		saveHarnessState(other, harnessStateWith("foreign-note", "belongs to another run"));
@@ -148,6 +177,22 @@ describe("global harness store — one path for prompt loader, refinement, and k
 		cleanup = ctx.cleanup;
 		const session = ctx.session as unknown as { _loadMergedHarnessState(): HarnessState };
 		expect(session._loadMergedHarnessState().entries.prompt["foreign-note"]).toBeUndefined();
+	});
+});
+
+describe("daemon boundary — the store env must reach the worker", () => {
+	it("carries the store env into the daemon it launches", () => {
+		// A daemon inherits the env of whichever client first spawned it; later
+		// clients only carry DAEMON_CLIENT_ENV_KEYS. If the launch env drops these,
+		// the receipt names a store the session never uses.
+		const env = collectDaemonLaunchEnv({
+			PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR: "/run/global-harness",
+			PRIME_AGENT_SESSION_DIR: "/run/sessions",
+			PRIME_AGENT_INTERNAL_SOMETHING: "dropped",
+		});
+		expect(env.PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR).toBe("/run/global-harness");
+		expect(env.PRIME_AGENT_SESSION_DIR).toBe("/run/sessions");
+		expect(env.PRIME_AGENT_INTERNAL_SOMETHING).toBeUndefined();
 	});
 });
 
@@ -162,10 +207,28 @@ describe("launcher receipt — arm, global store, local store root", () => {
 		rmSync(tempDir, { recursive: true, force: true });
 	});
 
-	function receiptPaths(stderr: string): { global?: string; local?: string } {
+	function receiptPaths(stderr: string): {
+		global?: string;
+		local?: string;
+		sessions?: string;
+		socket?: string;
+		envGlobal?: string;
+		envSessions?: string;
+	} {
 		const globalLine = stderr.match(/global harness store \((fresh|inherited)\): (.+)/);
 		const localLine = stderr.match(/local harness store root \((fresh|inherited)\): (.+)/);
-		return { global: globalLine?.[2]?.trim(), local: localLine?.[2]?.trim() };
+		const sessionLine = stderr.match(/session dir \((fresh|inherited)\): (.+)/);
+		const socketLine = stderr.match(/daemon socket: (.+)/);
+		const envGlobal = stderr.match(/receipt-env: PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR=(.+)/);
+		const envSessions = stderr.match(/receipt-env: PRIME_AGENT_SESSION_DIR=(.+)/);
+		return {
+			global: globalLine?.[2]?.trim(),
+			local: localLine?.[2]?.trim(),
+			sessions: sessionLine?.[2]?.trim(),
+			socket: socketLine?.[1]?.trim(),
+			envGlobal: envGlobal?.[1]?.trim(),
+			envSessions: envSessions?.[1]?.trim(),
+		};
 	}
 
 	// execFileSync gives stdout; the launcher prints its receipt to stderr, so run it
@@ -193,6 +256,43 @@ describe("launcher receipt — arm, global store, local store root", () => {
 		expect(existsSync(localRoot!)).toBe(true);
 		expect(readdirSync(globalStore!)).toEqual([]);
 		expect(readdirSync(localRoot!)).toEqual([]);
+	});
+
+	it("hands the launched process exactly the paths it printed", () => {
+		const r = receiptPaths(dryLaunchStderr("py"));
+		expect(r.envGlobal).toBe(r.global);
+		expect(r.envSessions).toBe(r.sessions);
+	});
+
+	it("names the local store root the session code actually derives", () => {
+		// The launcher computes the local root itself; if it drifts from
+		// getSessionArtifactsRoot, the receipt names a directory nothing writes to.
+		const r = receiptPaths(dryLaunchStderr("py"));
+		expect(r.local).toBe(getSessionArtifactsRoot(r.sessions!));
+	});
+
+	it("gives a freshly allocated store its own daemon, and keeps the shared one when the store is inherited", () => {
+		// A daemon keeps the store env of whichever client spawned it, so a fresh
+		// store on a shared socket would print one path and use another.
+		const first = receiptPaths(dryLaunchStderr("py"));
+		const second = receiptPaths(dryLaunchStderr("py"));
+		expect(first.socket).toBeTruthy();
+		expect(first.socket).not.toBe(second.socket);
+
+		const pinned = receiptPaths(
+			dryLaunchStderr("py", {
+				PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR: join(tempDir, "pinned-global"),
+				PRIME_AGENT_SESSION_DIR: join(tempDir, "pinned-sessions"),
+			}),
+		);
+		const pinnedAgain = receiptPaths(
+			dryLaunchStderr("py", {
+				PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR: join(tempDir, "pinned-global"),
+				PRIME_AGENT_SESSION_DIR: join(tempDir, "pinned-sessions"),
+			}),
+		);
+		expect(pinned.socket).toBe(pinnedAgain.socket);
+		expect(pinned.socket).not.toBe(first.socket);
 	});
 
 	it("gives two launches of the same arm different stores", () => {
