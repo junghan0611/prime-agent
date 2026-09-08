@@ -61,6 +61,17 @@ launch() {
 	else
 		sock="$SOCK_DIR/$kind.sock"
 	fi
+	# 호출자가 뒤에 자기 --daemon-socket 을 주면 CLI 에서 그게 이긴다. 그러면
+	# 여기서 고른 경로는 더 이상 실제로 쓰이는 소켓이 아니다 — 찍기 전에 넘겨받은
+	# 인자를 훑어 실효 값으로 바꾼다. 안 그러면 영수증만 옛 경로를 가리킨다
+	# (2026-09-08 BENCH-1 첫 런에서 8 셀 전부가 그랬다: 셀은 자기 소켓에 붙었는데
+	# 찍힌 줄은 arm 공용 소켓이었다).
+	local prev="" arg
+	for arg in "$@"; do
+		case "$prev" in --daemon-socket) sock="$arg" ;; esac
+		case "$arg" in --daemon-socket=*) sock="${arg#--daemon-socket=}" ;; esac
+		prev="$arg"
+	done
 	# 인터뷰 영수증에 어느 daemon·어느 store 였는지 남도록 찍는다. 내보낸 변수를
 	# 그대로 읽어 찍는다 — 찍은 경로와 세션이 쓰는 경로가 갈리지 않게.
 	echo "→ $kind arm · daemon socket: $sock" >&2
@@ -79,12 +90,17 @@ launch() {
 	if [ "$kind" = "clojure" ]; then
 		export PRIME_AGENT_CLOJURE_RUNTIME="$NATIVE_BIN"
 	fi
+	# 모델 rail. DeepSeek 계정이 잔액 밑으로 내려가 양 팔 모두 402 를 받았고
+	# (2026-09-08 측정), GLG 가 Copilot rail 을 대신 열었다. --no-env 는
+	# COPILOT_GITHUB_TOKEN/GH_TOKEN/GITHUB_TOKEN 을 지우지만 Copilot 자격은
+	# agent-dir 의 auth store 에서 오므로 살아남는다 — 실측했다.
+	# **두 팔은 같은 모델이어야 한다.** 여기서 갈리면 비교가 성립하지 않는다.
 	PRIME_AGENT_KERNEL_RUNTIME="$kind" \
 	DO_NOT_TRACK=1 \
 	exec "$ROOT/prime-agent.sh" \
 		--no-env --no-context-files --no-skills \
 		--daemon-socket "$sock" \
-		--model deepseek/deepseek-v4-pro \
+		--model github-copilot/gemini-3.7-flash \
 		"$@"
 }
 
@@ -95,7 +111,7 @@ prime-agent fork — ./run.sh <cmd> [args]
   두 팔 — 운영자 인터뷰(BASELINE)와 양-arm 평가가 도는 자리
     clj  [args]   이 포크의 팔. Clojure/SCI native runtime (기본)
     py   [args]   oracle 팔. 상류 CPython. 지우지 않는다
-                  둘 다 DeepSeek v4-pro · skills/context 없이 뜬다. --model 을
+                  둘 다 같은 모델(Copilot rail) · skills/context 없이 뜬다. --model 을
                   뒤에 주면 그게 이긴다. 소켓은 체크아웃+arm 마다 갈리고
                   띄울 때 경로를 찍는다 — 그게 격리 영수증이다.
                   skills-off 인터뷰 결과는 skills-on 실사용의 근거가 아니다

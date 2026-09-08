@@ -216,6 +216,7 @@ denominator gate's job, and a BENCH-1 result must not be quoted as one.
 | factor | value |
 |---|---|
 | model | one model for every cell of the matrix; the arm is the only variable |
+| rail | **changed 2026-09-08 — declared divergence.** See below |
 | evaluator | one evaluator, the answer guide above plus the T-1 checks below |
 | budget | one per-session budget, identical on both arms |
 | skills | none on either arm (`./run.sh clj` / `./run.sh py` launch skills-off) |
@@ -256,12 +257,25 @@ Prose-only success and Python fallback on the Clojure arm are FAIL, not PASS.
   `Q-R0`'s prior-session-memory verdict and T-1's note reuse across the turns of
   one session are therefore readable — provided the run's receipt actually shows
   distinct, empty stores, which is what the four printed lines are for.
-- **Model rail — not standing (measured 2026-09-08).** The DeepSeek account this
-  repo's launcher can reach reports `is_available: false` (balance below zero),
-  and both arms answer `402 Insufficient Balance`. Swapping providers is not a
-  model flag: `./run.sh` launches with `--no-env`, which unsets every other
-  provider key, and the agent-dir auth store is empty. Which rail to spend is
-  GLG's call (`AGENTS.md` Hard Rule 4).
+- **Model rail — standing on a different rail (GLG, 2026-09-08).** The DeepSeek
+  account this repo's launcher can reach reports `is_available: false` (balance
+  below zero) and both arms answered `402 Insufficient Balance`. GLG opened the
+  GitHub Copilot rail instead and named a Flash-class model as the example, so
+  the launcher's fixed `--model` argument changed with it.
+  - **`--no-env` does not cut it — measured here, not reasoned.** `prime-agent.sh`
+    unsets `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_TOKEN`, which are exactly
+    the env vars `env-api-keys.ts::getApiKeyEnvVars` offers for this provider. A
+    one-shot through `./run.sh py` with `--no-env` still answered, billed to
+    `provider: "github-copilot"`, because the credential comes from the agent-dir
+    auth store (`~/.prime/agent/auth.json`, key `github-copilot`) instead.
+  - **This is a declared divergence, not a comparable row.** Every number a
+    BENCH-1 run produces is on a different model and a different provider from
+    the operator runs in HISTORY, which are DeepSeek. A BENCH-1 verdict may not
+    be read as better-or-worse than a HISTORY verdict; only the two arms *inside
+    one BENCH-1 run* are comparable to each other, and that is what the run is for.
+  - **Copilot is a depleting balance, not a rolling quota** (`MODELS.md`). The
+    premium-request counter is read before and after a run, and the per-cell
+    request count is part of the receipt.
 
 ### Run shape — a request, not a cap
 

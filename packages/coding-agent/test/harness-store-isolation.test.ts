@@ -233,8 +233,8 @@ describe("launcher receipt — arm, global store, local store root", () => {
 
 	// execFileSync gives stdout; the launcher prints its receipt to stderr, so run it
 	// through a shell that folds stderr into stdout.
-	function dryLaunchStderr(arm: string, env: Record<string, string> = {}): string {
-		return execFileSync("bash", ["-c", `"$0" "$1" 2>&1`, RUN_SH, arm], {
+	function dryLaunchStderr(arm: string, env: Record<string, string> = {}, args: readonly string[] = []): string {
+		return execFileSync("bash", ["-c", `"$0" "$@" 2>&1`, RUN_SH, arm, ...args], {
 			encoding: "utf8",
 			env: {
 				...process.env,
@@ -293,6 +293,19 @@ describe("launcher receipt — arm, global store, local store root", () => {
 		);
 		expect(pinned.socket).toBe(pinnedAgain.socket);
 		expect(pinned.socket).not.toBe(first.socket);
+	});
+
+	it("prints the socket the caller pinned, not the one it would have picked", () => {
+		// A caller may append its own --daemon-socket, and the CLI takes the last
+		// flag. If the receipt still names the launcher's own pick, every cell of a
+		// bench run prints a socket it never used.
+		const pinnedSocket = join(tempDir, "caller-pinned.sock");
+		const own = receiptPaths(dryLaunchStderr("py"));
+		const overridden = receiptPaths(dryLaunchStderr("py", {}, ["--daemon-socket", pinnedSocket]));
+		expect(own.socket).not.toBe(pinnedSocket);
+		expect(overridden.socket).toBe(pinnedSocket);
+		const equalsForm = receiptPaths(dryLaunchStderr("py", {}, [`--daemon-socket=${pinnedSocket}`]));
+		expect(equalsForm.socket).toBe(pinnedSocket);
 	});
 
 	it("gives two launches of the same arm different stores", () => {

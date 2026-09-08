@@ -22,10 +22,10 @@
 - [x] **1. H0–H8 8홉 레일** — checkpoint `edc3a3e8`, leftover receive `ed702304`.
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
 - [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
-- [ ] **4. 유료 pilot** ← CURRENT: **seam ② 열렸다**(`e6a8fc1a` + 검수 수선 `7048258b`, kill **9/9 강한 킬**, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585608252) · [검수](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5585807852)) — 격리 fixture 와 장치(`evals/bench1/`)가 서 있다. **8 세션 승인은 GLG 가 줬다**(2026-09-08 21:4x, B 경유, 8 세션 한도). **막힌 곳은 모델 rail 이다** — DeepSeek 잔액 `-1.42 USD`/`is_available false`, 양 팔 모두 `402 Insufficient Balance`(이 세션 실측). `--no-env` 가 다른 provider 키를 전부 지우므로 모델만 갈아끼울 수 없다. **rail 이 서면 `evals/bench1/run.sh <outdir>` 한 명령**
+- [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **하네스 비대칭**이다: `prompts/rlm.ts` 의 `hasAgentMessage` 게이트가 skills-off 에서 Python 팔에만 걸려 두 팔이 formal receive 를 서로 다르게 배웠다 → Q-R3 / T-1.2 비교는 **이 런에서 무효**다.
 - [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
 
-현재 좌표: 1·2·3 완료 → **4 진행 중(장치·격리 완료, BENCH-1 8 세션은 모델 rail 대기 — GLG 자리)** → 5 미개시.
+현재 좌표: 1·2·3·4 완료(run 1 영수증 닫힘) → **다음은 `hasAgentMessage` 비대칭을 어떻게 처리할지 — 그것이 정해지기 전에는 formal-receive 재측정을 하지 않는다** → 5 미개시.
 
 # NOW — 비교 준비
 
@@ -95,10 +95,12 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 
 - **daemon socket 을 arm 마다 고정하면 격리 영수증이 거짓말을 한다** — 두 번째 런이 새 store 를 찍고, 첫 런의 store 를 쥔 daemon 에 붙는다(검수 발견, `7048258b` 로 수선). 지금 launcher 는 **fresh store 면 소켓도 런마다** 갈리고, 상속받은 store(이어가는 턴)면 공유 소켓을 쓴다.
 - **`master` 를 `feat/clojure-runtime` 로 ff 했다** (`78ca5ac8` 에서 오늘 밤 끝으로, 2026-09-08). NEXT 규칙(「master 와 같은 커밋에서 출발한다」)대로이고 ff 라 히스토리 재작성은 없다.
-- **워크스페이스가 빌드돼 있지 않으면 두 팔 다 안 뜬다.** `packages/*/dist` 가 전부 없어 `./run.sh clj|py` 가 `ERR_MODULE_NOT_FOUND: @earendil-works/pi-agent-core/dist/index.js` 로 죽었다(2026-09-08 실측). `npm run build` 한 번(exit 0)으로 풀린다. **clean checkout 의 첫 손이 여기서 막힌다.**
+- **워크스페이스가 빌드돼 있지 않으면 두 팔 다 안 뜬다.** `packages/*/dist` 가 전부 없어 `./run.sh clj|py` 가 `ERR_MODULE_NOT_FOUND: @earendil-works/pi-agent-core/dist/index.js` 로 죽었다(2026-09-08 실측). `npm run build` 한 번(exit 0)으로 풀린다. **clean checkout 의 첫 손이 여기서 막힌다.** hands-on 한 줄은 그대로 `npm run build && ./run.sh clj` — **다만 이제 그 한 줄이 Copilot rail 로 뜬다**(`auth.json` 의 `github-copilot` 로그인이 전제, DeepSeek 키는 더 이상 쓰이지 않는다).
 - **그 빌드가 `packages/ai/src/models.generated.ts` 를 재생성한다** — 3106줄 변경, `packages/ai/test/*` 타입체크가 깨져 pre-commit `npm run check` 가 실패한다. **빌드 뒤 이 파일은 커밋에서 뺀다.**
-- **BENCH-1 의 모델 rail 이 말랐다** — DeepSeek 잔액 `-1.42 USD`, `is_available false`(`/user/balance`, http 200), 양 팔 한 턴 모두 `402 Insufficient Balance` · usage cost `0`(이 세션 실측). **오늘 쓴 돈 $0.00.**
-- **모델만 갈아끼울 수 없다.** BASELINE 고정 인자인 `./run.sh` 는 `--no-env` 로 뜨고, `prime-agent.sh` 의 그 플래그가 `GEMINI`·`OPENROUTER`·`XAI`·`ZAI` 키를 전부 unset 한다. 살아남는 provider 키는 `DEEPSEEK_API_KEY` 하나뿐이고 `auth.json` 은 여전히 `{}` 2바이트다.
+- **모델 rail 이 Copilot 으로 갈렸다** (GLG 결정 2026-09-08). DeepSeek 은 잔액 `-1.42 USD`·`is_available false` 로 양 팔 `402` 였다.
+- **`--no-env` 는 Copilot 을 끊지 못한다 — 실측했다.** `prime-agent.sh` 가 `COPILOT_GITHUB_TOKEN`·`GH_TOKEN`·`GITHUB_TOKEN` 을 지우지만(그 셋이 `env-api-keys.ts::getApiKeyEnvVars` 가 이 provider 에 주는 전부다), `--no-env` 한 방 프롬프트가 `provider: "github-copilot"` 으로 응답했다. 자격은 `~/.prime/agent/auth.json` 의 `github-copilot` 키에서 온다. 그래서 `./run.sh` 의 고정 `--model` 을 갈았다.
+- **Copilot 은 줄어드는 잔액이다**(`MODELS.md`). BENCH-1 8 세션이 프리미엄 **81 요청**(12507 → 12588, 20000 중 63.0%)을 썼다. 한 턴 프롬프트 한 방은 1 요청.
+- **launcher 가 찍는 소켓 줄이 거짓말을 했다** — 호출자가 뒤에 `--daemon-socket` 을 주면 CLI 는 그것을 쓰는데 receipt 는 launcher 자기 선택을 찍었다. BENCH-1 첫 런 8 셀 전부가 그랬다(격리 자체는 성립했다 — 셀 소켓이 런 중에 새로 생겼다). `run.sh` 에서 고쳤고 `prints the socket the caller pinned, not the one it would have picked` 가 문다(kill 1/1).
 - **daemon 은 자기를 처음 띄운 클라이언트의 env 를 통째로 물려받는다**(`daemon-protocol.ts::collectDaemonLaunchEnv`). 그 뒤 클라이언트 env 는 allowlist(`collectDaemonClientEnv`) 밖이면 안 넘어간다 → **셀마다 daemon socket 을 따로 줘야** 격리가 산다. `evals/bench1/run.sh` 에 박아뒀다.
 - **세션-로컬 store 는 session dir 이 아니라 그 옆이다** — `session-manager.ts::getSessionArtifactsRoot` 가 `dirname(sessionDir)/session-artifacts` 를 준다. 영수증이 한 칸 빗나갈 자리.
 - **`--cwd` 없이 셸에서 `cd` 만 하면 세션 cwd 가 리포 루트가 된다** — launcher 가 자기 루트로 `cd` 한다. 셀이 리포에 파일을 쓸 뻔했다(2026-09-08 실측).

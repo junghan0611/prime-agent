@@ -12,6 +12,10 @@
 #    env 를 통째로 물려받고(daemon-protocol.ts 의 collectDaemonLaunchEnv), 그 뒤
 #    클라이언트의 env 는 allowlist(collectDaemonClientEnv) 밖이면 넘어가지 않는다.
 #    소켓을 공유하면 두 셀이 한 harness store 를 쓰고 격리가 조용히 깨진다.
+#  - **rail 이 갈렸다.** DeepSeek 계정이 잔액 밑으로 내려가(2026-09-08) 양 팔이
+#    402 를 받았고, GLG 가 Copilot rail 을 열었다. 그래서 이 런의 수치는
+#    BASELINE HISTORY(DeepSeek) 와 **직접 비교되지 않는다** — declared divergence.
+#    양 팔은 여전히 같은 모델이다; 그것이 비교의 전제다.
 #  - 팔은 `./run.sh clj|py` 로만 띄운다(BASELINE 고정 인자). 격리 store 는 그
 #    launcher 가 인쇄하고, 여기서 셀마다 미리 박아 한 세션의 여러 턴이 같은
 #    store 를 잇게 한다.
@@ -24,7 +28,7 @@ REPO="$(cd "$HERE/../.." && pwd)"
 OUT="${1:?usage: run.sh <output-dir>}"
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
-MODEL="${BENCH1_MODEL:-deepseek/deepseek-v4-pro}"
+MODEL="${BENCH1_MODEL:-github-copilot/gemini-3.7-flash}"
 REPEATS="${BENCH1_REPEATS:-2}"
 TURN_TIMEOUT="${BENCH1_TURN_TIMEOUT:-600}"
 
