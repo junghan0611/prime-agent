@@ -119,7 +119,7 @@ prime-agent-runtime-clj/
 - 마지막 값이 `nil`이 아니면 `result`를 보낸다. `_`에 바인딩한다.
 - `(def x 41)`의 마지막 값은 nil이 아니라 SCI var다. 첫 셀에 `result`가 나온다. Python `x = 5`와 다르다.
 - reader/eval error는 해당 request만 실패시키고 다음 request를 받는다.
-- public binding은 `rlm`, `rlm-children`/`rlm-delete-child`(H6), `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5), `find-models`/`emit`(H12)만. Java interop·classpath loading은 열지 않는다.
+- public binding은 `rlm`, `rlm-children`/`rlm-delete-child`(H6), `host-request`, `read-text`(H3), `process-*`(H4), `write-text`/`edit-text`(H5), `find-models`/`emit`(H12), `harness-*`(H10)만. Java interop·classpath loading은 열지 않는다.
 - `(emit {mime payload})` 는 비어 있지 않고 **키가 전부 문자열**인 맵을 요구하고, payload 를 먼저 직렬화해보고 안 되면 `IllegalArgumentException` 으로 거절한다. 그 pre-flight 이 지키는 것은 framing 이 아니라 **오류 계약**이다 — 측정(2026-09-02): `clojure.data.json` 은 `##NaN`/`##Inf` 를 쓰지 않고 던지고, `send-event!` 는 write lock 밖에서 먼저 직렬화하므로 찢긴 frame 이 구조적으로 불가능하다. 번역하는 이유는 **의존물의 예외 클래스를 우리 계약으로 삼지 않기 위해서**다. (oracle 은 `json.dumps(allow_nan=True)` 기본값 때문에 진짜로 framing 을 지켜야 한다.)
 - `(find-models)` / `(find-models query)` / `(find-models query limit)` 기본값 `"" 8`. 반환은 `:provider :id :name :selector` 네 키 맵의 vector — workspace 데이터이지 타입 있는 handle 이 아니다.
 
@@ -245,6 +245,60 @@ H5 가 하지 않은 것:
 2. **delete / rename / mkdir 없음.** 게이트는 write + targeted edit 까지다.
 3. **동시 write 조정 없음.** 두 셀이 같은 파일을 쓰면 마지막이 이긴다. atomic replace 도 아니다
    (oracle 의 `write_text` 와 같은 자리).
+
+---
+
+## Continual harness state — H10 (memory CRUD slice)
+
+Python oracle 은 `prime-agent-runtime/src/rlm/harness.py` 의 `HarnessState` 다. 이 팔은 같은
+파일 포맷을 쓰되 **워크스페이스가 보는 값은 Clojure 모양**이다 — `write-text` 가 파일과 receipt 를
+가르는 것과 같은 분리다. 구현은 `rlm.harness-state`, 워크스페이스 바인딩은 `rlm.eval/make-ctx`.
+
+| form | 반환 |
+|---|---|
+| `(harness-create kind title content)` / `… opts` | entry map. 같은 id 가 이미 있으면 `already exists` 로 거절 |
+| `(harness-update kind id title content)` / `… opts` | entry map. 없으면 `does not exist` 로 거절 |
+| `(harness-upsert kind title content)` / `… opts` | entry map. 있으면 갱신, 없으면 생성 |
+| `(harness-get kind id)` / `… opts` | entry map 또는 `nil` |
+| `(harness-delete kind id)` / `… opts` | `true` 한 번, 그 뒤 `false` |
+| `(harness-list)` / `(harness-list kind)` / `… opts` | `[:kind :path :title :id]` 순으로 정렬된 vector |
+| `(harness-record-refinement trigger changes)` / `… opts` | refinement map. `changes` 는 문자열 하나도 받는다 |
+| `(harness-refinements)` / `… opts` | refinement map 의 vector |
+
+`kind` 는 `"prompt" "memory" "skill" "subagent"` 넷. 그 밖은 `unknown harness kind` 로 거절한다.
+`opts` 는 `:id :path :reference :arguments :metadata :source :global :evidence :outcome`.
+
+- **저장 위치는 호스트가 정한다.** `RLM_HARNESS_STATE_DIR`(local) · `RLM_GLOBAL_HARNESS_STATE_DIR`(global) ·
+  local 이 없을 때 `RLM_SESSION_DIR/harness` 폴백. 셋 다 `agent-session.ts` 의 `_rlmKernelEnv` 가 넣는
+  값이고, oracle 이 읽는 이름과 같다. 값이 있지만 비어 있으면 **없는 것으로 친다** — 그러지 않으면
+  local write 가 조용히 global 기본 경로로 떨어진다(oracle 의 같은 주석).
+- **local store 자리가 없으면 write 는 소리내어 실패한다.** 사라지지 않는다. read 는 빈 뷰로 계속 답하고
+  `:global true` write 는 그대로 global 로 간다.
+- **`"global:id"` / `"local:id"` 접두어를 그대로 받는다.** oracle `overview()` 가 그 모양으로 인쇄하기 때문이다.
+- **`:path` 를 생략한 update 는 기존 grouping path 를 지킨다.** `:reference`/`:arguments`/`:metadata` 도 같다.
+  명시한 `{}` 는 그대로 덮는다.
+- **깨진 파일은 커널을 죽이지 않는다.** 파싱 안 되는 바이트도, `null`·`[]`·`"문자열"`·숫자도 빈 store 로 읽고
+  다음 write 가 깨끗이 다시 쓴다.
+- **다른 프로세스가 같은 파일을 고치면 다시 읽는다.** 호스트 `/refine` 이 그 프로세스다. mtime 은 나노초로 본다
+  (oracle 의 `st_mtime_ns`).
+
+### 알려진 편차 — H10
+
+1. **워크스페이스 값은 kebab keyword, 파일은 oracle 그대로 snake_case 다.** `:created-at` ↔ `"created_at"`.
+   호스트가 읽는 것은 파일이므로 계약은 파일 쪽에 있다 (`harness-state-test/the-file-the-host-reads-is-the-oracle-shape`).
+2. **타임스탬프는 `java.time.Instant` 라 `…Z` 로 끝난다.** oracle 은 `+00:00` 이다. 둘 다 UTC ISO-8601 이고
+   호스트는 이 문자열을 파싱하지 않는다.
+3. **local store 부재 메시지가 다르다.** oracle 은 `global_=True` 로 끝나고 이 팔은 `:global true` 로 끝난다.
+   Clojure 팔의 오류문에 Python 호출 모양을 넣는 것이야말로 이 포크가 재려는 누출이다.
+4. **`overview()` · `snapshot()` · `plan_refinement()` 는 없다.** oracle 의 해당 단언은 **커버되지 않았다** —
+   `registry.tsv` 의 H10 행들이 어느 fragment 까지 무는지로 적혀 있다. 없다고 적는 것은 커버리지가 아니다.
+5. **per-kind 편의 verb 가 없다.** oracle 의 `create_memory`/`update_skill`/… 12개 대신 `kind` 를 첫 인자로 받는
+   generic verb 다. 관측 대상(무엇이 저장되고 무엇이 보존되는가)은 같고, 표면 모양이 다르다.
+6. **`skill` entry 의 Python reference 검증(`_validate_python_skill_reference`)은 하지 않는다.**
+   oracle 의 그 계약은 "Python import + callable 이어야 한다"이고, 이 팔에는 Python skill 이 없다.
+   declared divergence 후보이지 지금은 미커버다.
+7. **`:state-dir` 은 워크스페이스에 열려 있지 않다.** Clojure API 에는 있어서 SUT 가 여러 store 를 몰 수 있지만,
+   셀의 opts 는 `rlm.harness-state/workspace-opts` 가 걸러낸다. 열면 `spit`/`slurp` 를 닫은 이유가 무너진다.
 
 ---
 
