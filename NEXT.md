@@ -89,7 +89,8 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 
 ## 지금 사실 (2026-09-08 밤, oracle, `feat/clojure-runtime` @ `67386acf` — **푸시 안 함, 미푸시 5개**)
 
-- **harness 블록이 이제 팔마다 다르게 쓰인다** (`ebb8c2c1`). `formatHarnessStateForPrompt` 가 `kernelRuntime` 을 받고, clj 팔은 `(def handle (rlm "sub-task"))` · `:rlm-child-id` · `(rlm-children)` · `(host-request {:type "agent_message.send" …})` 를 배운다. skill 항목은 「없다」가 아니라 **"not callable from this workspace"**. python 팔은 **바이트 동일**(HEAD 모듈을 나란히 로드해 5옵션 × 2런타임에서 측정). 무는 test = `harness-prompt-runtime-contract` **6 tests**, kill 4/4 강한 킬.
+- **harness 블록이 이제 팔마다 다르게 쓰인다** (`ebb8c2c1`). `formatHarnessStateForPrompt` 가 `kernelRuntime` 을 받고, clj 팔은 `(def handle (rlm "sub-task"))` · `:rlm-child-id` · `(rlm-children)` · `(host-request {:type "agent_message.send" …})` 를 배운다. skill 항목은 「없다」가 아니라 **"not callable from this workspace"**. python 팔은 **바이트 동일**(HEAD 모듈을 나란히 로드해 5옵션 × 2런타임에서 측정). 무는 test = `harness-prompt-runtime-contract` **8 tests**, kill 5/5 강한 킬.
+- **검수가 한 번에 구멍을 하나 잡았다** (gpt-5.6-terra, 한 턴, `b54082e5` 로 수선). 처음 6 tests 의 negative assertion 이 **금칙어 블랙리스트**라, clj 문단에 `handle = rlm('sub-task')` 처럼 **금칙어 없는 Python 호출 모양**을 넣어도 전부 초록이었다. 지금은 **call-contract 줄을 팔마다 통째로 고정**하고 줄 개수까지 단언한다. 그 변이를 격리 worktree 에서 실제로 넣어 새 2행만 Red 를 확인했다.
 - **`overview()` 는 declared divergence** (`67386acf`) — verb 없음, D 3행 크레딧 0, 게이트 `declared-divergence 0` 불변.
 - 게이트(직접 실행): `parity-target 54 (H9=16 H10=26 H11=11 H12=1)` · `out-of-scope(GLG,2026-09-01) 50` ·
   `registry 74 rows, 15 cards` · HARD 0 · ② NOT REACHED · exit 1(게이트 ① 의 `(c)` 10건, H10 과 무관).
