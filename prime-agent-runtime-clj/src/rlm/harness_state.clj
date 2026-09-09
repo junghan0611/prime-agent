@@ -326,7 +326,17 @@
 
 ;; -- operations -------------------------------------------------------------
 
-(defn- opt-global? [opts] (boolean (get opts :global)))
+(defn- opt-global?
+  "The oracle refuses a non-bool :global rather than coercing it. Truthiness
+  would route a cell that wrote :global \"false\" to the GLOBAL store -- the
+  one shape where a fumble writes to the store the model did not mean."
+  [opts]
+  (let [v (get opts :global)]
+    (cond
+      (nil? v) false
+      (boolean? v) v
+      :else (throw (IllegalArgumentException.
+                    (str "global must be a bool, got " (pr-str v)))))))
 
 (defn- do-upsert
   "Caller has already synced. create/update sync once and land here so their

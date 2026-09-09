@@ -636,3 +636,23 @@
             "a title/content-only update does not require re-sending the reference")
         (is (= {"path" {"type" "string" "required" true}} (:arguments updated))
             "and it does not silently drop the arguments")))))
+
+(deftest a-non-boolean-global-flag-is-refused-not-coerced
+  ;; oracle: HarnessStateTest::test_global_kwarg_must_be_boolean
+  ;; Truthiness is the trap: :global "false" reads as "not global" to whoever
+  ;; wrote it and as global to a (boolean ...) coercion, so the write lands in
+  ;; the store the cell did not mean.
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "local")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "global")})
+    (fn [repl dir]
+      (doseq [[id code] [["bg1" "(harness-create \"memory\" \"Bad global flag\" \"bad\" {:id \"bad_global\" :global \"false\"})"]
+                         ["bg2" "(harness-get \"memory\" \"bad_global\" {:global 1})"]
+                         ["bg3" "(harness-list \"memory\" {:global :yes})"]]]
+        (is (str/includes? (refused repl id code) "global must be a bool") code))
+      (is (not (.exists (jio/file dir "global" "harness_state.json")))
+          "a refused flag writes nothing to the global store")
+      (is (= "local" (:scope (eval-edn repl "bg4" "(harness-create \"memory\" \"Fine\" \"body\" {:id \"fine\" :global false})")))
+          ":global false is still a bool and still means local")
+      (is (= "global" (:scope (eval-edn repl "bg5" "(harness-create \"memory\" \"Fine\" \"body\" {:id \"fine\" :global true})")))
+          "and :global true still routes across"))))
