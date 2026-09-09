@@ -321,8 +321,17 @@ export function loadHarnessState(
 			for (const [id, rawEntry] of Object.entries(records)) {
 				const entry = objectRecord(rawEntry);
 				if (!entry) continue;
+				// Same drop as oracle `HarnessState.load` and clj `entry<-json`:
+				// non-string title/content is not an entry. The file keeps the raw
+				// object; the next save rewrites only what survived. Without this,
+				// compactText(entry.content) throws and the session never starts.
+				if (typeof entry.title !== "string" || typeof entry.content !== "string") {
+					continue;
+				}
 				state.entries[kind][id] = {
 					...(entry as unknown as HarnessEntry),
+					title: entry.title,
+					content: entry.content,
 					scope: normalizeHarnessScope(entry.scope, scope),
 					reference: objectRecord(entry.reference) ?? {},
 					arguments: objectRecord(entry.arguments) ?? {},

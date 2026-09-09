@@ -667,6 +667,42 @@ describe("harness refinement", () => {
 		});
 	});
 
+	it("drops an entry whose content is not a string and keeps a sibling", () => {
+		const dir = makeTempDir();
+		writeFileSync(
+			getHarnessStatePath(dir),
+			JSON.stringify({
+				schema: 1,
+				entries: {
+					memory: {
+						bad: {
+							id: "bad",
+							kind: "memory",
+							title: "map content",
+							content: { nested: true },
+							path: "",
+						},
+						good: {
+							id: "good",
+							kind: "memory",
+							title: "string content",
+							content: "ok",
+							path: "",
+						},
+					},
+				},
+				refinements: [],
+			}),
+			"utf8",
+		);
+
+		const state = loadHarnessState(dir);
+
+		expect(state.entries.memory.bad).toBeUndefined();
+		expect(state.entries.memory.good?.content).toBe("ok");
+		expect(() => formatHarnessStateForPrompt(state)).not.toThrow();
+	});
+
 	it.each(["not json at all", "null", "[]", '"a string"', "123"])(
 		"loads empty harness state from a corrupt or non-object file (%s)",
 		(payload) => {
