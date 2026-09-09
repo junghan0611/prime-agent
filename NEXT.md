@@ -25,7 +25,7 @@
 - [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **양 팔이 서로 다른 fan-in 계약을 받은 것**이다(첫 영수증 「Python 팔은 아예 못 배웠다」 → 정정 「현저성」 → 검수 뒤 **「다른 계약」**): [read at `prompts/rlm.ts::buildSubagentGuidance`] python 가지는 **무조건** 「Have children write files and read those files for fan-in.」 를 가르치고, clj 가지는 그 자리에 `agent_message.send` 를 가르친다. `refinement.ts::formatHarnessStateForPrompt` 의 Call contract 는 양 팔 무조건이다. **Python 셀 4/4 가 파일로 간 것은 자기 프롬프트대로 한 것**이다. → **formal-receive 행(Q-R3·T-1.2) 은 양 팔 모두 `∅` 미결**이고 표도 그렇게 적었다. 교차검수(`xai/grok-4.6`)가 표의 FAIL 둘을 원자료로 되돌렸다 — 내 분석기가 턴의 **마지막** 텍스트 블록만 읽어 앞 블록의 답을 놓쳤다.
 - [ ] **4.5 BENCH-2 앞 정리 — 세 자리 전부 GLG 결정 대기** ← PAUSED: GLG 결정 셋 대기. 2026-09-09 오전에 **결정 없이 되는 것을 다 했다**(무료, 유료 호출 0): 소켓 영수증 test 를 강도까지 물게 고쳤고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5594998274), `3348b4b9`), run 1 에서 한 셀의 3턴을 먹은 크래시의 **기전을 재현**했고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595204721)), 아이 쪽 프롬프트 비대칭의 **크기를 쟀다**([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595236617), 표는 `evals/bench1/RESULTS.md` 부록). **남은 것은 전부 아래 「GLG 결정 셋」이고, 셋 다 BENCH-2 앞에 선다.**
 - [ ] **5. Lisp 커버리지 마무리 — GLG 가 앉는 면만** ← CURRENT. **2026-09-09 저녁에 판이 하나로 접혔다**(GLG → grok → 이 세션으로 전달, GLG 직접 발화 아님 · 이 줄은 상속이고 미확인이다): 질문 1·2·3·4 를 다시 열지 말고, **Python 런타임을 Lisp 로 옮기고 GLG 가 실제로 앉는 면의 커버리지를 얻어 닫는다.** MCP · subagent · daemon · Emmy 는 뺀다. 아이디어는 그 뒤다.
-  그날 저녁 진척(전부 무료, 유료 호출 0): 게이트 ① `(c)` **10 → 5**(남은 4 + subagent 1 은 OUT), 게이트 ② parity **53 → 35**, H10 **26 → 7**, native SUT **107 → 122 tests**. 커밋 8개, **푸시 안 됨**.
+  그날 저녁 진척(전부 무료, 유료 호출 0): 게이트 ① `(c)` **10 → 5**(남은 4 + subagent 1 은 OUT), 게이트 ② parity **53 → 32**, H10 **26 → 4**, native SUT **107 → 122 tests**. 커밋 9개, **푸시 안 됨**.
 - [ ] **6. Pass C(킬 집행) · Emmy/SICM** — **여전히 「비교 뒤」다.** 비교(BENCH-2)가 결정 셋에 막혀 있으므로 6 도 막혀 있다. 이 순서를 앞당기지 않는다.
 
 현재 좌표: 1·2·3·4 완료 → **5 진행 중**(GLG 가 접은 하나의 기준) → 4.5 는 GLG 결정 셋에 막혀 PAUSED → 6 은 그 뒤. **4.5 의 결정 셋은 그대로 살아 있다** — BENCH-2 도 fan-in 대칭화도 열지 않는다.
@@ -62,13 +62,16 @@
 
 # NOW — Lisp 커버리지 마무리 (RAIL 5)
 
-- **Current:** 게이트 ① `(c)` **5**(bash 4 + subagent 1) · 게이트 ② parity **35**(H9=16 H10=7 H11=11 H12=1) · native SUT **122 tests / 0 fail** · `lint` 0/0 · `npm run check` exit 0 · TS `repl-kernel-clojure-runtime` **14/14**. 커밋 **8개, 푸시 안 됨**(origin 은 `186dc13b`).
-- **Next:** (1) **H10 남은 7 중 열 수 있는 것은 없다** — 3 은 `overview()` 행-단위 declared-divergence 메커니즘(설계자 몫), 1 은 import 뒤 env 변경(in-process, GLG 자리 1), 3 은 in-memory(GLG 가 OUT 이라 했다고 **전달받았으나** 카드 상태를 바꾸려면 decision receipt 가 필요하다 — 게이트가 hard-fail 한다). → **다음 한 수는 GLG/설계자에게 이 셋 중 어느 문을 열지 묻는 것이지, 코드가 아니다.**
-  (2) 게이트 ① 남은 4 는 전부 bash 다. `test_running_reflects_group_liveness` 는 **실측된 실제 불일치**다 — `rlm.process/snapshot` 의 `:status` 가 리더만 본다(`(if alive :running :exited)`), 오라클은 그룹이 살아 있으면 `running` 을 유지한다. 셀이 뒤에 `&` 를 붙이면 **아이가 살아 있는데 `:exited` 라고 답한다.** 고치는 값은 watcher(핸들 스냅샷 유지) 아니면 poll 마다 `kill -0 -pgid` 셸 한 방이고, **둘 다 새 기계다** — AGENTS.md 「아프기 전에 watcher 를 짓지 않는다」에 걸린다. **GLG/설계자 결정 자리로 올린다.**
-  (3) 나머지 셋(`delivered_status_wins_…`, `pump_paused_…`, `slow_pump_…`)은 **in-process 패치 seam** 이 있어야 한다 — GLG 자리 1(in-process JVM 단위 표면)과 같은 문이다.
-- **Blocker:** 없음(환경/권한). **막힌 것은 전부 결정이다** — 위 셋.
+- **Current:** 게이트 ① `(c)` **5**(bash 4 + subagent 1) · 게이트 ② parity **32**(H9=16 H10=4 H11=11 H12=1) · native SUT **122 tests / 0 fail** · `lint` 0/0 · `npm run check` exit 0 · TS `repl-kernel-clojure-runtime` **14/14**. 커밋 **10개(상속 `e694454b` 포함), 푸시 안 됨**(origin 은 `186dc13b`).
+- **Next:** **앉는 면은 닫혔다. 코드 레인은 없다.** 남은 것은 GLG 의 푸시 결정뿐이다.
+- **문 셋은 코디네이터(grok, 2026-09-09 저녁)가 전부 닫았다 — 다시 올리지 마라:**
+  (1) **in-memory 3행 · `test_skill_references_must_be_python` = OUT.** 집행됐다 — 카드는 그대로 두고 행만 `(a)`, 영수증 [issue #1](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5601161027). parity 35 → **32**, H10 7 → **4**.
+  (2) **`overview()` 행-단위 declared-divergence 메커니즘 — 열지 않는다.** 2026-09-08 declared divergence 그대로, 그 3행 `D`, 크레딧 0.
+  (3) **`rlm.process/snapshot` 의 `:status` 가 그룹이 아니라 리더를 본다 — 열지 않는다.** `H4.D1` 이 이미 declared-divergence 이고 watcher / `kill -0 -pgid` 는 새 기계라 금지다. 게이트 ① 에 남은 bash 3행의 in-process 패치 seam 도 GLG 자리 1이라 안 연다.
+- **남은 H10 4행이 무엇인지(다시 유도하지 마라):** `overview()` 에 막힌 3(`test_persists_entries_and_refinements` · `test_load_ignores_unknown_json_keys` · `test_module_harness_without_env_raises_on_local_writes_and_reads_work`) + import 뒤 env 변경 1(`test_module_harness_binds_lazily_to_env_set_after_import`, in-process). 넷 다 위 (2)·(3) 문 뒤에 있다.
+- **Blocker:** 없음(환경/권한). 코드로 열 수 있는 것이 없다.
 - **Read:** `evals/coverage-denominator/check.py` 상단 주석(판정 어휘) → `manifest.tsv` 의 해당 행 evidence(이제 전부 최신) → `docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 9(새로 들어온 native/JVM 편차).
-- **Do not touch:** parking · H11 daemon · H12 detached display · BENCH-2 · fan-in 대칭화 · Pass C. `evals/coverage-denominator/registry.tsv` 의 **card status** 는 decision receipt 없이 바꾸지 않는다(게이트 hard-fail).
+- **Do not touch:** parking · H11 daemon · H12 detached display · BENCH-2 · fan-in 대칭화 · Pass C. `registry.tsv` 의 **card status** 는 decision receipt 없이 바꾸지 않는다(게이트 hard-fail). Q1–Q5 와 위 문 셋을 다시 메뉴로 올리지 않는다.
 
 **역할 (GLG, 2026-09-02):** 설계자 = fable(claude-code) · 실무 = opus(entwurf ACP). 실무는 설계자 요청으로 움직이고, GLG 판단은 설계자를 거쳐 올린다. 영수증은 세션에 묵히지 않고 이슈에 즉시.
 
@@ -151,8 +154,8 @@ H10 도 33-for-33 이 아니라 네 observable bundle 로 다시 접자는 제�
 - **harness 블록이 이제 팔마다 다르게 쓰인다** (`ebb8c2c1`). `formatHarnessStateForPrompt` 가 `kernelRuntime` 을 받고, clj 팔은 `(def handle (rlm "sub-task"))` · `:rlm-child-id` · `(rlm-children)` · `(host-request {:type "agent_message.send" …})` 를 배운다. skill 항목은 「없다」가 아니라 **"not callable from this workspace"**. python 팔은 **바이트 동일**(HEAD 모듈을 나란히 로드해 5옵션 × 2런타임에서 측정). 무는 test = `harness-prompt-runtime-contract` **8 tests**, kill 5/5 강한 킬.
 - **검수가 한 번에 구멍을 하나 잡았다** (gpt-5.6-terra, 한 턴, `b54082e5` 로 수선). 처음 6 tests 의 negative assertion 이 **금칙어 블랙리스트**라, clj 문단에 `handle = rlm('sub-task')` 처럼 **금칙어 없는 Python 호출 모양**을 넣어도 전부 초록이었다. 지금은 **call-contract 줄을 팔마다 통째로 고정**하고 줄 개수까지 단언한다. 그 변이를 격리 worktree 에서 실제로 넣어 새 2행만 Red 를 확인했다.
 - **`overview()` 는 declared divergence** (`67386acf`) — verb 없음, D 3행 크레딧 0, 게이트 `declared-divergence 0` 불변.
-- 게이트(직접 실행, 2026-09-09 저녁): `parity-target 35 (H9=16 H10=7 H11=11 H12=1)` · `out-of-scope(GLG,2026-09-01) 50` ·
-  HARD 0 · ② NOT REACHED · exit 1(게이트 ① 의 `(c)` **5**건 — bash 4 + subagent 1). 상속된 `54 / H10=26 / (c) 10 / registry 74` 는 그날 오전 값이다.
+- 게이트(직접 실행, 2026-09-09 저녁): `parity-target 32 (H9=16 H10=4 H11=11 H12=1)` · `out-of-scope(GLG,2026-09-01) 50` ·
+  HARD 0 · ② NOT REACHED · exit 1(게이트 ① 의 `(c)` **5**건 — bash 4 + subagent 1). 상속된 `54 / H10=26 / (c) 10 / registry 74` 는 그날 오전 값이고, `35 / H10=7` 은 범위 결정 집행 전 값이다.
 - `./run.sh test-native` **122 tests / 0 failures**. assertion 총수는 폴링 때문에 흔들린다 — 비교 근거 아님. `lint` 0/0 · `npm run check` exit 0.
 - **native 빌드는 이 머신에서 `1m54s`** (2026-09-08 실측). 상속된 `약 4m56s` 는 다른 머신 값이다 — kill 16회가 하루 안에 돈 이유.
 - **테스트 헬퍼 ns 가 이미 `rlm.harness` 다.** production ns 를 그 이름으로 지으면 `:test` 에서 충돌한다 → `rlm.harness-state`.
