@@ -300,14 +300,74 @@
    :evalue ""
    :traceback ["KeyboardInterrupt\n"]})
 
+(def ^:private plumbing-frame-prefixes
+  "Frames a cell must never be handed back. This runtime's driver, SCI's
+  interpreter, and the JVM / native-image plumbing under both say nothing about
+  what the cell did wrong and cost the reader a screen. Oracle twin:
+  test_traceback_clean_with_source_line asserts repl.py is absent from the text."
+  ["rlm.repl" "rlm.eval" "sci." "clojure.lang.AFn" "clojure.core$"
+   "java.base" "java.lang.Thread" "org.graalvm" "com.oracle.svm"])
+
+(defn- plumbing-frame?
+  [^String frame]
+  (boolean (some #(str/starts-with? frame ^String %) plumbing-frame-prefixes)))
+
+(defn- source-line
+  "The cell's own text at line n, trimmed, or nil."
+  [source n]
+  (when (and (string? source) (integer? n) (pos? n))
+    (let [lines (str/split-lines source)]
+      (when (<= n (count lines))
+        (let [t (str/trim (nth lines (dec n)))]
+          (when (pos? (count t)) t))))))
+
+(defn- cell-locations
+  "Innermost-first cell locations SCI recorded for this failure, deduped.
+  SCI carries :line/:column on the error it raises and one frame per call on
+  :sci.impl/callstack; a host exception that SCI never wrapped carries neither."
+  [^Throwable e]
+  (let [data (ex-data e)
+        stack (try (some-> ^clojure.lang.IDeref (:sci.impl/callstack data) deref)
+                   (catch Throwable _ nil))]
+    (->> (concat (when (:line data) [{:line (:line data) :column (:column data)}])
+                 (keep (fn [frame]
+                         (when (:line frame)
+                           {:line (:line frame) :column (:column frame)}))
+                       stack))
+         (distinct)
+         (vec))))
+
 (defn- error-event
-  [cell-id ^Throwable e]
-  ;; OPEN: ename is SCI's wrapper class and traceback carries runtime frames; not oracle-shaped yet.
-  {:event "error"
-   :id cell-id
-   :ename (.getSimpleName (class e))
-   :evalue (or (ex-message e) "")
-   :traceback (mapv str (.getStackTrace e))})
+  "The cell's failure, anchored in the cell and nothing else.
+
+  Two shapes, because SCI only attributes what it evaluated itself: when it
+  recorded locations, each one becomes a <cell-id>:line:column frame with the
+  cell's own source line under it. When it did not -- a host verb throwing
+  straight through -- the cell anchor is bare and the surviving non-plumbing
+  Java frames follow, which is where such a failure actually happened."
+  [cell-id source ^Throwable e]
+  (let [cell (str "<cell-" cell-id ">")
+        ename (.getSimpleName (class e))
+        evalue (or (ex-message e) "")
+        locations (cell-locations e)
+        frames (if (seq locations)
+                 (mapcat (fn [{:keys [line column]}]
+                           (cond-> [(str "  at " cell ":" line
+                                         (when column (str ":" column)) "\n")]
+                             (source-line source line)
+                             (conj (str "    " (source-line source line) "\n"))))
+                         locations)
+                 (cons (str "  at " cell "\n")
+                       (->> (.getStackTrace e)
+                            (map str)
+                            (remove plumbing-frame?)
+                            (take 10)
+                            (map #(str "  " % "\n")))))]
+    {:event "error"
+     :id cell-id
+     :ename ename
+     :evalue evalue
+     :traceback (vec (concat frames [(str ename ": " evalue "\n")]))}))
 
 (defn- cell-body
   [runtime req send-done!]
@@ -353,7 +413,7 @@
       (send-event! runtime {:event "result" :id id :text text}))
     (cond
       cancelled? (send-event! runtime (interrupt-event id))
-      (:throwable outcome) (send-event! runtime (error-event id (:throwable outcome))))
+      (:throwable outcome) (send-event! runtime (error-event id code (:throwable outcome))))
     (send-done! (:status outcome))
     ;; At-most-once: if the watchdog already spoke while this cell was running,
     ;; the fact is on the wire and saying it twice would invent a second event.
@@ -374,7 +434,7 @@
       (catch Throwable e
         (finish-request! runtime id)
         (when-not @done?
-          (send-event! runtime (error-event id e)))
+          (send-event! runtime (error-event id (get req "code") e)))
         (send-done! "error")))))
 
 (defn- handle-execute

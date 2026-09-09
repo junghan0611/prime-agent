@@ -1,5 +1,6 @@
 (ns rlm.repl-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]
             [rlm.harness :as h]))
 
 (deftest ready-is-first-frame
@@ -284,3 +285,57 @@
         (let [events (h/execute repl "wos2" "(println \"back on the wire\")")]
           (is (= "back on the wire\n" (h/stream-text events "stdout")))
           (is (= "wos2" (get (h/one events "stdout") "id"))))))))
+
+(deftest a-cell-error-is-anchored-in-the-cell-not-in-the-runtime
+  ;; Oracle twin: test_repl.py::ReplTest::test_traceback_clean_with_source_line.
+  ;; There the traceback names <cell-...>, carries the failing source line, and
+  ;; must NOT contain repl.py or an ANSI escape. Same three here, against this
+  ;; runtime's own plumbing names.
+  (h/with-repl
+    (fn [repl _]
+      (testing "an error SCI attributed carries the cell location and the source line"
+        (let [events (h/execute repl "tb" "(+ 1 1)\n(undefined-fn 1)")
+              text (apply str (get (h/one events "error") "traceback"))]
+          (is (str/includes? text "<cell-tb>:2") "the cell and the line it failed on")
+          (is (str/includes? text "(undefined-fn 1)") "the cell's own source line, not a description of it")
+          (is (str/ends-with? text "Could not resolve symbol: undefined-fn\n")
+              "and the failure itself is the last line")))
+      (testing "the runtime's own frames never reach the cell"
+        (let [events (h/execute repl "tb2" "(undefined-fn 1)")
+              frames (get (h/one events "error") "traceback")
+              text (apply str frames)]
+          ;; The named list says which frames are plumbing; the exact shape is
+          ;; what makes the claim bite. A raw stack here is 24 frames deep, and
+          ;; a plumbing name the list happens not to mention would still pass
+          ;; the list while failing the shape.
+          (is (= ["  at <cell-tb2>:1:1\n"
+                  "    (undefined-fn 1)\n"
+                  "ExceptionInfo: Could not resolve symbol: undefined-fn\n"]
+                 frames)
+              "an attributed error is the anchor, the source line, and the failure -- nothing else")
+          (doseq [plumbing ["rlm.repl" "rlm.eval" "sci.impl" "sci.lang" "sci.core"
+                            "clojure.lang.AFn" "java.base" "java.lang.Thread"
+                            "org.graalvm" "com.oracle.svm"]]
+            (is (not (str/includes? text plumbing))
+                (str "the traceback must not carry " plumbing)))
+          (is (not (str/includes? text (str (char 27) "[")))
+              "and it carries no ANSI escape")))
+      (testing "a host verb that throws straight through keeps the frame that threw"
+        ;; SCI attributes what it evaluated itself. A host IFn raising on its own
+        ;; is not wrapped, so there is no cell line to name -- the anchor is bare
+        ;; and the frames that survive are the ones that actually threw.
+        (let [events (h/execute repl "tb3" "(harness-get \"bogus\" \"x\")")
+              text (apply str (get (h/one events "error") "traceback"))]
+          (is (str/includes? text "<cell-tb3>") "still anchored in the cell")
+          (is (str/includes? text "rlm.harness_state") "and the host frame that threw is kept, not swallowed")
+          (is (not (str/includes? text "rlm.repl")) "while the driver frames are still gone")))
+      (testing "a cell's own throw is not attributed on this arm"
+        ;; MEASURED DEVIATION, native vs JVM: on the JVM sci/eval-string* wraps a
+        ;; cell's (throw ...) with :line/:column, and in the native image it does
+        ;; not, so this shape gets the bare anchor. Recorded rather than papered
+        ;; over -- the row says what the arm does, not what it wishes.
+        (let [events (h/execute repl "tb4" "(throw (ex-info \"nope\" {}))")
+              text (apply str (get (h/one events "error") "traceback"))]
+          (is (= "  at <cell-tb4>\nExceptionInfo: nope\n" text))))
+      (testing "and the runtime keeps serving"
+        (is (= "2" (get (h/one (h/execute repl "after-tb" "(+ 1 1)") "result") "text")))))))

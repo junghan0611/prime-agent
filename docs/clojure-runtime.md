@@ -108,7 +108,7 @@ prime-agent-runtime-clj/
 | `stdout` / `stderr` | 셀 끝 batch flush. cell id attribution은 맞다. mid-cell streaming은 아니다 |
 | `result` | 마지막 form의 non-`nil` 값을 `pr-str` |
 | `host_request` | runtime-minted id + typed data |
-| `error` | `ename`은 SCI wrapper class, traceback에 runtime frame이 실린다 (OPEN) |
+| `error` | `ename`은 실제 예외 클래스(SCI가 감싸지 않는다). traceback은 **셀에 앵커된다** — SCI가 위치를 붙인 오류는 `  at <cell-ID>:line:column` + 그 줄의 셀 원문, 붙이지 않은 오류는 `  at <cell-ID>` 뒤에 plumbing 을 걷어낸 프레임. 마지막 줄은 언제나 `ENAME: EVALUE`. `rlm.repl`/`rlm.eval`/`sci.`/`clojure.lang.AFn`/`java.base`/`org.graalvm` 프레임은 나가지 않는다 |
 | `display` | `(emit {mime payload})` 가 쓰는 frame. `id` 는 **호출 시점의 셀**, `data` 는 mime→payload 맵 (H12) |
 | `done` | id가 있는 request마다 정확히 하나 |
 
@@ -465,7 +465,8 @@ python default 와 같은 수·같은 파일(전부 이 홉과 무관한 pre-exi
 6. `build.sh`의 `--initialize-at-build-time`(인자 없음)을 패키지 목록으로 "고치면" SCI가 런타임에 `core__init`을 못 찾는다.
 7. `bin/rlm`은 Hop 1 손잡이다. TypeScript host가 아니고 제품 REPL도 아니다.
 8. **reflective interop은 링크는 되고 native에서 죽는다.** `(:import [java.lang ProcessBuilder])` 뒤의 생성자, 그리고 리터럴에 직접 붙인 `^java.util.List` 힌트는 둘 다 `RT.classForName`으로 컴파일되고 image에는 그 클래스가 없다 (`ClassNotFoundException`). 힌트는 **local에** 붙인다. `build.sh`가 AOT를 `*warn-on-reflection* true`로 감싸고 **경고가 있으면 exit 1 한다** (2026-09-02부터; 그전엔 경고만 찍고 exit 0 이라 게이트가 아니었다). reflect-config는 계약상 닫혀 있으므로 이 경고가 유일한 게이트다. 인자 타입이 var deref 라 오버로드가 안 잡히는 경우까지 여기로 온다 — `(Thread/sleep some-var)` 는 경고 한 줄만 남기고 링크되었다가 native 에서 죽는다. 2026-09-02에 watchdog 스레드 하나가 그렇게 조용히 사라졌고, `catch Throwable` 이 그것마저 삼켰다. 인자에 `(long ...)` 를 씌운다.
-9. `ProcessHandle.descendants()`는 native-image에서 **돈다** (실측: `sh -c "sleep & sleep & wait"`의 자식 2개 회수). `/proc/<pid>/stat`을 `slurp`하는 쪽은 안 된다.
+9. **SCI 의 에러 위치 부착이 JVM 과 native 에서 다르다.** JVM 에서 `sci/eval-string*` 는 셀이 스스로 던진 `(throw (ex-info ...))` 까지 감싸서 `:line`/`:column` 을 붙이는데, native image 에서는 붙지 않는다 (2026-09-09 실측: 같은 소스, JVM `:line 2`, native 위치 없음). SCI 가 스스로 일으킨 오류(예: `Could not resolve symbol`)는 native 에서도 위치가 온다. 그래서 `error-event` 는 두 모양을 갖는다 — 위치가 있으면 `  at <cell-ID>:line:column` + 셀 원문 줄, 없으면 `  at <cell-ID>` + plumbing 걷어낸 프레임. 무는 test 는 `repl-test/a-cell-error-is-anchored-in-the-cell-not-in-the-runtime`.
+10. `ProcessHandle.descendants()`는 native-image에서 **돈다** (실측: `sh -c "sleep & sleep & wait"`의 자식 2개 회수). `/proc/<pid>/stat`을 `slurp`하는 쪽은 안 된다.
 
 ---
 
