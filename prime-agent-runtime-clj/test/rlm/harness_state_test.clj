@@ -32,6 +32,30 @@
   [dir]
   (jio/file dir "harness_state.json"))
 
+(defn- bump-mtime!
+  "Advance mtime past the runtime's last load — same trick as the oracle's os.utime +5s."
+  [file]
+  (let [f (jio/file file)]
+    (.setLastModified f (+ (System/currentTimeMillis) 5000))))
+
+(defn- inject-memory!
+  "Write a memory entry into the store file the way the host /refine does — another process, same path."
+  [dir id title content]
+  (let [f (state-file dir)
+        data (if (.exists f)
+               (json/read-str (slurp f))
+               {"schema" 1
+                "entries" {"prompt" {} "memory" {} "skill" {} "subagent" {}}
+                "refinements" []})
+        entry {"id" id "kind" "memory" "title" title "content" content
+               "path" "general" "scope" "local" "reference" {} "arguments" {} "metadata" {}
+               "source" "agent"
+               "created_at" "2026-09-09T00:00:00+00:00"
+               "updated_at" "2026-09-09T00:00:00+00:00"
+               "version" 1}]
+    (spit f (json/write-str (assoc-in data ["entries" "memory" id] entry)))
+    (bump-mtime! f)))
+
 (defn- result-text
   [events]
   (get (h/one events "result") "text"))
@@ -365,3 +389,36 @@
             ":state-dir from a cell must not create a store")
         (is (= "body" (:content (eval-edn repl "b2" "(harness-get \"memory\" \"boundary\")")))
             "the write landed in the store the host chose")))))
+
+;; -- external write (host /refine on the same file) -------------------------
+
+(deftest reloads-external-writes-before-mutating
+  ;; oracle: HarnessStateTest::test_reloads_external_writes_before_mutating
+  (with-store
+    (fn [repl dir]
+      (eval-edn repl "x1" "(harness-create \"memory\" \"Kernel note\" \"Written from the kernel.\" {:id \"kernel\"})")
+      (inject-memory! dir "host" "Host note" "Written by /refine.")
+      (is (= "Written by /refine."
+             (:content (eval-edn repl "x2" "(harness-get \"memory\" \"host\")")))
+          "a read on the long-lived runtime observes the host write")
+      (eval-edn repl "x3" "(harness-create \"memory\" \"Second kernel note\" \"Written later.\" {:id \"kernel_2\"})")
+      (let [mem (get-in (json/read-str (slurp (state-file dir))) ["entries" "memory"])]
+        (is (contains? mem "kernel"))
+        (is (contains? mem "host"))
+        (is (contains? mem "kernel_2")
+            "a mutation merges onto the host write instead of clobbering it")))))
+
+(deftest create-detects-externally-written-entry
+  ;; oracle: HarnessStateTest::test_create_detects_externally_written_entry
+  (with-store
+    (fn [repl dir]
+      ;; Cache a live store the way the oracle constructs HarnessState first.
+      ;; A bare harness-list on a missing file leaves loaded-mtime nil and does
+      ;; not isolate sync-from-disk from new-store's initial read-state.
+      (eval-edn repl "y0" "(harness-create \"memory\" \"Anchor\" \"cached\" {:id \"anchor\"})")
+      (inject-memory! dir "dup" "External" "Written elsewhere.")
+      (let [msg (refused repl "y1" "(harness-create \"memory\" \"Local\" \"Should not overwrite.\" {:id \"dup\"})")]
+        (is (str/includes? msg "already exists")))
+      (is (= "Written elsewhere."
+             (:content (eval-edn repl "y2" "(harness-get \"memory\" \"dup\")")))
+          "create-or-fail leaves the external entry intact"))))
