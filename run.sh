@@ -61,7 +61,8 @@ launch() {
 	else
 		sock="$SOCK_DIR/$kind.sock"
 	fi
-	# 호출자가 뒤에 자기 --daemon-socket 을 주면 CLI 에서 그게 이긴다. 그러면
+	# 호출자가 뒤에 자기 --daemon-socket 을 주면 CLI 에서 그게 이긴다 — 여럿이면
+	# **마지막 것**이 이긴다. 그러면
 	# 여기서 고른 경로는 더 이상 실제로 쓰이는 소켓이 아니다 — 찍기 전에 넘겨받은
 	# 인자를 훑어 실효 값으로 바꾼다. 안 그러면 영수증만 옛 경로를 가리킨다
 	# (2026-09-08 BENCH-1 첫 런에서 8 셀 전부가 그랬다: 셀은 자기 소켓에 붙었는데
@@ -78,11 +79,27 @@ launch() {
 	echo "→ $kind arm · global harness store ($store_state): $PRIME_AGENT_GLOBAL_HARNESS_STATE_DIR" >&2
 	echo "→ $kind arm · local harness store root ($session_state): $local_root" >&2
 	echo "→ $kind arm · session dir ($session_state): $PRIME_AGENT_SESSION_DIR" >&2
+	# 넘길 인자를 **한 번만** 짓는다. dry 덤프도 exec 도 이 배열 하나를 쓴다 —
+	# 찍는 자리와 넘기는 자리를 따로 적으면 둘이 갈릴 수 있고, 그게 방금 고친
+	# 결함의 종류다(찍은 소켓과 쓴 소켓이 달랐다). 갈릴 자리를 없앤다.
+	#
+	# 모델 rail. DeepSeek 계정이 잔액 밑으로 내려가 양 팔 모두 402 를 받았고
+	# (2026-09-08 측정), GLG 가 Copilot rail 을 대신 열었다. --no-env 는
+	# COPILOT_GITHUB_TOKEN/GH_TOKEN/GITHUB_TOKEN 을 지우지만 Copilot 자격은
+	# agent-dir 의 auth store 에서 오므로 살아남는다 — 실측했다.
+	# **두 팔은 같은 모델이어야 한다.** 여기서 갈리면 비교가 성립하지 않는다.
+	local -a launch_args=(
+		--no-env --no-context-files --no-skills
+		--daemon-socket "$sock"
+		--model github-copilot/gemini-3.7-flash
+		"$@"
+	)
 	# 영수증만 찍고 서지 않는 모드 — launcher 계약을 무는 테스트가 쓴다.
-	# 띄울 프로세스가 실제로 받을 env 를 그대로 덤프한다: 찍은 경로와 넘기는
-	# 경로가 갈리면 그 자리에서 드러난다.
+	# 띄울 프로세스가 실제로 받을 env 와 argv 를 그대로 덤프한다: 찍은 것과
+	# 넘기는 것이 갈리면 그 자리에서 드러난다.
 	if [ -n "${PRIME_AGENT_RUN_SH_DRY:-}" ]; then
 		env | grep -E "^PRIME_AGENT_(GLOBAL_HARNESS_STATE_DIR|SESSION_DIR)=" | sed "s/^/receipt-env: /" >&2
+		printf 'receipt-argv: %s\n' "${launch_args[@]}" >&2
 		return 0
 	fi
 	# clojure 실행파일은 clojure arm 에만 건다. python arm 에서는 읽히지도
@@ -90,18 +107,9 @@ launch() {
 	if [ "$kind" = "clojure" ]; then
 		export PRIME_AGENT_CLOJURE_RUNTIME="$NATIVE_BIN"
 	fi
-	# 모델 rail. DeepSeek 계정이 잔액 밑으로 내려가 양 팔 모두 402 를 받았고
-	# (2026-09-08 측정), GLG 가 Copilot rail 을 대신 열었다. --no-env 는
-	# COPILOT_GITHUB_TOKEN/GH_TOKEN/GITHUB_TOKEN 을 지우지만 Copilot 자격은
-	# agent-dir 의 auth store 에서 오므로 살아남는다 — 실측했다.
-	# **두 팔은 같은 모델이어야 한다.** 여기서 갈리면 비교가 성립하지 않는다.
 	PRIME_AGENT_KERNEL_RUNTIME="$kind" \
 	DO_NOT_TRACK=1 \
-	exec "$ROOT/prime-agent.sh" \
-		--no-env --no-context-files --no-skills \
-		--daemon-socket "$sock" \
-		--model github-copilot/gemini-3.7-flash \
-		"$@"
+	exec "$ROOT/prime-agent.sh" "${launch_args[@]}"
 }
 
 usage() {

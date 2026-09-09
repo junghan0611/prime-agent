@@ -231,6 +231,18 @@ describe("launcher receipt — arm, global store, local store root", () => {
 		};
 	}
 
+	// The launcher dumps the argv it would exec, one token per line. The effective
+	// --daemon-socket is the last one, the same rule the CLI applies.
+	function effectiveArgvSocket(stderr: string): string | undefined {
+		const argv = [...stderr.matchAll(/^receipt-argv: (.*)$/gm)].map((match) => match[1]!);
+		let socket: string | undefined;
+		for (let index = 0; index < argv.length; index++) {
+			if (argv[index] === "--daemon-socket") socket = argv[index + 1];
+			else if (argv[index]?.startsWith("--daemon-socket=")) socket = argv[index]!.slice("--daemon-socket=".length);
+		}
+		return socket;
+	}
+
 	// execFileSync gives stdout; the launcher prints its receipt to stderr, so run it
 	// through a shell that folds stderr into stdout.
 	function dryLaunchStderr(arm: string, env: Record<string, string> = {}, args: readonly string[] = []): string {
@@ -299,13 +311,30 @@ describe("launcher receipt — arm, global store, local store root", () => {
 		// A caller may append its own --daemon-socket, and the CLI takes the last
 		// flag. If the receipt still names the launcher's own pick, every cell of a
 		// bench run prints a socket it never used.
-		const pinnedSocket = join(tempDir, "caller-pinned.sock");
-		const own = receiptPaths(dryLaunchStderr("py"));
-		const overridden = receiptPaths(dryLaunchStderr("py", {}, ["--daemon-socket", pinnedSocket]));
-		expect(own.socket).not.toBe(pinnedSocket);
-		expect(overridden.socket).toBe(pinnedSocket);
-		const equalsForm = receiptPaths(dryLaunchStderr("py", {}, [`--daemon-socket=${pinnedSocket}`]));
-		expect(equalsForm.socket).toBe(pinnedSocket);
+		// Two flags, not one: with a single caller flag a first-wins reading and a
+		// last-wins reading agree, so one flag cannot tell the launcher's rule from
+		// the CLI's. The CLI takes the last, so the receipt must too.
+		const firstSocket = join(tempDir, "caller-first.sock");
+		const lastSocket = join(tempDir, "caller-last.sock");
+		// With no caller flag at all, the argv the launcher injects must be the very
+		// path it printed. Without this the next assertions are masked: the caller's
+		// own flag lands last in argv, so it matches the printed line even if the
+		// launcher's own injected socket had drifted away from it.
+		const plain = dryLaunchStderr("py");
+		const own = receiptPaths(plain);
+		expect(own.socket).not.toBe(lastSocket);
+		expect(effectiveArgvSocket(plain)).toBe(own.socket);
+
+		const overridden = dryLaunchStderr("py", {}, ["--daemon-socket", firstSocket, "--daemon-socket", lastSocket]);
+		expect(receiptPaths(overridden).socket).toBe(lastSocket);
+		// And the printed line must be the argv the launcher would exec, not a
+		// second opinion about it — that split is what made the first bench run
+		// print eight sockets it never used.
+		expect(effectiveArgvSocket(overridden)).toBe(lastSocket);
+
+		const equalsForm = dryLaunchStderr("py", {}, [`--daemon-socket=${firstSocket}`, `--daemon-socket=${lastSocket}`]);
+		expect(receiptPaths(equalsForm).socket).toBe(lastSocket);
+		expect(effectiveArgvSocket(equalsForm)).toBe(lastSocket);
 	});
 
 	it("gives two launches of the same arm different stores", () => {
