@@ -191,3 +191,26 @@
         (is (= 400001 (count (get (first outs) "text"))) "the payload arrives entire")
         (is (= "big" (get (first outs) "id")))
         (is (= "ok" (get (h/one events "done") "status")))))))
+
+;; The oracle's twin (test_repl.py::ReplTest::test_large_buffer_write_survives_
+;; short_pipe_writes) writes 256 KiB through a binary proxy it wrote itself, so
+;; there the LOOP is the contract. This arm has no proxy -- output is batched at
+;; cell end and written by the JVM's stream. What is still reachable, and what
+;; the oracle actually asserts, is the observable: with the pipe full, every
+;; byte arrives. Row H1.23 next door pins framing under a reader that never
+;; stalls, so the pipe rarely fills; this one holds the reader back until the
+;; write is already blocked.
+(deftest a-large-write-survives-a-stalled-reader
+  (let [repl (h/start {:read-delay-ms 1500})]
+    (try
+      (h/send! repl {"type" "execute" "id" "back" "code" "(print (apply str (repeat 262144 \"x\")))"})
+      (let [events (h/until-done repl "back")
+            outs (filterv #(= "stdout" (get % "event")) events)
+            torn (h/first-torn-line repl)]
+        (is (nil? torn) (str "torn protocol line: " (pr-str torn)))
+        (is (= 1 (count outs)) "one batch flush, even through a full pipe")
+        (is (= 262144 (count (filter #(= \x %) (get (first outs) "text"))))
+            "every byte of the write arrives, not the first pipeful")
+        (is (= "back" (get (first outs) "id")))
+        (is (= "ok" (get (h/one events "done") "status"))))
+      (finally (h/close! repl)))))

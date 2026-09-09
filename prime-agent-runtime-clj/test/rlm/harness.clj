@@ -9,8 +9,11 @@
 (def ^:private eof ::eof)
 
 (defn start
+  "Start the SUT. :env adds to the inherited environment. :read-delay-ms holds
+  the drain thread back before its FIRST read, which lets the runtime's stdout
+  pipe fill -- the only way from out here to put a write under back pressure."
   ([] (start {}))
-  ([{:keys [env]}]
+  ([{:keys [env read-delay-ms]}]
    (let [pb (doto (ProcessBuilder. ^java.util.List (sut/command))
               (.redirectError ProcessBuilder$Redirect/INHERIT))
          _ (when (seq env)
@@ -21,6 +24,8 @@
          stdin (io/writer (.getOutputStream proc) :encoding "UTF-8")]
      (future
        (try
+         (when read-delay-ms
+           (Thread/sleep (long read-delay-ms)))
          (with-open [r (io/reader (.getInputStream proc) :encoding "UTF-8")]
            (doseq [line (line-seq r)]
              (.put q line)))
