@@ -86,7 +86,9 @@
 - **process-ownership** → `process-*` 취소 계약 재해석, H11 과 함께.
 - **MCP 프로토콜 경계 — 이제 추정이 아니라 실측이다**(2026-09-08). clj 셀이 `(host-request {:type "mcp.config" …})` 를 호스트 와이어에 올리는 것을 네이티브로 확인했다. 양쪽 다 안 막는다: `rlm/core.clj::host-request` 는 verb 검사가 없고, `agent-session.ts` 는 `mcpManager.hostHandlers()` 를 런타임 분기 없이 병합한다. 지금 환경에선 무해하지만(`{}` / throw) **범위 결정이 프로토콜로 강제돼 있지 않다.** 막을 자리가 호스트라 프리즈 → 자리만.
 
-## GLG 자리 셋 — 전부 한 줄
+## GLG 자리 — **BENCH-2 밖(장기)**
+
+**BENCH-2 를 막는 셋은 위 「GLG 결정 셋」에 있다.** 이 절은 그 밖의 장기 자리이고, 여기 것을 정해도 BENCH-2 는 안 풀린다. 번호 2·4 는 이미 집행·결정된 기록이라 취소선이다 — 살아 있는 것은 **1 과 3** 뿐이다.
 
 1. **in-process JVM 단위 표면** — parking 행 + finishing 전이. 오라클 쌍둥이가 모듈 import 화이트박스라 프로토콜로 못 몬다. 새 계측이라 에이전트가 못 연다. **H10 의 `test_module_harness_binds_lazily_to_env_set_after_import` 도 여기 걸린다** — 프로세스마다 새로 뜨는 SUT 는 자기 env 를 도중에 못 바꾼다.
 2. ~~**프리즈 국소 해제 (ii)**~~ — **담당자가 2026-09-08 에 ① 만 풀어서 집행했다** (`ebb8c2c1`, 3파일, 무는 test `harness-prompt-runtime-contract`, kill 4/4 강한 킬·예상 폐쇄 정확). **② 격리 seam 은 안 열었다** — pilot 전제이지 hands-on 전제가 아니라서. 되돌리려면 그 커밋 하나. 아래 절은 결정 당시 기록으로 남긴다. **근거가 하나 빠지고 하나 들어왔다**(2026-09-08): MCP 프롬프트 오염은 없음이 측정돼 빠졌고, **harness 블록의 Python call contract** 가 들어왔다 — 실재하고 상시다. 심볼은 `refinement.ts::formatHarnessStateForPrompt` 의 `includeIpythonExamples` 인자로, (ii) 가 이름 붙인 둘과 **다른 세 번째**다.
