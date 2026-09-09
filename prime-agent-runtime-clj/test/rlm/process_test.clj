@@ -471,3 +471,25 @@
         (is (= "1" (first lines)))
         (is (= "500" (last lines)))
         (is (= (mapv str (range 1 501)) (vec lines)) "and the order is the child order")))))
+
+(deftest polling-an-exited-process-again-only-reads
+  ;; Oracle twin: test_bash.py::BashTest::test_second_await_after_cancelled_oneshot_only_waits.
+  ;; There the FIRST await consumes a one-shot ownership and later awaits only
+  ;; wait, returning the same result. This arm has no await and no ownership to
+  ;; consume -- poll is a read. What is portable is what the oracle asserts:
+  ;; asking a second time returns the same terminal answer and takes nothing
+  ;; away, so the output is still there behind it.
+  (h/with-repl
+    (fn [repl _]
+      (eval-edn repl "r1" "(do (def h (process-start \"echo twice-h4; exit 7\")) :started)")
+      (let [first-snap (wait-exit repl "(process-poll h)")
+            second-snap (eval-edn repl "r2" "(process-poll h)")
+            third-snap (eval-edn repl "r3" "(process-poll \"p1\")")]
+        (is (= :exited (:status first-snap)))
+        (is (= 7 (:exit-code first-snap)))
+        (is (= first-snap second-snap) "a second poll is the same terminal answer, not a new one")
+        (is (= first-snap third-snap) "and the id alone reads the same entry"))
+      (testing "the reads took nothing away"
+        (is (= "twice-h4" (eval-edn repl "r4" "(process-tail h)")))
+        (is (some #(= "p1" (:process-id %)) (eval-edn repl "r5" "(process-list)"))
+            "the entry is still listed after being polled three times")))))
