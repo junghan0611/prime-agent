@@ -553,3 +553,86 @@
       (is (true? (eval-edn repl "rt7" "(harness-delete \"memory\" \"local:local_note\")")))
       (is (nil? (eval-edn repl "rt8" "(harness-get \"memory\" \"local_note\")"))
           "a local: prefixed delete removes the local entry"))))
+
+;; -- skills: arguments and reference are data -------------------------------
+
+(def ^:private clj-reference
+  ;; Deliberately NOT the oracle's PYTHON_REFERENCE. The oracle enforces
+  ;; reference.type == 'python'; this arm stores whatever shape the workspace
+  ;; hands it, because planting a Python call shape inside the Clojure arm is
+  ;; the leak this fork exists to measure.
+  "{\"type\" \"clojure\" \"var\" \"agent-skills.file-edit/edit-file\" \"call-pattern\" \"(edit-file {:path ... :find ... :replace ...})\"}")
+
+(deftest skill-arguments-and-reference-are-first-class-data
+  ;; oracle: HarnessStateTest::test_skill_arguments_are_first_class
+  ;; The oracle's last two assertions read overview(); in this arm the prompt
+  ;; block is rendered by the HOST from the file (refinement.ts
+  ;; loadHarnessState), so the same contract is read there instead -- the same
+  ;; split row H10.9 draws between the workspace value and the file.
+  (with-store
+    (fn [repl dir]
+      (let [created (eval-edn repl "sk1"
+                              (format (str "(harness-create \"skill\" \"Edit file\" \"Apply a targeted edit.\" "
+                                           "{:id \"edit_file\" :reference %s "
+                                           ":arguments {\"path\" {\"type\" \"string\" \"required\" true} "
+                                           "\"find\" {\"type\" \"string\" \"required\" true} "
+                                           "\"replace\" {\"type\" \"string\" \"required\" true}}})")
+                                      clj-reference))]
+        (is (true? (get-in created [:arguments "path" "required"])) "an argument spec survives as a nested map")
+        (is (= "clojure" (get-in created [:reference "type"])) "the reference is stored as the arm handed it over"))
+      (let [updated (eval-edn repl "sk2"
+                              (format (str "(harness-update \"skill\" \"edit_file\" \"Edit file\" "
+                                           "\"Apply a targeted edit after reading context.\" "
+                                           "{:reference %s "
+                                           ":arguments {\"path\" {\"type\" \"string\" \"required\" true} "
+                                           "\"find\" {\"type\" \"string\" \"required\" true} "
+                                           "\"replace\" {\"type\" \"string\" \"required\" true} "
+                                           "\"validate\" {\"type\" \"boolean\" \"default\" true}}})")
+                                      clj-reference))]
+        (is (= 2 (:version updated))))
+      (let [reloaded (eval-edn repl "sk3" "(harness-get \"skill\" \"edit_file\")")]
+        (is (true? (get-in reloaded [:arguments "validate" "default"])) "the added argument survives the round trip")
+        (is (= "agent-skills.file-edit/edit-file" (get-in reloaded [:reference "var"]))))
+      (let [text (slurp (state-file dir))]
+        ;; NOT "path": every entry carries a path field, so that string is
+        ;; satisfied by the grouping path and the assertion would not bite.
+        (is (str/includes? text "\"validate\"") "the file the host renders its prompt block from carries the argument names")
+        (is (str/includes? text "agent-skills.file-edit") "and the reference the arm chose, not a python import")))))
+
+(deftest an-update-that-omits-arguments-keeps-them-and-an-empty-map-clears-them
+  ;; oracle: HarnessStateTest::test_update_skill_preserves_omitted_arguments
+  (with-store
+    (fn [repl _]
+      (eval-edn repl "sa1"
+                (format (str "(harness-create \"skill\" \"Edit file\" \"Apply an edit.\" "
+                             "{:id \"edit_file\" :reference %s "
+                             ":arguments {\"path\" {\"type\" \"string\" \"required\" true}}})")
+                        clj-reference))
+      (eval-edn repl "sa2"
+                (format "(harness-update \"skill\" \"edit_file\" \"Edit file\" \"Apply an edit carefully.\" {:reference %s})"
+                        clj-reference))
+      (is (= {"path" {"type" "string" "required" true}}
+             (:arguments (eval-edn repl "sa3" "(harness-get \"skill\" \"edit_file\")")))
+          "omitting :arguments keeps the contract")
+      (eval-edn repl "sa4"
+                (format "(harness-update \"skill\" \"edit_file\" \"Edit file\" \"Now argument-free.\" {:reference %s :arguments {}})"
+                        clj-reference))
+      (is (= {} (:arguments (eval-edn repl "sa5" "(harness-get \"skill\" \"edit_file\")")))
+          "an explicit empty map still clears it"))))
+
+(deftest an-update-that-omits-the-reference-keeps-the-whole-contract
+  ;; oracle: HarnessStateTest::test_update_skill_without_reference_preserves_contract
+  (with-store
+    (fn [repl _]
+      (eval-edn repl "sr1"
+                (format (str "(harness-create \"skill\" \"Edit file\" \"Apply an edit.\" "
+                             "{:id \"edit_file\" :reference %s "
+                             ":arguments {\"path\" {\"type\" \"string\" \"required\" true}}})")
+                        clj-reference))
+      (let [updated (eval-edn repl "sr2" "(harness-update \"skill\" \"edit_file\" \"Edit file\" \"Apply an edit carefully.\")")]
+        (is (= 2 (:version updated)))
+        (is (= "Apply an edit carefully." (:content updated)))
+        (is (= "agent-skills.file-edit/edit-file" (get-in updated [:reference "var"]))
+            "a title/content-only update does not require re-sending the reference")
+        (is (= {"path" {"type" "string" "required" true}} (:arguments updated))
+            "and it does not silently drop the arguments")))))
