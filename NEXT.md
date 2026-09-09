@@ -23,9 +23,39 @@
 - [x] **2. H1–H8 재감사 Pass A(기계) · Pass B(GLG 범위 결정)** — 분모 게이트 `evals/coverage-denominator/`, 카드 대기 0, MCP out-of-scope(GLG).
 - [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
 - [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **양 팔이 서로 다른 fan-in 계약을 받은 것**이다(첫 영수증 「Python 팔은 아예 못 배웠다」 → 정정 「현저성」 → 검수 뒤 **「다른 계약」**): [read at `prompts/rlm.ts::buildSubagentGuidance`] python 가지는 **무조건** 「Have children write files and read those files for fan-in.」 를 가르치고, clj 가지는 그 자리에 `agent_message.send` 를 가르친다. `refinement.ts::formatHarnessStateForPrompt` 의 Call contract 는 양 팔 무조건이다. **Python 셀 4/4 가 파일로 간 것은 자기 프롬프트대로 한 것**이다. → **formal-receive 행(Q-R3·T-1.2) 은 양 팔 모두 `∅` 미결**이고 표도 그렇게 적었다. 교차검수(`xai/grok-4.6`)가 표의 FAIL 둘을 원자료로 되돌렸다 — 내 분석기가 턴의 **마지막** 텍스트 블록만 읽어 앞 블록의 답을 놓쳤다.
-- [ ] **5. Pass C(킬 집행) · Emmy/SICM** — 비교 뒤
+- [ ] **4.5 BENCH-2 앞 정리 — 세 자리 전부 GLG 결정 대기** ← CURRENT. 2026-09-09 오전에 **결정 없이 되는 것을 다 했다**(무료, 유료 호출 0): 소켓 영수증 test 를 강도까지 물게 고쳤고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5594998274), `3348b4b9`), run 1 에서 한 셀의 3턴을 먹은 크래시의 **기전을 재현**했고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595204721)), 아이 쪽 프롬프트 비대칭의 **크기를 쟀다**([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595236617), 표는 `evals/bench1/RESULTS.md` 부록). **남은 것은 전부 아래 「GLG 결정 셋」이고, 셋 다 BENCH-2 앞에 선다.**
+- [ ] **5. Pass C(킬 집행) · Emmy/SICM** — **여전히 「비교 뒤」다.** 비교(BENCH-2)가 결정 셋에 막혀 있으므로 5 도 막혀 있다. 이 순서를 앞당기지 않는다.
 
-현재 좌표: 1·2·3·4 완료(run 1 영수증 닫힘) → **다음은 fan-in 계약을 양 팔 대칭으로 할지 — 교란을 없애기 전에는 formal-receive 재측정을 하지 않는다** → 5 미개시.
+현재 좌표: 1·2·3·4 완료 → **4.5 에서 담당자가 열 수 있는 것은 바닥났다** → 5 는 4.5 뒤. **다음 한 수는 GLG 의 결정 셋 중 하나**이고, 그 전에는 BENCH-2 도 fan-in 대칭화도 열지 않는다.
+
+# GLG 결정 셋 — BENCH-2 앞에 선 것 전부, 한 자리에
+
+세 자리가 이슈 코멘트에 흩어져 있어서 여기 모은다. **본문은 좌표이고 영수증은 이슈다** — 숫자를 다시 유도하지 말고 링크를 열어라.
+
+## 결정 1 — formal-receive / fan-in 계약을 양 팔 대칭으로 할 것인가
+
+- **닫힌 것 (측정으로):** **`skills-on` 은 답이 아니다.** 켜면 대칭이 되는 게 아니라 **반대편으로 뒤집히고 격차가 넓어진다** — `agent_message.send` 등장 수가 clj parent 3 / child 5 그대로인데 python 이 5 / 7 로 올라가고, **python 전용 fan-in 파일 지시는 그대로 남는다**([측정](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595236617)). 선택지가 셋에서 **둘로 줄었다.**
+- **열린 것:** (2) 계약을 대칭화한다 · (3) formal-receive 행을 declared divergence 로 빼고 BENCH-2 를 그 행 없이 돌린다.
+- **(2)를 고르면 따라오는 것:** 자리가 하나가 아니라 **셋 한 묶음**이다 — `rlm.ts::buildRlmPrompt` 의 recursion 가지 · `rlm.ts::buildSubagentGuidance` 의 fan-in 줄 · `rlm.ts::buildChildAgentDoctrine`. **부모만 고치면 아이가 남는다**(아이 격차 3 > 부모 격차 1). **send 만 맞추면 python 전용 fan-in 지시가 남는다.** 셋 다 TS `src/` 라 프리즈 안이다.
+
+## 결정 2 — clj 팔이 쓰는 값과 호스트가 기대하는 값의 어긋남을 어느 층에서 막을 것인가
+
+- **닫힌 것 (재현으로):** run 1 에서 `pb-clojure-r2` 가 4턴 중 3턴을 잃은 원인이 확정됐다 — clj 팔이 harness content 로 **맵**을 저장했고(그 셀 유일, 나머지 3 셀은 전부 문자열), 다음 턴의 세션 생성이 `refinement.ts::compactText` 에서 `text.replace is not a function` 으로 죽었다([기전](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595204721)).
+  **증거 상태 구분을 뭉개지 않는다:** 「이 shape 이 이 메시지를 던진다」는 **무료 재현**이고, 「그날 그 줄에서 던졌다」는 재현 + 그 턴 **API 요청 0** + **셀 유일성**으로부터의 **강한 귀결**이지 재생이 아니다.
+- **왜 BENCH-2 앞인가:** 무작위 사고가 아니다. clj 팔 모델이 맵을 content 로 넘기면 재발하고, run 1 에서 그것이 **유료 예산의 12.5%** 를 데이터 없이 태웠다.
+- **열린 것 — 층이 셋:** (1) clj 쓰기 경로에서 거부 · (2) clj 쓰기 경로에서 문자열화 · (3) 호스트 `compactText` 가 비문자를 견딤. **(1)(2)는 측정 중인 팔의 행동을 바꾸고 (3)은 TS `src/` 프리즈 안이다.** 그래서 담당자가 고르지 않았다.
+- **덧붙은 사실:** clj 팔은 **자기가 못 읽을 것을 쓴다** — `harness_state.clj` 의 읽기 경로는 `(string? content)` 로 막고 주석까지 「오라클이 버릴 것이므로」라고 적혀 있는데, 쓰기 경로(`do-upsert`)에는 그 검사가 없다.
+
+## 결정 3 — BENCH-2 의 크기와 rail
+
+- **닫힌 것:** run 1 은 8 세션 · 28 턴 · 189 API 왕복 · **Copilot 프리미엄 81 요청**을 썼다. Copilot 은 돌아오는 쿼터가 아니라 **줄어드는 잔액**이다.
+- **열린 것:** 크기와 rail. **21:4x 의 「8 세션 가」는 run 1 승인이지 다음 런 승인이 아니다.** 비용 상한은 담당자가 정하지 않는다(Hard Rule 4).
+
+## 결정 1 과 2 는 **안 묶인다** — 묶지 말고 재고 낸 판정
+
+- **기전이 다르다.** 2 는 **런타임 값의 타입 계약**이고 **아무 층도 강제하지 않아서** 났다. 1 은 **프롬프트 텍스트**이고 각 자리가 `isClojureRuntime` 으로 **명시적으로 분기해 서로 다른 것을 가르친** 결과다. 「아무도 안 정했다」 대 「각자 따로 정했다」 — **고치는 손이 다르다.**
+- **기원은 하나다.** 둘 다 **팔별 차이를 어느 층이 소유하는지가 자리마다 따로 결정된 것**이다.
+- **그래서 결정은 둘로 유지한다.** 하나로 합치면 서로 다른 손을 한 결정에 묶는 것이라 오히려 비싸진다. 다만 순서는 같은 질문으로 정렬된다 — **「이 자리에서 팔별 차이를 소유하는 층은 어디인가.」**
 
 # NOW — 비교 준비
 

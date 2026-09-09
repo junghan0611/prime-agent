@@ -72,16 +72,36 @@ verdict: the receipt cannot separate `harness-gap` from `model-fumble` here,
 because a real confound exists and it is smaller than the observed split. The
 next run has to remove the confound before this row can be scored either way.
 
-**`harness-gap` — `pb-clojure-r2` lost three of four turns.** Turn 1 finished
-normally; turns 2–4 died before reaching the model with
-`Error: text.replace is not a function` from `daemon-errors.ts::deserializeDaemonError`,
-called out of `main.ts::createDaemonClientConnection` on reconnect. **The "so the
-daemon returned a non-string `error` field" inference is withdrawn** —
-`DaemonResponse.error` is typed `string` in `daemon-protocol.ts`, so that message
-is as likely to be the error string the daemon handed back. What holds is the
-part that matters: zero API requests on those turns, so nothing model-side, and
-the cell simply has no T-1.2–T-1.4 data. Whether turn 1's long 21-round-trip turn
-left the state that broke reconnect is a lead, not a finding.
+**`harness-gap` — `pb-clojure-r2` lost three of four turns, and the cause is now
+reproduced** (2026-09-09, no model calls; [receipt](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595204721)).
+Turn 1 finished normally; turns 2–4 died before reaching the model with
+`Error: text.replace is not a function`.
+
+The chain: the Clojure arm stored a harness entry whose `content` is a **map**,
+so it landed in `harness_state.json` as a JSON object. Across the four P-B cells
+that is unique to this one — the other three stored strings — and it is the only
+cell that crashed. Feeding that stored shape to
+`refinement.ts::formatHarnessStateForPrompt` throws exactly
+`text.replace is not a function` at `refinement.ts::compactText`, while the same
+entry with a string `content` does not throw. The daemon hits that while building
+the session prompt for a `create`, its failure response carries `error.message`
+across the wire, and the client rethrows it at
+`daemon-errors.ts::deserializeDaemonError` — which is why the stack top looked
+client-side, and why the turns that used `--continue` all died while turn 1 lived:
+the poisoned store persists.
+
+**Two evidence states, kept apart.** "This shape throws this message" is a
+**free reproduction**. "That process threw at that line that day" is a **strong
+consequence** of the reproduction plus zero API requests on those turns plus the
+cell being unique — it is not a replay; the daemon `create` was not re-run,
+because a run that did not crash would be a paid call.
+
+The arm also **writes what it refuses to read**: in
+`prime-agent-runtime-clj/src/rlm/harness_state.clj` the read path guards with
+`(string? content)` and its comment says the oracle would have dropped it, while
+the write path (`do-upsert`) stores `content` as given. Which layer should hold
+that line is `NEXT.md` 「GLG 결정 셋」 decision 2 — it is not the runner's call,
+because two of the three candidate fixes change the arm under measurement.
 
 **`model-fumble` — one cell, not three.** The first version of this section named
 three, and cross-review retired two of them against the raw turns.
@@ -107,7 +127,51 @@ more than either arm's score.
   while using their own, because the launcher printed its own pick and the caller
   appended a later `--daemon-socket` that the CLI took. Fixed in `run.sh` and bitten
   by `prints the socket the caller pinned, not the one it would have picked`.
+  That test was then found to prove scope but not strength — one caller flag cannot
+  tell first-wins from last-wins, and the dry mode returned before exec so nothing
+  held the printed line to the argv. Both closed 2026-09-09: the launcher builds the
+  exec argv once and dumps that, and the test passes two flags and requires the last
+  ([receipt](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5594998274)).
 - **No Python fallback on the Clojure arm** in any cell, and no prose-only pass
   scored as a pass.
 - **T-1.1's note create → read-back worked on both arms** — the one T-1 step this
   run actually settles.
+
+## Appendix — how loudly each arm is told about formal receive
+
+Measured 2026-09-09, free, by calling the exported prompt builders directly in
+the order `system-prompt.ts` assembles them, and counting occurrences
+([receipt](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595236617)).
+**This is a measurement of today's behaviour, not a contract.** It is deliberately
+not a named test: pinning it green would make the symmetry fix have to break a
+test first. If `NEXT.md` decision 1 is taken, this table becomes the expected
+values for that fix's gate.
+
+`agent_message.send` occurrences, skills-off — the BENCH-1 fixed factor:
+
+| runtime | role | rlmPrompt | subagentGuidance | childDoctrine | harnessBlock | send | fan-in |
+|---|---|---|---|---|---|---|---|
+| clojure | parent | 2 | 1 | 0 | 0 | **3** | 0 |
+| clojure | child | 3 | 1 | 1 | 0 | **5** | 0 |
+| python | parent | 0 | 0 | 0 | 2 | **2** | **1** |
+| python | child | 0 | 0 | 0 | 2 | **2** | **1** |
+
+Same counts with skills-on:
+
+| runtime | role | send | fan-in |
+|---|---|---|---|
+| clojure | parent | 3 | 0 |
+| clojure | child | 5 | 0 |
+| python | parent | **5** | **1** |
+| python | child | **7** | **1** |
+
+Three things this settles:
+
+1. **Skills-on does not symmetrise.** It inverts the gap and widens it, and the
+   Python-only fan-in instruction survives either way. That retires the "run both
+   arms skills-on" option, which would also have cost the BASELINE fixed factor.
+2. **The child gap is larger than the parent gap** (3 versus 1). Becoming a child
+   adds two mentions on the Clojure arm and none on the Python arm.
+3. **The Python side is never zero.** The child doctrine block alone is 1 versus
+   0, but the whole prompt is 5 versus 2 — the Python arm always hears the
+   contract twice from the harness block.
