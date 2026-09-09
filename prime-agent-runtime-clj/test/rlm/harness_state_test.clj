@@ -422,3 +422,134 @@
       (is (= "Written elsewhere."
              (:content (eval-edn repl "y2" "(harness-get \"memory\" \"dup\")")))
           "create-or-fail leaves the external entry intact"))))
+
+;; -- scope routing: which env dir owns which scope ---------------------------
+
+(defn- with-env
+  "Run f with [repl dir] against a runtime started with exactly this env on top
+  of the parent's. Nothing here sets RLM_HARNESS_STATE_DIR for you — these
+  scenarios are about which env var the runtime reaches for."
+  [env-fn f]
+  (let [dir (scratch!)
+        repl (h/start {:env (env-fn dir)})]
+    (try
+      (h/read-event repl)                                   ; ready
+      (f repl dir)
+      (finally
+        (h/close! repl)
+        (rm-rf! dir)))))
+
+(defn- apath
+  [& parts]
+  (.getAbsolutePath ^java.io.File (apply jio/file parts)))
+
+(deftest the-local-env-dir-is-the-local-store
+  ;; oracle: HarnessStateTest::test_default_state_uses_global_harness_env_dir
+  ;; (the name says global; the assertion is that a DEFAULT store resolves to
+  ;; RLM_HARNESS_STATE_DIR/harness_state.json.)
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "local")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "global")})
+    (fn [repl dir]
+      (eval-edn repl "le1" "(harness-create \"memory\" \"Session note\" \"local body\" {:id \"session_note\"})")
+      (is (= "local body"
+             (get-in (json/read-str (slurp (jio/file dir "local" "harness_state.json")))
+                     ["entries" "memory" "session_note" "content"]))
+          "a default write lands in RLM_HARNESS_STATE_DIR/harness_state.json")
+      (is (not (.exists (jio/file dir "global" "harness_state.json")))
+          "and the global env dir is untouched by a default write"))))
+
+(deftest a-global-write-lands-in-the-global-env-dir
+  ;; oracle: HarnessStateTest::test_global_scope_default_state_uses_global_harness_env_dir
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "local")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "global")})
+    (fn [repl dir]
+      (let [entry (eval-edn repl "ge1" "(harness-create \"memory\" \"Cross-session\" \"global body\" {:id \"cross\" :global true})")]
+        (is (= "global" (:scope entry))))
+      (is (= "global body"
+             (get-in (json/read-str (slurp (jio/file dir "global" "harness_state.json")))
+                     ["entries" "memory" "cross" "content"]))
+          "a :global write lands in RLM_GLOBAL_HARNESS_STATE_DIR, not the local one")
+      (is (not (.exists (jio/file dir "local" "harness_state.json")))
+          "the local store is not even created"))))
+
+(deftest default-scope-is-local-and-the-global-flag-routes-across
+  ;; oracle: HarnessStateTest::test_default_state_is_local_and_global_flag_targets_global_store
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "local")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "global")})
+    (fn [repl dir]
+      (is (= "local" (:scope (eval-edn repl "ds1" "(harness-create \"memory\" \"Local note\" \"only this session\" {:id \"local_note\"})"))))
+      (is (= "global" (:scope (eval-edn repl "ds2" "(harness-create \"memory\" \"Global note\" \"all sessions\" {:id \"global_note\" :global true})"))))
+      (let [local-mem (get-in (json/read-str (slurp (jio/file dir "local" "harness_state.json"))) ["entries" "memory"])
+            global-mem (get-in (json/read-str (slurp (jio/file dir "global" "harness_state.json"))) ["entries" "memory"])]
+        (is (= #{"local_note"} (set (keys local-mem))) "the local store holds only the local note")
+        (is (= #{"global_note"} (set (keys global-mem))) "the global store holds only the global note"))
+      (is (nil? (eval-edn repl "ds3" "(harness-get \"memory\" \"global_note\")"))
+          "a default read does not see the global entry")
+      (is (= "all sessions" (:content (eval-edn repl "ds4" "(harness-get \"memory\" \"global_note\" {:global true})")))
+          "and the same id read with :global true does"))))
+
+(deftest an-empty-or-blank-local-env-dir-is-unset
+  ;; oracle: HarnessStateTest::test_empty_local_state_dir_env_is_treated_as_unset
+  ;; Three runtimes, because a native process cannot rewrite its own env: an
+  ;; empty local dir must not fall through to the global default, a session dir
+  ;; is the documented fallback, and whitespace is unset too.
+  (testing "an empty local dir refuses rather than falling through to the global default"
+    (with-env
+      (fn [_] {"RLM_HARNESS_STATE_DIR" ""})
+      (fn [repl _]
+        (is (str/includes? (refused repl "ee1" "(harness-create \"memory\" \"Lost\" \"body\" {:id \"lost\"})")
+                           "Local harness state requires")))))
+  (testing "with a session dir it takes the session fallback"
+    (with-env
+      (fn [dir] {"RLM_HARNESS_STATE_DIR" "" "RLM_SESSION_DIR" (apath dir "session")})
+      (fn [repl dir]
+        (eval-edn repl "ee2" "(harness-create \"memory\" \"Session\" \"body\" {:id \"sess\"})")
+        (is (.exists (jio/file dir "session" "harness" "harness_state.json"))
+            "the session fallback is RLM_SESSION_DIR/harness/harness_state.json"))))
+  (testing "a whitespace-only session dir is unset too"
+    (with-env
+      (fn [_] {"RLM_HARNESS_STATE_DIR" "" "RLM_SESSION_DIR" "   "})
+      (fn [repl _]
+        (is (str/includes? (refused repl "ee3" "(harness-create \"memory\" \"Lost\" \"body\" {:id \"lost\"})")
+                           "Local harness state requires"))))))
+
+(deftest local-and-global-stay-distinct-when-they-share-one-file
+  ;; oracle: HarnessStateTest::test_state_cache_keeps_scope_distinct_when_local_and_global_share_a_file
+  ;; The oracle keys its cache on (path, scope) and asserts the two stores are
+  ;; not the same object. This arm has no object to hand a cell, so the same
+  ;; contract is observed where it matters: the scope each entry carries.
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "shared")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "shared")})
+    (fn [repl dir]
+      (is (= "local" (:scope (eval-edn repl "sh1" "(harness-create \"memory\" \"Local note\" \"only this session\" {:id \"local_note\"})"))))
+      (is (= "global" (:scope (eval-edn repl "sh2" "(harness-create \"memory\" \"Global note\" \"all sessions\" {:id \"global_note\" :global true})"))))
+      (let [mem (get-in (json/read-str (slurp (jio/file dir "shared" "harness_state.json"))) ["entries" "memory"])]
+        (is (= "local" (get-in mem ["local_note" "scope"])))
+        (is (= "global" (get-in mem ["global_note" "scope"]))
+            "one file, two scopes -- the global write did not clobber the local store"))
+      (is (= "only this session" (:content (eval-edn repl "sh3" "(harness-get \"memory\" \"local_note\")")))
+          "both entries survive the shared file"))))
+
+(deftest a-displayed-scope-prefix-round-trips-through-update-and-delete
+  ;; oracle: HarnessStateTest::test_scope_prefixed_ids_route_to_the_displayed_scope
+  ;; H10.11 covers create; this covers the rest of the round trip -- the id the
+  ;; host displays has to be usable on update, get and delete without :global.
+  (with-env
+    (fn [dir] {"RLM_HARNESS_STATE_DIR" (apath dir "local")
+               "RLM_GLOBAL_HARNESS_STATE_DIR" (apath dir "global")})
+    (fn [repl _]
+      (eval-edn repl "rt1" "(harness-create \"memory\" \"Global note\" \"v1\" {:id \"routed\" :global true})")
+      (is (= "global" (:scope (eval-edn repl "rt2" "(harness-update \"memory\" \"global:routed\" \"Global note\" \"v2\")")))
+          "a global: prefix carries the scope on update without :global true")
+      (is (= "v2" (:content (eval-edn repl "rt3" "(harness-get \"memory\" \"global:routed\")"))))
+      (is (nil? (eval-edn repl "rt4" "(harness-get \"memory\" \"routed\")"))
+          "the bare id still means the local store")
+      (eval-edn repl "rt5" "(harness-create \"memory\" \"Local note\" \"local\" {:id \"local_note\"})")
+      (is (= "local" (:content (eval-edn repl "rt6" "(harness-get \"memory\" \"local:local_note\")"))))
+      (is (true? (eval-edn repl "rt7" "(harness-delete \"memory\" \"local:local_note\")")))
+      (is (nil? (eval-edn repl "rt8" "(harness-get \"memory\" \"local_note\")"))
+          "a local: prefixed delete removes the local entry"))))
