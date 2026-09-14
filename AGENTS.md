@@ -85,7 +85,7 @@
 
 | 경로 | 무엇 |
 |---|---|
-| `run.sh` | **하나의 진입점** — 두 팔 띄우기(`clj`/`py`)와 재는 법(`test`/`test-native`/`lint`/`build`/`check`). 명령 문자열의 SSOT |
+| `run.sh` | **하나의 진입점** — 두 팔 띄우기(`clj`/`py`)·재는 법(`test`/`test-native`/`lint`/`build`/`check`)·**정리**(`tidy`/`daemons`/`reap`). 명령 문자열의 SSOT |
 | `prime-agent-runtime-clj/` | Clojure/SCI workspace + native-image 빌드 + native SUT |
 | `prime-agent-runtime/` | Python workspace — **oracle**, 유지 |
 | `packages/coding-agent/src/core/kernel/runtime.ts` | 런타임 선택과 실행파일 해석 |
@@ -99,10 +99,13 @@
 | `docs/clojure-runtime.md` | **Clojure 런타임 계약서** — 알려진 편차, "코드를 읽어야만 알던 것" |
 | `NEXT.md` | 지금 좌표와 다음 한 걸음 (2026-09-02 에 `NEXT--feat_clojure-runtime.md` 를 승격) |
 | `.github/workflows/clojure-runtime.yml` | clojure 축 CI (clj-kondo lint 전용) |
+| `.claude/skills/prime-agent/SKILL.md` | **오퍼레이터 스킬** — 이 문서가 front-load 못 하는 운영 반사신경(자기수선 루틴·daemon 수명·유료 축 사고). `.pi/settings.json` 으로 pi 도 같은 파일을 읽는다 |
 | `prime-agent-runtime-clj/test/rlm/sut.clj` | native SUT 게이트 (native 아니면 throw) |
 
 ## Working Style
 
+- **세션을 열고 닫을 때 `./run.sh tidy` 를 한 번씩 돈다.** 이 리포의 팔은 **클라이언트보다 오래 산다** — detached supervisor 에 idle timeout 이 없다(`packages/coding-agent/docs/daemon.md` 「Resident Workers」). 거두지 않으면 영원히 남는다: 2026-09-08 의 BENCH-1 런과 smoke 가 supervisor+worker **30 프로세스를 6 일간** 남겼다(2026-09-15 oracle 측정, RSS 4634 MiB · PSS 3188 MiB, 15 개 전부 `sessions=0`). `tidy` 는 **세션이 붙은 daemon 을 멈추지 않는다**(`daemon-ps.ts` 의 `planReap` 이 `sessionCount` 로 거르고 `reapReachableDaemon` 이 재확인한다). 왜·무엇이 안전한지는 오퍼레이터 스킬 §3.
+- **띄운 것은 띄운 쪽이 거둔다.** 새 eval 러너를 만들면 `evals/bench1/run.sh` 의 `stop_cell_daemon` / `sweep_run_daemons` 짝을 붙인다. 소켓 하나만 겨냥하는 공개 동사는 없다 — `shutdown` 은 `runShutdownAll` 이라 머신 전체를 가져간다.
 - **수술적 변경, 한 번에 한 계약.** 이 변경이 clojure 팔인지, 호스트 중립층인지, Python 팔인지 먼저 정한다. Python 팔은 기본적으로 건드리지 않는다.
 - **코드를 읽는 것은 계약과 테스트 위치를 찾을 때까지다.** 품질 평가는 이 포크의 일이 아니다.
 - **탭을 쓴다** — TS 는 `biome.json` 이 탭이다. **`.clj` 는 예외로 공백**이고 clj-kondo 는 들여쓰기를 잡지 않는다. 그 밖에는 파일/린터의 기존 스타일을 따른다.

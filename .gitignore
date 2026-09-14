@@ -16,7 +16,12 @@ packages/*/dist-firefox/
 .vscode/
 .zed/
 .idea/
-.claude/
+# .claude 는 통째 무시하되 repo-scoped 스킬(.claude/skills/)만 추적한다.
+# **fork-specific divergence** — 상류는 .claude/ 를 통째로 무시한다. 이 포크는
+# 오퍼레이터 스킬을 리포 안에 두고 두 하네스(Claude Code 네이티브 · pi 의
+# .pi/settings.json)가 같은 파일을 읽게 한다.
+/.claude/*
+!/.claude/skills/
 *.swp
 *.swo
 *~
