@@ -112,6 +112,83 @@ launch() {
 	exec "$ROOT/prime-agent.sh" "${launch_args[@]}"
 }
 
+# ── 정리 면 ───────────────────────────────────────────────────────────────
+#
+# 팔은 클라이언트가 끝나도 산다. 그것은 버그가 아니라 계약이다
+# (packages/coding-agent/docs/daemon.md 「Resident Workers」:
+# "Closing the TUI detaches the client; it does not stop the worker.")
+# idle timeout 이 없으므로 **누군가 거두지 않으면 영원히 남는다.** 2026-09-08 의
+# BENCH-1 런과 smoke 가 그렇게 supervisor+worker 30 프로세스를 6 일간 남겼다
+# (2026-09-15 oracle 측정: RSS 4634 MiB · PSS 3188 MiB).
+#
+# 여기 있는 것은 **새 기계가 아니다.** 상류가 이미 가진 자기수선 동사
+# (public-command.ts 의 runDoctor / runShutdown)를 이 리포의 입구에 올린 것이다.
+
+# 상류 doctor 가 못 보는 자리를 훑는다.
+#
+# `doctor` 의 발견 경로는 셋이다(daemon-ps.ts 의 discoverDaemons):
+# 살아 있는 listener · `scanSocketDir()` · 추적 중인 worker. 이 중 파일만 보는
+# `scanSocketDir()` 는 **default 소켓 디렉터리의 바로 아래 한 층만** 읽는다
+# (defaultDaemonSocketDir, 재귀 없음). 그런데 이 리포는 격리를 위해 소켓을
+# `$SOCK_DIR` 아래 **하위 디렉터리**에 판다. 그래서 여기서 daemon 이 죽으면
+# 남은 소켓 파일은 doctor 에게 보이지 않는다 — 우리가 훑는다.
+# 살아 있는 listener 가 붙은 소켓은 건드리지 않는다.
+sweep_stale_sockets() {
+	[ -d "$SOCK_DIR" ] || return 0
+	local sock n=0
+	while IFS= read -r sock; do
+		[ -n "$sock" ] || continue
+		if ss -xl 2>/dev/null | grep -qF " $sock "; then
+			continue
+		fi
+		rm -f "$sock"
+		n=$((n + 1))
+		echo "  stale socket 제거: $sock" >&2
+	done <<-EOF
+		$(find "$SOCK_DIR" -type s 2>/dev/null)
+	EOF
+	[ "$n" -eq 0 ] && echo "  stale socket 없음" >&2
+	return 0
+}
+
+# idle daemon 을 거둔다.
+#
+# 무엇이 안전한가: **세션이 붙은 daemon 은 멈추지 않는다** — planReap 이
+# sessionCount 로 거르고, reapReachableDaemon 이 멈추기 직전에 다시 확인한다.
+# 그러니 형제가 쓰는 중인 팔은 이 명령으로 죽지 않는다.
+#
+# 왜 --all 이 따로 있나: `doctor --fix` 는 **default socket 을 일부러 건너뛴다**
+# (planReap 의 `isDefault` 가드). 거기까지 거두려면 `shutdown` 이 필요하고,
+# 그것은 runShutdownAll 이라 **이 머신의 모든 daemon** 을 겨냥한다. 소켓 하나만
+# 겨냥하는 공개 동사는 없다. 그래서 default 는 기본이 아니라 --all 뒤에 둔다.
+reap() {
+	local all=false
+	case "${1:-}" in
+		--all) all=true; shift ;;
+		"") ;;
+		*) die "모르는 인자: $1   (./run.sh reap [--all])" ;;
+	esac
+	[ $# -eq 0 ] || die "모르는 인자: $1   (./run.sh reap [--all])"
+	"$ROOT/prime-agent.sh" doctor --fix --json
+	if [ "$all" = true ]; then
+		"$ROOT/prime-agent.sh" shutdown --force --json
+	fi
+}
+
+# 세션 시작·끝에 한 번 도는 자기수선 루틴. 눈 감고 불러도 되게 만든 것이다:
+# 읽고 → 거두고 → 죽은 소켓을 훑고 → 다시 읽는다. 끝 상태가 화면에 남는 것이
+# 요점이다. 남은 것이 있으면 그건 살아 있어서 남은 것이고, 이유가 같이 찍힌다.
+tidy() {
+	[ $# -eq 0 ] || die "tidy 는 인자를 받지 않는다   (./run.sh help)"
+	echo "— 들어올 때 —" >&2
+	"$ROOT/prime-agent.sh" status
+	echo "— 거둔다 —" >&2
+	reap
+	sweep_stale_sockets
+	echo "— 남은 것 —" >&2
+	"$ROOT/prime-agent.sh" status
+}
+
 usage() {
 	cat <<'USAGE'
 prime-agent fork — ./run.sh <cmd> [args]
@@ -132,6 +209,13 @@ prime-agent fork — ./run.sh <cmd> [args]
     lint          clj-kondo — CI 가 clojure 축에서 도는 유일한 것
     check         npm run check. 코드 변경 뒤 의무
 
+  정리 — 팔은 클라이언트가 끝나도 살아남는다. 거두지 않으면 영원히 남는다
+    tidy          **세션 시작·끝의 자기수선 루틴.** 읽고·거두고·죽은 소켓을 훑고
+                  다시 읽는다. 눈 감고 불러도 되게 만들었다
+    daemons       지금 떠 있는 daemon 을 읽기만 한다
+    reap [--all]  idle daemon 을 멈춘다. --all 은 default socket 까지 (이 머신 전체).
+                  세션이 붙은 daemon 은 어느 쪽도 건드리지 않는다
+
 USAGE
 }
 
@@ -150,6 +234,10 @@ case "$CMD" in
 	test-native) need_native; cd "$RUNTIME_CLJ"; exec clojure -M:test ;;
 	lint)        cd "$RUNTIME_CLJ"; exec clj-kondo --fail-level warning --lint src test ;;
 	check)       exec npm run check ;;
+
+	tidy)        tidy "$@" ;;
+	daemons)     exec "$ROOT/prime-agent.sh" status ;;
+	reap)        reap "$@" ;;
 
 	help|-h|--help) usage ;;
 	*) die "모르는 명령: $CMD   (./run.sh help)" ;;
