@@ -6,7 +6,7 @@
 **GLG 방향 (2026-09-02 밤):** 더 짓기보다 **마무리** — Python 팔 MCP-없는 시나리오를 검증하고, 벤치마크 시나리오를 잡아 양팔 비교를 준비한다.
 빈 곳(parity 잔량)은 그 준비를 위해 채워온 것이니 **남은 것을 채워가며 닫는다.** 새 아이디어(Emmy·steering·Emacs)는 비교 뒤.
 
-계약: `docs/clojure-runtime.md`. 판: [issue #1](https://github.com/junghan0611/prime-agent/issues/1). 범위·방향: [issue #2](https://github.com/junghan0611/prime-agent/issues/2).
+계약: `docs/clojure-runtime.md`. **현재 레인의 판: [issue #3](https://github.com/junghan0611/prime-agent/issues/3) — upstream 동기화.** 이식·커버리지 영수증: [issue #1](https://github.com/junghan0611/prime-agent/issues/1) (`state:parked`, 닫지 않는다). 범위·방향: [issue #2](https://github.com/junghan0611/prime-agent/issues/2) (closed).
 
 # COMPASS — Entwurf #88
 
@@ -24,11 +24,12 @@
 - [x] **3. 비교 준비 — 빈 곳 채우기 + MCP-off 검증 + 벤치 시나리오** — ①·②·③ 닫힘(parity 61 → 54). 미결이던 GLG 결정 둘을 **담당자가 되돌릴 수 있게 내렸다**(2026-09-08, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5584824300)): 프롬프트 누출은 **풀어서 고쳤고**(`ebb8c2c1`), `overview()` 는 **declared divergence**(`67386acf`). **GLG 확정 2026-09-08 21:4x** — 「A 유지, B 유지」(B 가 직접 들음, 이 세션에 상속). 되돌림 지점은 그대로 그 커밋 둘
 - [x] **4. 유료 pilot — BENCH-1 run 1 이 돌았다** (2026-09-08 밤). rail 을 GLG 결정으로 **Copilot** 으로 갈았고(`github-copilot/gemini-3.7-flash`, 양 팔 동일), **8 세션 · 28 턴 · 189 API 요청 · Copilot 프리미엄 81 요청**을 썼다. 결과·분류는 `evals/bench1/RESULTS.md` 와 이슈 영수증. **HISTORY(DeepSeek)와 직접 비교되지 않는다 — declared divergence.** 헤드라인은 모델 차이가 아니라 **양 팔이 서로 다른 fan-in 계약을 받은 것**이다(첫 영수증 「Python 팔은 아예 못 배웠다」 → 정정 「현저성」 → 검수 뒤 **「다른 계약」**): [read at `prompts/rlm.ts::buildSubagentGuidance`] python 가지는 **무조건** 「Have children write files and read those files for fan-in.」 를 가르치고, clj 가지는 그 자리에 `agent_message.send` 를 가르친다. `refinement.ts::formatHarnessStateForPrompt` 의 Call contract 는 양 팔 무조건이다. **Python 셀 4/4 가 파일로 간 것은 자기 프롬프트대로 한 것**이다. → **formal-receive 행(Q-R3·T-1.2) 은 양 팔 모두 `∅` 미결**이고 표도 그렇게 적었다. 교차검수(`xai/grok-4.6`)가 표의 FAIL 둘을 원자료로 되돌렸다 — 내 분석기가 턴의 **마지막** 텍스트 블록만 읽어 앞 블록의 답을 놓쳤다.
 - [ ] **4.5 BENCH-2 앞 정리 — 세 자리 전부 GLG 결정 대기** ← PAUSED: GLG 결정 셋 대기. 2026-09-09 오전에 **결정 없이 되는 것을 다 했다**(무료, 유료 호출 0): 소켓 영수증 test 를 강도까지 물게 고쳤고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5594998274), `3348b4b9`), run 1 에서 한 셀의 3턴을 먹은 크래시의 **기전을 재현**했고([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595204721)), 아이 쪽 프롬프트 비대칭의 **크기를 쟀다**([영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5595236617), 표는 `evals/bench1/RESULTS.md` 부록). **남은 것은 전부 아래 「GLG 결정 셋」이고, 셋 다 BENCH-2 앞에 선다.**
-- [ ] **5. Lisp 커버리지 마무리 — GLG 가 앉는 면만** ← CURRENT. **2026-09-09 저녁에 판이 하나로 접혔다**(GLG → grok → 이 세션으로 전달, GLG 직접 발화 아님 · 이 줄은 상속이고 미확인이다): 질문 1·2·3·4 를 다시 열지 말고, **Python 런타임을 Lisp 로 옮기고 GLG 가 실제로 앉는 면의 커버리지를 얻어 닫는다.** MCP · subagent · daemon · Emmy 는 뺀다. 아이디어는 그 뒤다.
+- [x] **5. Lisp 커버리지 마무리 — GLG 가 앉는 면만** — **닫혔다**(코디네이터 grok, 2026-09-09 저녁, [영수증](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5601161027)). **2026-09-09 저녁에 판이 하나로 접혔다**(GLG → grok → 이 세션으로 전달, GLG 직접 발화 아님 · 이 줄은 상속이고 미확인이다): 질문 1·2·3·4 를 다시 열지 말고, **Python 런타임을 Lisp 로 옮기고 GLG 가 실제로 앉는 면의 커버리지를 얻어 닫는다.** MCP · subagent · daemon · Emmy 는 뺀다. 아이디어는 그 뒤다.
   그날 저녁 진척(전부 무료, 유료 호출 0): 게이트 ① `(c)` **10 → 5**(남은 4 + subagent 1 은 OUT), 게이트 ② parity **53 → 32**, H10 **26 → 4**, native SUT **107 → 122 tests**. 커밋 9개, **푸시 안 됨**.
+- [ ] **7. upstream 동기화 — 다음 레인, 착수 전** ← **NEXT (아직 시작하지 않는다 — GLG, 2026-09-15)**. 상류가 19일 만에 189 커밋을 흘렸고 **더 두면 삽질이 커진다.** 결정 1·2 를 먼저 고치면 그 diff 를 동기화 때 한 번 더 옮겨야 하므로 **순서가 뒤집힌다 — 동기화가 앞이다.** 격차는 **다 쟀고**(아래 「upstream 격차」·[issue #3](https://github.com/junghan0611/prime-agent/issues/3)), **손은 대지 않았다.**
 - [ ] **6. Pass C(킬 집행) · Emmy/SICM** — **여전히 「비교 뒤」다.** 비교(BENCH-2)가 결정 셋에 막혀 있으므로 6 도 막혀 있다. 이 순서를 앞당기지 않는다.
 
-현재 좌표: 1·2·3·4 완료 → **5 진행 중**(GLG 가 접은 하나의 기준) → 4.5 는 GLG 결정 셋에 막혀 PAUSED → 6 은 그 뒤. **4.5 의 결정 셋은 그대로 살아 있다** — BENCH-2 도 fan-in 대칭화도 열지 않는다.
+현재 좌표: 1·2·3·4·5 완료 → **진행 중인 레인 없음** → 다음은 **7(upstream 동기화), 아직 착수 전** → 그 뒤에 4.5 의 GLG 결정 셋 → BENCH-2 → 6. **4.5 의 결정 셋은 그대로 살아 있다** — 다만 이제 **동기화 뒤**다.
 
 # GLG 결정 셋 — BENCH-2 앞에 선 것 전부, 한 자리에
 
@@ -60,18 +61,73 @@
 - **기원은 하나다.** 둘 다 **팔별 차이를 어느 층이 소유하는지가 자리마다 따로 결정된 것**이다.
 - **그래서 결정은 둘로 유지한다.** 하나로 합치면 서로 다른 손을 한 결정에 묶는 것이라 오히려 비싸진다. 다만 순서는 같은 질문으로 정렬된다 — **「이 자리에서 팔별 차이를 소유하는 층은 어디인가.」**
 
-# NOW — Lisp 커버리지 마무리 (RAIL 5)
+# NOW — 없다. 다음 레인은 upstream 동기화 (RAIL 7)
 
-- **Current:** 게이트 ① `(c)` **5**(bash 4 + subagent 1) · 게이트 ② parity **32**(H9=16 H10=4 H11=11 H12=1) · native SUT **122 tests / 0 fail** · `lint` 0/0 · `npm run check` exit 0 · TS `repl-kernel-clojure-runtime` **14/14**. 커밋 **10개(상속 `e694454b` 포함), 푸시 안 됨**(origin 은 `186dc13b`).
-- **Next:** **앉는 면은 닫혔다. 코드 레인은 없다.** 남은 것은 GLG 의 푸시 결정뿐이다.
-- **문 셋은 코디네이터(grok, 2026-09-09 저녁)가 전부 닫았다 — 다시 올리지 마라:**
-  (1) **in-memory 3행 · `test_skill_references_must_be_python` = OUT.** 집행됐다 — 카드는 그대로 두고 행만 `(a)`, 영수증 [issue #1](https://github.com/junghan0611/prime-agent/issues/1#issuecomment-5601161027). parity 35 → **32**, H10 7 → **4**.
-  (2) **`overview()` 행-단위 declared-divergence 메커니즘 — 열지 않는다.** 2026-09-08 declared divergence 그대로, 그 3행 `D`, 크레딧 0.
-  (3) **`rlm.process/snapshot` 의 `:status` 가 그룹이 아니라 리더를 본다 — 열지 않는다.** `H4.D1` 이 이미 declared-divergence 이고 watcher / `kill -0 -pgid` 는 새 기계라 금지다. 게이트 ① 에 남은 bash 3행의 in-process 패치 seam 도 GLG 자리 1이라 안 연다.
-- **남은 H10 4행이 무엇인지(다시 유도하지 마라):** `overview()` 에 막힌 3(`test_persists_entries_and_refinements` · `test_load_ignores_unknown_json_keys` · `test_module_harness_without_env_raises_on_local_writes_and_reads_work`) + import 뒤 env 변경 1(`test_module_harness_binds_lazily_to_env_set_after_import`, in-process). 넷 다 위 (2)·(3) 문 뒤에 있다.
-- **Blocker:** 없음(환경/권한). 코드로 열 수 있는 것이 없다.
-- **Read:** `evals/coverage-denominator/check.py` 상단 주석(판정 어휘) → `manifest.tsv` 의 해당 행 evidence(이제 전부 최신) → `docs/clojure-runtime.md` 「코드를 읽어야만 알던 것」 9(새로 들어온 native/JVM 편차).
-- **Do not touch:** parking · H11 daemon · H12 detached display · BENCH-2 · fan-in 대칭화 · Pass C. `registry.tsv` 의 **card status** 는 decision receipt 없이 바꾸지 않는다(게이트 hard-fail). Q1–Q5 와 위 문 셋을 다시 메뉴로 올리지 않는다.
+**착수하지 않는다 (GLG, 2026-09-15).** 오늘 한 것은 **정찰과 좌표 고정까지**다 — 격차를 재고, 이 문서와 [issue #3](https://github.com/junghan0611/prime-agent/issues/3) 에 남겼다. **merge 도 브랜치도 만들지 않았다.**
+
+**GLG 지시 (2026-09-15):** main·upstream 최신을 검토해 우리 쪽에 반영하는 것이 선행. 더 멀어지면 삽질이 커진다.
+레인을 열 때는 **master 에서 새 브랜치로 간다** — 이 레인만 예외이고, 브랜치 NEXT 는 `NEXT--<branch>.md`.
+
+**재개 지점:** 아래 「이 레인의 다음 한 걸음」 1번(GLG 의 프리즈 예외 명명). 그 전에는 아무것도 시작하지 않는다.
+**여기 적힌 수치는 2026-09-15 측정값이고 상류는 계속 움직인다** — 레인을 열 때 `upstream/main` 을 다시 fetch 해서 다시 재라. 이 표를 그때의 사실로 읽지 마라.
+
+## upstream 격차 — 전부 2026-09-15 oracle 에서 측정
+
+`upstream` remote 를 새로 달아 쟀다(`https://github.com/PrimeIntellect-ai/prime-agent.git`).
+
+- **fork point `bc0fa7606`** (2026-08-26, upstream PR #1698) → **upstream 최신 `f5859162c`** (2026-09-14, PR #2331). **19일 · 189 커밋.**
+- **`origin/main`(`80bf72c8`)은 낡았다** — upstream mirror 인데 upstream 을 안 따라갔다. 동기화 기준은 `origin/main` 이 아니라 `upstream/main` 이다.
+- 우리가 만진 파일 104 · upstream 이 만진 파일 756 · **겹친 파일 29.**
+- **실제 dry merge 결과(임시 worktree, 본 트리 무손상): 충돌 파일 14 · 충돌 hunk 38 · 자동 병합 742 파일 (+80631 / −12281).**
+
+**가장 중요한 것 — 우리 앵커 심볼이 하나도 안 사라졌다.** `compactText` · `getGlobalHarnessStateDir` · `formatHarnessStateForPrompt` · `buildRlmPrompt` · `buildSubagentGuidance` · `buildChildAgentDoctrine` · `hasIpython` · `getSessionArtifactsRoot` · `collectDaemonLaunchEnv` · `defaultDaemonSocketPath` · `planReap` **전부 upstream 에 살아 있다.** `agentMessageAnnouncedToModel` 과 `kernelRuntimeSupportsStateOps` 는 **fork point 에 없었다 = 우리가 추가한 것**이라 충돌이 아니다. `core/kernel/runtime.ts` 는 통째로 우리 파일(`7d509e75e`). 포크 전용 자산(`prime-agent-runtime-clj/` · `run.sh` · `evals/` · `docs/clojure-runtime.md` · `AGENTS.md` · `NEXT.md` · clj TS 계약)은 dry merge 뒤에도 전부 남았다.
+
+### 충돌 hunk 분포 (여기서 측정)
+
+| 파일 | hunk | 우리 변경 | upstream 변경 |
+|---|---|---|---|
+| `core/kernel/repl-manager.ts` | 8 | 41+26 | 580+105 |
+| `core/agent-session.ts` | 7 | 54+6 | **2293+454** |
+| `test/agent-session-recursion.test.ts` | 7 | — | — |
+| `core/refinement/refinement.ts` | 3 | 50+11 | 260+77 |
+| `core/agent-session-services.ts` · `core/system-prompt.ts` · `test/suite/agent-session-prompt.test.ts` | 2 각 | 작음 | 작음 |
+| `core/prompts/rlm.ts` · `core/rlm-runtime.ts` · `core/sdk.ts` · `core/tools/ipython.ts` · `modes/daemon/daemon-mode.ts` · `test/repl-kernel-shutdown.test.ts` · `test/suite/harness.ts` | 1 각 | — | `daemon-mode.ts` 는 upstream **1449+666** (사실상 재작성) |
+
+`rlm.ts` 만 **우리가 더 많이 바꾼 파일**(우리 91+12 vs upstream 22+11)이고 hunk 는 1이다 — 결정 1의 세 자리가 거기 산다.
+
+### 상류 최신 중 우리 레일에 직접 걸리는 것 (제목에서 읽음, 내용 미확인)
+
+- `[RSI] Fail fast on CLI flags with missing or invalid values (#2216)` — **`run.sh` 의 인자 주입과 오늘 발견한 「하위명령을 뒤에 두면 프롬프트로 읽힌다」에 걸린다.**
+- `[RSI] Persistent SupervisorLink for cross-worker requests (#2242)` — daemon 층.
+- `prioritize human messages ahead of queued agent traffic (#2334)` — agent message 순서. **결정 1(formal-receive) 레일과 겹칠 수 있다.**
+- `revert the mcp service catalog merge (#2327)` — MCP 범위 결정의 전제가 움직였을 수 있다.
+
+### 프리즈와의 관계 — 먼저 풀 것
+
+「TS 17파일을 열지 않는다」는 **H1 미닫힘 때문의 동결**이다. 그런데 동기화는 그 중 일부(`agent-session-recursion` · `repl-kernel-shutdown` · `suite/agent-session-prompt` · `suite/harness`)에 **충돌 해소를 강제한다.** 이것은 새 계측이 아니라 **상류 변경을 받아들이는 일**이지만, **프리즈 문면이 그렇게 말하지 않는다.** 레인을 열기 전에 GLG 가 이 예외를 이름 붙여야 한다.
+
+## DeepSeek rail — 잔액은 돌아왔고, 이름이 바뀌었다
+
+- **잔액(여기서 측정, 2026-09-15): `is_available: true` · `$247.76`.** 2026-09-08 의 `-1.42 USD` · `false` 와 대비.
+- **DeepSeek 이 지금 서빙하는 것은 둘뿐(여기서 측정, `GET /models`): `deepseek-v4-pro` · `deepseek-flash`.**
+- **벤더 공지(외부 산출물에서 읽음 — deepseek.com/en/news/deepseek-v4-1-flash/, 2026-09-10 게시):** V4.1-Flash 는 552B MoE Causal Encoder–Decoder(입력 8B / 출력 16B active), **API 모델명은 `deepseek-flash`**. `deepseek-v4-flash` 계열은 은퇴하고 호환 라우팅. **2026-09-14 04:00 UTC 부터 `deepseek-v4-pro` 요청이 전부 V4.1-Flash 로, V4.1-Flash 요금으로 라우팅된다** — V4.1-Pro 나올 때까지. V4-Pro 는 단계적 폐지.
+- **그래서 프로바이더를 안 고쳐도 BENCH-2 는 돈다.** 카탈로그에서 **직접 `api.deepseek.com` 으로 가는 id 는 정확히 둘**(여기서 측정): `deepseek-v4-flash` · `deepseek-v4-pro`. **`deepseek/` 접두사가 붙은 15개는 전부 `provider: "openrouter"` 다** — 그쪽으로 보내면 GLG 의 OpenRouter 개인 레일을 태운다. 접두사 유무가 레일을 가른다.
+- ⚠️ **영수증이 거짓말을 한다.** `deepseek-v4-pro` 로 보낸 요청의 응답 `model` 필드가 **`deepseek-v4-pro` 를 그대로 되돌려준다**(여기서 측정, 9-14 라우팅 시행 이후). 영수증만으로는 V4-Pro 인지 V4.1-Flash 인지 **구별할 수 없다.** 카탈로그의 `deepseek-v4-pro` 엔트리도 옛 가격·컨텍스트를 들고 있어 **비용 추정이 틀린다.** `deepseek-flash` 라는 id 는 우리 카탈로그에도 **upstream 카탈로그에도 없다.**
+- ⚠️ **둘 다 reasoning 모델이고 reasoning 토큰을 크게 쓴다**(여기서 측정). "네 모델 이름이 뭐냐" 한 줄에 `deepseek-flash` 는 completion 323 중 **307 이 reasoning**, `deepseek-v4-pro` 는 **600 을 전부 reasoning 에 써서 답을 못 냈다.** BENCH-1 의 Copilot 요청-수 기준 비용 감각이 **여기선 안 통한다.**
+- ⚠️ **`--no-env` 는 DeepSeek 을 끊지 못한다**(여기서 측정). `prime-agent.sh` 의 unset 목록에 `DEEPSEEK_API_KEY` 가 **0회**인데 `env-api-keys.ts::getApiKeyEnvVars` 는 `deepseek → DEEPSEEK_API_KEY` 로 매핑한다. Copilot 이 `auth.json` 으로 새는 것과 **다른 경로**다 — 격리 영수증에 따로 적어야 한다.
+- rail 을 갈 자리는 둘: `run.sh::launch` 의 `launch_args` 고정 `--model`, `evals/bench1/run.sh` 의 `MODEL`(`BENCH1_MODEL` env 로 덮임).
+
+## 이 레인의 다음 한 걸음 (레인을 열 때)
+
+0. **`upstream/main` 을 다시 fetch 해서 격차를 다시 잰다.** 위 표는 2026-09-15 스냅샷이다.
+1. **GLG 가 프리즈 예외를 이름 붙인다** (위 「프리즈와의 관계」). 그 전에는 충돌 해소를 시작하지 않는다.
+2. 새 브랜치를 딴다(master `5e4bcdb8` 기준). `NEXT--<branch>.md` 를 만든다.
+3. 상류 189 커밋 중 **우리 레일에 걸리는 넷**(#2216 · #2242 · #2334 · #2327)을 먼저 읽고 영향 범위를 이슈에 적는다.
+4. merge 를 실제로 수행하고 **hunk 38 을 파일 단위로** 해소한다. 각 해소는 「상류 것을 받는다 / 우리 것을 지킨다 / 둘을 합친다」 중 하나로 이슈에 기록한다.
+5. 게이트·native SUT·clj TS 계약을 **동기화 전 값과 대조한다** — 동기화 전 기준선: `parity-target 32 (H9=16 H10=4 H11=11 H12=1)` · 게이트① `(c) 5` · native SUT `122 tests / 0 fail` · `repl-kernel-clojure-runtime 14/14` · `lint 0/0` · `npm run check` exit 0 (2026-09-15 재측정, 09-09 값과 동일).
+6. 그 뒤에야 4.5 의 GLG 결정 셋 → BENCH-2.
+
+**Blocker:** 1번(프리즈 예외 명명). **Do not touch:** 동기화 중에 결정 1·2 를 같이 고치지 않는다 — 섞으면 어느 변경이 회귀를 냈는지 못 가른다.
 
 **역할 (GLG, 2026-09-02):** 설계자 = fable(claude-code) · 실무 = opus(entwurf ACP). 실무는 설계자 요청으로 움직이고, GLG 판단은 설계자를 거쳐 올린다. 영수증은 세션에 묵히지 않고 이슈에 즉시.
 
